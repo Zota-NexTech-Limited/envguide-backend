@@ -1,0 +1,56 @@
+{
+  "name": "envguide-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build-main": "tsc",
+    "build": "npm run build-main && npm run copy-uploads",
+    "copy-uploads": "xcopy src\\uploads dist\\uploads /E /I /Y",
+    "start-main": "node --es-module-specifier-resolution=node dist/server.js",
+    "install-all": "npm install",
+    "start": "npm run install-all && npm run build-main && node ./postbuild.js && npm run start-main"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zota-NexTech-Limited/envguide-backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Zota-NexTech-Limited/envguide-backend/issues"
+  },
+  "homepage": "https://github.com/Zota-NexTech-Limited/envguide-backend#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "fs": "^0.0.1-security",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^7.0.5",
+    "path": "^0.12.7",
+    "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0",
+    "ulid": "^3.0.1",
+    "url": "^0.11.4"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.9.36",
+    "@types/bcrypt": "^6.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/dotenv": "^6.1.1",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/nodemailer": "^7.0.1",
+    "@types/pg": "^8.15.5",
+    "@types/qrcode": "^1.5.5",
+    "@types/socket.io": "^3.0.1",
+    "@types/speakeasy": "^2.0.10",
+    "typescript": "^5.9.2"
+  }
+}
