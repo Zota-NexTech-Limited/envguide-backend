@@ -211,6 +211,124 @@ export async function createTables() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+        `CREATE TABLE IF NOT EXISTS own_emission (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            reporting_period_from DATE,
+            reporting_period_to DATE,
+            calculation_method_id VARCHAR(255), 
+            fuel_combustion_id VARCHAR(255), 
+            fuel_combustion_value VARCHAR(255),
+            process_emission_id VARCHAR(255),
+            process_emission_value VARCHAR(255),
+            fugitive_emission_id VARCHAR(255),
+            fugitive_emission_value VARCHAR(255),
+            electicity_location_based_id VARCHAR(255), 
+            electicity_location_based_value VARCHAR(255),
+            electicity_market_based_id VARCHAR(255),
+            electicity_market_based_value VARCHAR(255),
+            steam_heat_cooling_id VARCHAR(255),
+            steam_heat_cooling_value VARCHAR(255),
+            additional_notes TEXT,    
+            supporting_document_ids VARCHAR(255)[],   
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS own_emission_supporting_document (
+            id VARCHAR(255) PRIMARY KEY,
+            own_emission_id VARCHAR(255),      
+            document text,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS own_emission_supporting_team (
+            id VARCHAR(255) PRIMARY KEY,
+            full_name VARCHAR(255),      
+            phone_number VARCHAR(255), 
+            email_address VARCHAR(255), 
+            message text,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        //   ==========>Data Setup tables<============
+        `CREATE TABLE IF NOT EXISTS calculation_method (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS fuel_combustion (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS process_emission (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS fugitive_emission (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS electicity_location_based (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS electicity_market_based (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS steam_heat_cooling (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        //   ==========>Data Setup tables end<============
     ]
 
     try {
