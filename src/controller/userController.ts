@@ -9,7 +9,6 @@ import * as dotenv from 'dotenv';
 import transporter from '../util/nodemailer'
 import { getLocalIP } from '../server';
 import { getModuleSetting } from './heplerController';
-//import * as userService from '../service/userService'
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 
