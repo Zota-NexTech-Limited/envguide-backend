@@ -7,12 +7,25 @@ export async function addCalculationMethod(req: any, res: any) {
         const { code, name, description } = req.body;
         const id = ulid();
 
-        const checkCodeExists = await client.query(
-            `SELECT * FROM calculation_method WHERE code ILIKE $1;`,
-            [code]
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM calculation_method 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
         );
-        if (checkCodeExists.rows.length > 0) {
-            return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
         }
 
         const query = `
@@ -170,12 +183,25 @@ export async function addFuelCombustion(req: any, res: any) {
         const { code, name, description } = req.body;
         const id = ulid();
 
-        const checkCodeExists = await client.query(
-            `SELECT * FROM fuel_combustion WHERE code ILIKE $1;`,
-            [code]
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM fuel_combustion 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
         );
-        if (checkCodeExists.rows.length > 0) {
-            return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
         }
 
         const query = `
@@ -334,12 +360,25 @@ export async function addProcessEmission(req: any, res: any) {
         const { code, name, description } = req.body;
         const id = ulid();
 
-        const checkCodeExists = await client.query(
-            `SELECT * FROM process_emission WHERE code ILIKE $1;`,
-            [code]
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM process_emission 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
         );
-        if (checkCodeExists.rows.length > 0) {
-            return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
         }
 
         const query = `
@@ -497,12 +536,26 @@ export async function addFugitiveEmission(req: any, res: any) {
         const { code, name, description } = req.body;
         const id = ulid();
 
-        const checkCodeExists = await client.query(
-            `SELECT * FROM fugitive_emission WHERE code ILIKE $1;`,
-            [code]
+
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM fugitive_emission 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
         );
-        if (checkCodeExists.rows.length > 0) {
-            return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
         }
 
         const query = `
@@ -660,12 +713,25 @@ export async function addElectricityLocationBased(req: any, res: any) {
         const { code, name, description } = req.body;
         const id = ulid();
 
-        const checkCodeExists = await client.query(
-            `SELECT * FROM electicity_location_based WHERE code ILIKE $1;`,
-            [code]
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM electicity_location_based 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
         );
-        if (checkCodeExists.rows.length > 0) {
-            return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
         }
 
         const query = `
@@ -823,12 +889,25 @@ export async function addElectricityMarketBased(req: any, res: any) {
         const { code, name, description } = req.body;
         const id = ulid();
 
-        const checkCodeExists = await client.query(
-            `SELECT * FROM electicity_market_based WHERE code ILIKE $1;`,
-            [code]
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM electicity_market_based 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
         );
-        if (checkCodeExists.rows.length > 0) {
-            return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
         }
 
         const query = `
@@ -986,12 +1065,25 @@ export async function addSteamHeatCooling(req: any, res: any) {
         const { code, name, description } = req.body;
         const id = ulid();
 
-        const checkCodeExists = await client.query(
-            `SELECT * FROM steam_heat_cooling WHERE code ILIKE $1;`,
-            [code]
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM steam_heat_cooling 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
         );
-        if (checkCodeExists.rows.length > 0) {
-            return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
         }
 
         const query = `
@@ -1025,7 +1117,7 @@ export async function updateSteamHeatCooling(req: any, res: any) {
 
         for (let item of updatingData) {
             const columnValuePairs = Object.entries(item)
-                .filter(([columnName]) => columnName !== "id") 
+                .filter(([columnName]) => columnName !== "id")
                 .map(([columnName], index) => `${columnName} = $${index + 1}`)
                 .join(', ');
 
