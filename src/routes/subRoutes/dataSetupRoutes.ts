@@ -58,4 +58,37 @@ Routes.post('/api/data-setup/steam-heat-cooling/bulk/add', authService.authentic
 Routes.post('/api/data-setup/steam-heat-cooling/delete', authService.authenticate, Controller.deleteSteamHeatCooling);
 Routes.get('/api/data-setup/steam-heat-cooling/list', authService.authenticate, Controller.getSteamHeatCooling);
 
+// product type
+Routes.post('/api/data-setup/product-type/add', authService.authenticate, Controller.addProductType);
+Routes.post('/api/data-setup/product-type/update', authService.authenticate, Controller.updateProductType);
+Routes.get('/api/data-setup/product-type/list/search', authService.authenticate, Controller.getProductTypeList);
+Routes.post('/api/data-setup/product-type/bulk/add', authService.authenticate, Controller.ProductTypeDataSetup);
+Routes.post('/api/data-setup/product-type/delete', authService.authenticate, Controller.deleteProductType);
+Routes.get('/api/data-setup/product-type/list', authService.authenticate, Controller.getProductType);
+
+
+// product category
+Routes.post('/api/data-setup/product-category/add', authService.authenticate, Controller.addProductCategory);
+Routes.post('/api/data-setup/product-category/update', authService.authenticate, Controller.updateProductCategory);
+Routes.get('/api/data-setup/product-category/list/search', authService.authenticate, Controller.getProductCategoryList);
+Routes.post('/api/data-setup/product-category/bulk/add', authService.authenticate, Controller.ProductCategoryDataSetup);
+Routes.post('/api/data-setup/product-category/delete', authService.authenticate, Controller.deleteProductCategory);
+Routes.get('/api/data-setup/product-category/list', authService.authenticate, Controller.getProductCategory);
+
+// product sub category
+Routes.post('/api/data-setup/product-sub-category/add', authService.authenticate, Controller.addProductSubCategory);
+Routes.post('/api/data-setup/product-sub-category/update', authService.authenticate, Controller.updateProductSubCategory);
+Routes.get('/api/data-setup/product-sub-category/list/search', authService.authenticate, Controller.getProductSubCategoryList);
+Routes.post('/api/data-setup/product-sub-category/bulk/add', authService.authenticate, Controller.ProductSubCategoryDataSetup);
+Routes.post('/api/data-setup/product-sub-category/delete', authService.authenticate, Controller.deleteProductSubCategory);
+Routes.get('/api/data-setup/product-sub-category/list', authService.authenticate, Controller.getProductSubCategory);
+
+// Component Type
+Routes.post('/api/data-setup/component-type/add', authService.authenticate, Controller.addComponentType);
+Routes.post('/api/data-setup/component-type/update', authService.authenticate, Controller.updateComponentType);
+Routes.get('/api/data-setup/component-type/list/search', authService.authenticate, Controller.getComponentTypeList);
+Routes.post('/api/data-setup/component-type/bulk/add', authService.authenticate, Controller.ComponentTypeDataSetup);
+Routes.post('/api/data-setup/component-type/delete', authService.authenticate, Controller.deleteComponentType);
+Routes.get('/api/data-setup/component-type/list', authService.authenticate, Controller.getComponentType);
+
 export default Routes;
