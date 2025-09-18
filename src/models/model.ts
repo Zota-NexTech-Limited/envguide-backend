@@ -1,4 +1,6 @@
-import client from "../util/database";
+// import client from "../util/database";
+
+import { withClient } from '../util/database';
 
 export async function createTables() {
     const createTableQueries = [
@@ -411,18 +413,36 @@ export async function createTables() {
         //   ==========>Data Setup tables end<============
     ]
 
-    try {
+    // try {
 
-        var queryGlobal
-        for (const query of createTableQueries) {
-            queryGlobal = query
-            const tables = await client.query(query);
+    //     var queryGlobal
+    //     for (const query of createTableQueries) {
+    //         queryGlobal = query
+    //         const tables = await client.query(query);
+    //     }
+
+    //     console.log("Tables created successfully");
+
+    // } catch (error) {
+    //     console.log("Executing query:", queryGlobal);
+    //     console.error("Error creating tables:", error);
+    // }
+    return withClient(async (client: any) => {
+        try {
+
+            var query1
+            for (const query of createTableQueries) {
+                query1 = query
+                //   console.log("Executing query:", query);
+                const tables = await client.query(query);
+                //   console.log(tables.rows,query)
+            }
+
+            console.log("Tables created successfully");
+
+        } catch (error) {
+            console.log("Executing query:", query1);
+            console.error("Error creating tables:", error);
         }
-
-        console.log("Tables created successfully");
-
-    } catch (error) {
-        console.log("Executing query:", queryGlobal);
-        console.error("Error creating tables:", error);
-    }
+    })
 }

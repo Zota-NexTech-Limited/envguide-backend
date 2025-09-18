@@ -369,7 +369,7 @@ export async function getUserPermissionById(req: any, res: any) {
 
             // Group permissions by main module name
             const groupedPermissions: any = {};
-            permissions.forEach(permission => {
+            permissions.forEach((permission: any) => {
                 const mainModuleName = permission.main_module_name;
                 if (!groupedPermissions[mainModuleName]) {
                     groupedPermissions[mainModuleName] = [];
@@ -378,8 +378,8 @@ export async function getUserPermissionById(req: any, res: any) {
             });
 
             // Construct the response array
-            const response = [];
-            const settingItems = [];
+            const response: any = [];
+            const settingItems: any = [];
 
             for (const mainModuleName in groupedPermissions) {
                 const permissionsForModule = groupedPermissions[mainModuleName];
@@ -442,7 +442,7 @@ export async function getUserPermissionById(req: any, res: any) {
             );
         }
     } catch (error: any) {
-        return res.status(400).send(generateResponse(false, error.message, 400, null));
+        return res.status(400).send(generateResponse(false, error, 400, null));
     }
 }
 

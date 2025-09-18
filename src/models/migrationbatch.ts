@@ -1,4 +1,5 @@
-import client from "../util/database";
+// import client from "../util/database";
+import { withClient } from '../util/database';
 
 export async function mirgation() {
     const createTableQueries: any = [
@@ -417,15 +418,32 @@ export async function mirgation() {
         //   ==========>Data Setup tables end<============
     ]
 
-    try {
-        var queryGlobal
-        for (const query of createTableQueries) {
-            queryGlobal = query
-            const tables = await client.query(query);
-        }
+    // try {
+    //     var queryGlobal
+    //     for (const query of createTableQueries) {
+    //         queryGlobal = query
+    //         const tables = await client.query(query);
+    //     }
 
-        console.log("Tables created successfully");
-    } catch (error) {
-        console.error("Error creating tables:", error, queryGlobal);
-    }
+    //     console.log("Tables created successfully");
+    // } catch (error) {
+    //     console.error("Error creating tables:", error, queryGlobal);
+    // }
+
+    return withClient(async (client: any) => {
+        try {
+            var query22
+            for (const query of createTableQueries) {
+                //  console.log(query)
+                query22 = query
+                const tables = await client.query(query);
+                // console.log(tables.rows,query)
+            }
+
+            console.log("Tables created successfully");
+        } catch (error) {
+            console.error("Error creating tables:", error);
+            // console.error("Error creating tables:", error);
+        }
+    })
 }
