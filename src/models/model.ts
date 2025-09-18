@@ -259,117 +259,154 @@ export async function createTables() {
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
   );`,
         `CREATE TABLE IF NOT EXISTS fuel_combustion (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_fuel_combustion_code_name UNIQUE (code, name)
   );`,
         `CREATE TABLE IF NOT EXISTS process_emission (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_process_emission_code_name UNIQUE (code, name)
   );`,
         `CREATE TABLE IF NOT EXISTS fugitive_emission (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_fugitive_emission_code_name UNIQUE (code, name)
   );`,
         `CREATE TABLE IF NOT EXISTS electicity_location_based (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_electicity_location_based_code_name UNIQUE (code, name)
   );`,
         `CREATE TABLE IF NOT EXISTS electicity_market_based (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_electicity_market_based_code_name UNIQUE (code, name)
   );`,
         `CREATE TABLE IF NOT EXISTS steam_heat_cooling (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_steam_heat_cooling_code_name UNIQUE (code, name)
   );`,
 
         `CREATE TABLE IF NOT EXISTS product_type (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_product_type_code_name UNIQUE (code, name)
   );`,
 
         `CREATE TABLE IF NOT EXISTS product_category (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_product_category_code_name UNIQUE (code, name)
   );`,
 
         `CREATE TABLE IF NOT EXISTS product_sub_category (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_product_sub_category_code_name UNIQUE (code, name)
   );`,
 
         `CREATE TABLE IF NOT EXISTS component_type (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
-            name VARCHAR(255),       
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
             description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_component_type_code_name UNIQUE (code, name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS component_category (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_component_category_code UNIQUE (code),
+            CONSTRAINT uq_component_category_name UNIQUE (name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS industry (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_industry_code UNIQUE (code),
+            CONSTRAINT uq_industry_name UNIQUE (name)
   );`,
         //   ==========>Data Setup tables end<============
     ]

@@ -91,4 +91,20 @@ Routes.post('/api/data-setup/component-type/bulk/add', authService.authenticate,
 Routes.post('/api/data-setup/component-type/delete', authService.authenticate, Controller.deleteComponentType);
 Routes.get('/api/data-setup/component-type/list', authService.authenticate, Controller.getComponentType);
 
+// Component Category
+Routes.post('/api/data-setup/component-category/add', authService.authenticate, Controller.addComponentCategory);
+Routes.post('/api/data-setup/component-category/update', authService.authenticate, Controller.updateComponentCategory);
+Routes.get('/api/data-setup/component-category/list/search', authService.authenticate, Controller.getComponentCategoryList);
+Routes.post('/api/data-setup/component-category/bulk/add', authService.authenticate, Controller.ComponentCategoryDataSetup);
+Routes.post('/api/data-setup/component-category/delete', authService.authenticate, Controller.deleteComponentCategory);
+Routes.get('/api/data-setup/component-category/list', authService.authenticate, Controller.getComponentCategory);
+
+// Industry
+Routes.post('/api/data-setup/industry/add', authService.authenticate, Controller.addIndustry);
+Routes.post('/api/data-setup/industry/update', authService.authenticate, Controller.updateIndustry);
+Routes.get('/api/data-setup/industry/list/search', authService.authenticate, Controller.getIndustryList);
+Routes.post('/api/data-setup/industry/bulk/add', authService.authenticate, Controller.IndustryDataSetup);
+Routes.post('/api/data-setup/industry/delete', authService.authenticate, Controller.deleteIndustry);
+Routes.get('/api/data-setup/industry/list', authService.authenticate, Controller.getIndustry);
+
 export default Routes;

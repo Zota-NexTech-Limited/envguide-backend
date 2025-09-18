@@ -1938,3 +1938,355 @@ export async function deleteComponentType(req: any, res: any) {
         return res.send(generateResponse(false, error.message, 400, null));
     }
 }
+
+// Component Category
+export async function addComponentCategory(req: any, res: any) {
+    try {
+        const { code, name, description } = req.body;
+        const id = ulid();
+
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM component_category 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
+        );
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
+        }
+
+        const query = `
+            INSERT INTO component_category (id, code, name, description)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *;
+        `;
+        const result = await client.query(query, [id, code, name, description]);
+
+        return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function getComponentCategory(req: any, res: any) {
+    try {
+        const query = `SELECT id, code, name, description FROM component_category;`;
+        const result = await client.query(query);
+
+        return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function updateComponentCategory(req: any, res: any) {
+    try {
+        const updatingData = req.body;
+        let updatedRows: any[] = [];
+
+        for (let item of updatingData) {
+            const columnValuePairs = Object.entries(item)
+                .filter(([columnName]) => columnName !== "id")
+                .map(([columnName], index) => `${columnName} = $${index + 1}`)
+                .join(', ');
+
+            const values = Object.entries(item)
+                .filter(([columnName]) => columnName !== "id")
+                .map(([_, value]) => value);
+
+            const query = `
+                UPDATE component_category
+                SET ${columnValuePairs}, update_date = NOW()
+                WHERE id = $${values.length + 1}
+                RETURNING *;
+            `;
+            const result = await client.query(query, [...values, item.id]);
+
+            if (result.rows.length > 0) {
+                updatedRows.push(result.rows[0]);
+            }
+        }
+
+        return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function getComponentCategoryList(req: any, res: any) {
+    try {
+        const { searchValue } = req.query;
+
+        let whereClause = '';
+        let orderByClause = 'ORDER BY i.created_date ASC';
+
+        if (searchValue) {
+            whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+        }
+
+        const listQuery = `
+            SELECT i.* 
+            FROM component_category i
+            WHERE 1=1 ${whereClause}
+            GROUP BY i.id
+            ${orderByClause};
+        `;
+
+        const countQuery = `
+            SELECT COUNT(*) 
+            FROM component_category i
+            WHERE 1=1 ${whereClause};
+        `;
+
+        const values = searchValue ? [`%${searchValue}%`] : [];
+        const totalCount = await client.query(countQuery, values);
+        const listResult = await client.query(listQuery, values);
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: totalCount.rows[0].count,
+            list: listResult.rows
+        }));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function ComponentCategoryDataSetup(req: any, res: any) {
+    try {
+        const obj = req.body;
+
+        if (!Array.isArray(obj) || obj.length === 0) {
+            return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+        }
+
+        const finalData = obj.map((item: any) => ({
+            id: ulid(),
+            code: item.code,
+            name: item.name,
+            description: item.description,
+            created_by: item.created_by,
+            updated_by: item.updated_by
+        }));
+
+        const columns = Object.keys(finalData[0]);
+        const values: any[] = [];
+        const placeholders: string[] = [];
+
+        finalData.forEach((row, rowIndex) => {
+            const rowValues = Object.values(row);
+            values.push(...rowValues);
+            const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+            placeholders.push(`(${placeholder.join(', ')})`);
+        });
+
+        const insertQuery = `
+            INSERT INTO component_category (${columns.join(', ')})
+            VALUES ${placeholders.join(', ')}
+            RETURNING *;
+        `;
+
+        const result = await client.query(insertQuery, values);
+        return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+    } catch (error: any) {
+        return res.status(500).send(generateResponse(false, error.message, 500, null));
+    }
+}
+
+export async function deleteComponentCategory(req: any, res: any) {
+    try {
+        const { id } = req.body;
+        const query = `DELETE FROM component_category WHERE id = $1;`;
+        await client.query(query, [id]);
+
+        return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+// Industry
+export async function addIndustry(req: any, res: any) {
+    try {
+        const { code, name, description } = req.body;
+        const id = ulid();
+
+        const checkExists = await client.query(
+            `SELECT * 
+             FROM industry 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+            [code, name]
+        );
+
+        if (checkExists.rows.length > 0) {
+            const existing = checkExists.rows[0];
+            if (existing.code.toLowerCase() === code.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Code is already used", 400, null));
+            }
+            if (existing.name.toLowerCase() === name.toLowerCase()) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name is already used", 400, null));
+            }
+        }
+
+        const query = `
+            INSERT INTO industry (id, code, name, description)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *;
+        `;
+        const result = await client.query(query, [id, code, name, description]);
+
+        return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function getIndustry(req: any, res: any) {
+    try {
+        const query = `SELECT id, code, name, description FROM industry;`;
+        const result = await client.query(query);
+
+        return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function updateIndustry(req: any, res: any) {
+    try {
+        const updatingData = req.body;
+        let updatedRows: any[] = [];
+
+        for (let item of updatingData) {
+            const columnValuePairs = Object.entries(item)
+                .filter(([columnName]) => columnName !== "id")
+                .map(([columnName], index) => `${columnName} = $${index + 1}`)
+                .join(', ');
+
+            const values = Object.entries(item)
+                .filter(([columnName]) => columnName !== "id")
+                .map(([_, value]) => value);
+
+            const query = `
+                UPDATE industry
+                SET ${columnValuePairs}, update_date = NOW()
+                WHERE id = $${values.length + 1}
+                RETURNING *;
+            `;
+            const result = await client.query(query, [...values, item.id]);
+
+            if (result.rows.length > 0) {
+                updatedRows.push(result.rows[0]);
+            }
+        }
+
+        return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function getIndustryList(req: any, res: any) {
+    try {
+        const { searchValue } = req.query;
+
+        let whereClause = '';
+        let orderByClause = 'ORDER BY i.created_date ASC';
+
+        if (searchValue) {
+            whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+        }
+
+        const listQuery = `
+            SELECT i.* 
+            FROM industry i
+            WHERE 1=1 ${whereClause}
+            GROUP BY i.id
+            ${orderByClause};
+        `;
+
+        const countQuery = `
+            SELECT COUNT(*) 
+            FROM industry i
+            WHERE 1=1 ${whereClause};
+        `;
+
+        const values = searchValue ? [`%${searchValue}%`] : [];
+        const totalCount = await client.query(countQuery, values);
+        const listResult = await client.query(listQuery, values);
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: totalCount.rows[0].count,
+            list: listResult.rows
+        }));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function IndustryDataSetup(req: any, res: any) {
+    try {
+        const obj = req.body;
+
+        if (!Array.isArray(obj) || obj.length === 0) {
+            return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+        }
+
+        const finalData = obj.map((item: any) => ({
+            id: ulid(),
+            code: item.code,
+            name: item.name,
+            description: item.description,
+            created_by: item.created_by,
+            updated_by: item.updated_by
+        }));
+
+        const columns = Object.keys(finalData[0]);
+        const values: any[] = [];
+        const placeholders: string[] = [];
+
+        finalData.forEach((row, rowIndex) => {
+            const rowValues = Object.values(row);
+            values.push(...rowValues);
+            const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+            placeholders.push(`(${placeholder.join(', ')})`);
+        });
+
+        const insertQuery = `
+            INSERT INTO industry (${columns.join(', ')})
+            VALUES ${placeholders.join(', ')}
+            RETURNING *;
+        `;
+
+        const result = await client.query(insertQuery, values);
+        return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+    } catch (error: any) {
+        return res.status(500).send(generateResponse(false, error.message, 500, null));
+    }
+}
+
+export async function deleteIndustry(req: any, res: any) {
+    try {
+        const { id } = req.body;
+        const query = `DELETE FROM industry WHERE id = $1;`;
+        await client.query(query, [id]);
+
+        return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+    } catch (error: any) {
+        return res.send(generateResponse(false, error.message, 400, null));
+    }
+}
