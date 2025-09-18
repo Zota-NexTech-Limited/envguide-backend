@@ -13,6 +13,26 @@ const pool = new Pool({
   connectionTimeoutMillis: 8000,
 });
 
-const client = await pool.connect();
+// const client = await pool.connect();
+// export default client;
 
-export default client;
+pool.on('connect', () => {
+  console.log('Connected to the database');
+});
+
+pool.on('error', (err) => {
+  console.error('Error connecting to the database:', err);
+});
+
+export async function withClient(callback: (client: any) => Promise<any>) {
+  let client;
+  try {
+    client = await pool.connect();
+    return await callback(client);
+  } catch (error: any) {
+    throw new Error(error.message || String(error));
+  } finally {
+    if (client) client.release();
+  }
+}
+
