@@ -263,6 +263,25 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        `CREATE TABLE IF NOT EXISTS document_master (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),
+            document_type VARCHAR(255),      
+            category VARCHAR(255), 
+            product_code VARCHAR(255), 
+            version VARCHAR(255), 
+            document_title VARCHAR(255), 
+            description text,
+            tags VARCHAR(255)[], 
+            access_level VARCHAR(255), 
+            document text[],
+            status VARCHAR(255) DEFAULT 'Pending', 
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            file_size VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
