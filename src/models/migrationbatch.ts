@@ -263,6 +263,25 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        `CREATE TABLE IF NOT EXISTS document_master (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),
+            document_type VARCHAR(255),      
+            category VARCHAR(255), 
+            product_code VARCHAR(255), 
+            version VARCHAR(255), 
+            document_title VARCHAR(255), 
+            description text,
+            tags VARCHAR(255)[], 
+            access_level VARCHAR(255), 
+            document text[],
+            status VARCHAR(255) DEFAULT 'Pending', 
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            file_size VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
@@ -414,6 +433,32 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT uq_industry_code UNIQUE (code),
             CONSTRAINT uq_industry_name UNIQUE (name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS category (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_category_code UNIQUE (code),
+            CONSTRAINT uq_category_name UNIQUE (name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS tag (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_tag_code UNIQUE (code),
+            CONSTRAINT uq_tag_name UNIQUE (name)
   );`,
         //   ==========>Data Setup tables end<============
     ]
