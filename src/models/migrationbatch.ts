@@ -415,6 +415,32 @@ export async function mirgation() {
             CONSTRAINT uq_industry_code UNIQUE (code),
             CONSTRAINT uq_industry_name UNIQUE (name)
   );`,
+
+        `CREATE TABLE IF NOT EXISTS category (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_category_code UNIQUE (code),
+            CONSTRAINT uq_category_name UNIQUE (name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS tag (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_tag_code UNIQUE (code),
+            CONSTRAINT uq_tag_name UNIQUE (name)
+  );`,
         //   ==========>Data Setup tables end<============
     ]
 

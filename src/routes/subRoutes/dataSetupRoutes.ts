@@ -107,4 +107,20 @@ Routes.post('/api/data-setup/industry/bulk/add', authService.authenticate, Contr
 Routes.post('/api/data-setup/industry/delete', authService.authenticate, Controller.deleteIndustry);
 Routes.get('/api/data-setup/industry/list', authService.authenticate, Controller.getIndustry);
 
+// Category
+Routes.post('/api/data-setup/category/add', authService.authenticate, Controller.addCategory);
+Routes.post('/api/data-setup/category/update', authService.authenticate, Controller.updateCategory);
+Routes.get('/api/data-setup/category/list/search', authService.authenticate, Controller.getCategoryList);
+Routes.post('/api/data-setup/category/bulk/add', authService.authenticate, Controller.CategoryDataSetup);
+Routes.post('/api/data-setup/category/delete', authService.authenticate, Controller.deleteCategory);
+Routes.get('/api/data-setup/category/list', authService.authenticate, Controller.getCategory);
+
+// Tag
+Routes.post('/api/data-setup/tag/add', authService.authenticate, Controller.addTag);
+Routes.post('/api/data-setup/tag/update', authService.authenticate, Controller.updateTag);
+Routes.get('/api/data-setup/tag/list/search', authService.authenticate, Controller.getTagList);
+Routes.post('/api/data-setup/tag/bulk/add', authService.authenticate, Controller.TagDataSetup);
+Routes.post('/api/data-setup/tag/delete', authService.authenticate, Controller.deleteTag);
+Routes.get('/api/data-setup/tag/list', authService.authenticate, Controller.getTag);
+
 export default Routes;
