@@ -3198,3 +3198,374 @@ export async function deleteMaterialType(req: any, res: any) {
         }
     })
 }
+
+// Manufacturer
+export async function addManufacturer(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { code, name, address, lat, long } = req.body;
+            const id = ulid();
+
+            const checkExists = await client.query(
+                `SELECT * FROM manufacturer WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
+
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
+                    return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+                }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res.status(400).send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+                INSERT INTO manufacturer 
+                (id, code, name, address, lat, long) 
+                VALUES ($1,$2,$3,$4,$5,$6)
+                RETURNING *;
+            `;
+            const result = await client.query(query, [id, code, name, address, lat, long]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getManufacturer(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `SELECT id, code, name, address, lat, long, created_by, updated_by, created_date, update_date 
+                           FROM manufacturer;`;
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateManufacturer(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([columnName], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([_, value]) => value);
+
+                const query = `
+                    UPDATE manufacturer
+                    SET ${columnValuePairs}, update_date = NOW()
+                    WHERE id = $${values.length + 1}
+                    RETURNING *;
+                `;
+                const result = await client.query(query, [...values, item.id]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getManufacturerList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+
+            let whereClause = '';
+            let orderByClause = 'ORDER BY i.created_date ASC';
+
+            if (searchValue) {
+                whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1 OR i.address ILIKE $1)`;
+            }
+
+            const listQuery = `
+                SELECT i.* 
+                FROM manufacturer i
+                WHERE 1=1 ${whereClause}
+                GROUP BY i.id
+                ${orderByClause};
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*) 
+                FROM manufacturer i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const values = searchValue ? [`%${searchValue}%`] : [];
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function ManufacturerDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const obj = req.body;
+
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const finalData = obj.map((item: any) => ({
+                id: ulid(),
+                code: item.code,
+                name: item.name,
+                address: item.address,
+                lat: item.lat,
+                long: item.long
+            }));
+
+            const columns = Object.keys(finalData[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            finalData.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+                placeholders.push(`(${placeholder.join(', ')})`);
+            });
+
+            const insertQuery = `
+                INSERT INTO manufacturer (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+            return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteManufacturer(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.body;
+            const query = `DELETE FROM manufacturer WHERE id = $1;`;
+            await client.query(query, [id]);
+
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+//  Vehicle Detail
+export async function addVehicleDetail(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { code, name, make, model, year, number } = req.body;
+            const id = ulid();
+
+            const checkExists = await client.query(
+                `SELECT * FROM vehicle_detail WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
+
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
+                    return res.status(400).send(generateResponse(false, "Code is already used", 400, null));
+                }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res.status(400).send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+                INSERT INTO vehicle_detail 
+                (id, code, name, make, model, year, number) 
+                VALUES ($1,$2,$3,$4,$5,$6,$7)
+                RETURNING *;
+            `;
+            const result = await client.query(query, [id, code, name, make, model, year, number]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getVehicleDetail(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `SELECT id, code, name, make, model, year, number, created_by, updated_by, created_date, update_date 
+                           FROM vehicle_detail;`;
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateVehicleDetail(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([columnName], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([_, value]) => value);
+
+                const query = `
+                    UPDATE vehicle_detail
+                    SET ${columnValuePairs}, update_date = NOW()
+                    WHERE id = $${values.length + 1}
+                    RETURNING *;
+                `;
+                const result = await client.query(query, [...values, item.id]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getVehicleDetailList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+
+            let whereClause = '';
+            let orderByClause = 'ORDER BY i.created_date ASC';
+
+            if (searchValue) {
+                whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1 OR i.make ILIKE $1 OR i.model ILIKE $1 OR i.number ILIKE $1)`;
+            }
+
+            const listQuery = `
+                SELECT i.* 
+                FROM vehicle_detail i
+                WHERE 1=1 ${whereClause}
+                GROUP BY i.id
+                ${orderByClause};
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*) 
+                FROM vehicle_detail i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const values = searchValue ? [`%${searchValue}%`] : [];
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function VehicleDetailDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const obj = req.body;
+
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const finalData = obj.map((item: any) => ({
+                id: ulid(),
+                code: item.code,
+                name: item.name,
+                make: item.make,
+                model: item.model,
+                year: item.year,
+                number: item.number,
+                created_by: item.created_by,
+                updated_by: item.updated_by
+            }));
+
+            const columns = Object.keys(finalData[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            finalData.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+                placeholders.push(`(${placeholder.join(', ')})`);
+            });
+
+            const insertQuery = `
+                INSERT INTO vehicle_detail (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+            return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteVehicleDetail(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.body;
+            const query = `DELETE FROM vehicle_detail WHERE id = $1;`;
+            await client.query(query, [id]);
+
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
