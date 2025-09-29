@@ -123,4 +123,20 @@ Routes.post('/api/data-setup/tag/bulk/add', authService.authenticate, Controller
 Routes.post('/api/data-setup/tag/delete', authService.authenticate, Controller.deleteTag);
 Routes.get('/api/data-setup/tag/list', authService.authenticate, Controller.getTag);
 
+// Transport mode
+Routes.post('/api/data-setup/transport-mode/add', authService.authenticate, Controller.addTranportMode);
+Routes.post('/api/data-setup/transport-mode/update', authService.authenticate, Controller.updateTranportMode);
+Routes.get('/api/data-setup/transport-mode/list/search', authService.authenticate, Controller.getTranportModeList);
+Routes.post('/api/data-setup/transport-mode/bulk/add', authService.authenticate, Controller.TranportModeDataSetup);
+Routes.post('/api/data-setup/transport-mode/delete', authService.authenticate, Controller.deleteTranportMode);
+Routes.get('/api/data-setup/transport-mode/list', authService.authenticate, Controller.getTranportMode);
+
+// Material Type
+Routes.post('/api/data-setup/material-type/add', authService.authenticate, Controller.addMaterialType);
+Routes.post('/api/data-setup/material-type/update', authService.authenticate, Controller.updateMaterialType);
+Routes.get('/api/data-setup/material-type/list/search', authService.authenticate, Controller.getMaterialTypeList);
+Routes.post('/api/data-setup/material-type/bulk/add', authService.authenticate, Controller.MaterialTypeDataSetup);
+Routes.post('/api/data-setup/material-type/delete', authService.authenticate, Controller.deleteMaterialType);
+Routes.get('/api/data-setup/material-type/list', authService.authenticate, Controller.getMaterialType);
+
 export default Routes;
