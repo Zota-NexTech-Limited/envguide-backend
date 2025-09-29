@@ -460,6 +460,63 @@ export async function mirgation() {
             CONSTRAINT uq_tag_code UNIQUE (code),
             CONSTRAINT uq_tag_name UNIQUE (name)
   );`,
+
+        `CREATE TABLE IF NOT EXISTS transport_mode (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_tm_code UNIQUE (code),
+            CONSTRAINT uq_tm_name UNIQUE (name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS material_type (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_mt_code UNIQUE (code),
+            CONSTRAINT uq_mt_name UNIQUE (name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS manufacturer (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            address text,
+            lat DOUBLE PRECISION,
+            long DOUBLE PRECISION,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_m_code UNIQUE (code),
+            CONSTRAINT uq_m_name UNIQUE (name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS vehicle_detail (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,
+            make VARCHAR(255),
+            model VARCHAR(255),
+            year VARCHAR(255),
+            number VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_vd_code UNIQUE (code),
+            CONSTRAINT uq_vd_name UNIQUE (name)
+  );`,
         //   ==========>Data Setup tables end<============
     ]
 
