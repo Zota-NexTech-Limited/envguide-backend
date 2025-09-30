@@ -282,6 +282,66 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+        //   need to update these below tables after updating screen
+        `CREATE TABLE IF NOT EXISTS bom (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),
+            material_number VARCHAR(255),      
+            component_name VARCHAR(255), 
+            qunatity DOUBLE PRECISION, 
+            production_location TEXT, 
+            manufacturer_id VARCHAR(255), 
+            detail_description text,
+            weight_gms DOUBLE PRECISION, 
+            total_weight_gms DOUBLE PRECISION, 
+            component_category_id VARCHAR(255),
+            price DOUBLE PRECISION, 
+            total_price DOUBLE PRECISION,
+            economic_rate DOUBLE PRECISION,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_emission_tansport_value_calculation (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            transport_mode_id VARCHAR(255),
+            vehicle_id VARCHAR(255),
+            manufacturer_id VARCHAR(255),
+            user_id VARCHAR(255),
+            distance VARCHAR(255),
+            emission_value VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_emission_material_value_calculation (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            material_value DOUBLE PRECISION,
+            production_value DOUBLE PRECISION,
+            packaging_value DOUBLE PRECISION,
+            waste_value DOUBLE PRECISION,
+            logistic_value DOUBLE PRECISION,
+            pcf_value DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS allocation_methodology (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),   
+            split_allocation BOOLEAN DEFAULT false,   
+            sys_expansion_allocation BOOLEAN DEFAULT false,
+            check_er_less_than_five VARCHAR(255),
+            phy_mass_allocation_er_less_than_five VARCHAR(255),
+            econ_allocation_er_greater_than_five VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
