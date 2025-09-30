@@ -123,4 +123,36 @@ Routes.post('/api/data-setup/tag/bulk/add', authService.authenticate, Controller
 Routes.post('/api/data-setup/tag/delete', authService.authenticate, Controller.deleteTag);
 Routes.get('/api/data-setup/tag/list', authService.authenticate, Controller.getTag);
 
+// Transport mode
+Routes.post('/api/data-setup/transport-mode/add', authService.authenticate, Controller.addTranportMode);
+Routes.post('/api/data-setup/transport-mode/update', authService.authenticate, Controller.updateTranportMode);
+Routes.get('/api/data-setup/transport-mode/list/search', authService.authenticate, Controller.getTranportModeList);
+Routes.post('/api/data-setup/transport-mode/bulk/add', authService.authenticate, Controller.TranportModeDataSetup);
+Routes.post('/api/data-setup/transport-mode/delete', authService.authenticate, Controller.deleteTranportMode);
+Routes.get('/api/data-setup/transport-mode/list', authService.authenticate, Controller.getTranportMode);
+
+// Material Type
+Routes.post('/api/data-setup/material-type/add', authService.authenticate, Controller.addMaterialType);
+Routes.post('/api/data-setup/material-type/update', authService.authenticate, Controller.updateMaterialType);
+Routes.get('/api/data-setup/material-type/list/search', authService.authenticate, Controller.getMaterialTypeList);
+Routes.post('/api/data-setup/material-type/bulk/add', authService.authenticate, Controller.MaterialTypeDataSetup);
+Routes.post('/api/data-setup/material-type/delete', authService.authenticate, Controller.deleteMaterialType);
+Routes.get('/api/data-setup/material-type/list', authService.authenticate, Controller.getMaterialType);
+
+// Manufacturer
+Routes.post('/api/data-setup/manufacturer/add', authService.authenticate, Controller.addManufacturer);
+Routes.post('/api/data-setup/manufacturer/update', authService.authenticate, Controller.updateManufacturer);
+Routes.get('/api/data-setup/manufacturer/list/search', authService.authenticate, Controller.getManufacturerList);
+Routes.post('/api/data-setup/manufacturer/bulk/add', authService.authenticate, Controller.ManufacturerDataSetup);
+Routes.post('/api/data-setup/manufacturer/delete', authService.authenticate, Controller.deleteManufacturer);
+Routes.get('/api/data-setup/manufacturer/list', authService.authenticate, Controller.getManufacturer);
+
+// Vehicle Detail
+Routes.post('/api/data-setup/vehicle-detail/add', authService.authenticate, Controller.addVehicleDetail);
+Routes.post('/api/data-setup/vehicle-detail/update', authService.authenticate, Controller.updateVehicleDetail);
+Routes.get('/api/data-setup/vehicle-detail/list/search', authService.authenticate, Controller.getVehicleDetailList);
+Routes.post('/api/data-setup/vehicle-detail/bulk/add', authService.authenticate, Controller.VehicleDetailDataSetup);
+Routes.post('/api/data-setup/vehicle-detail/delete', authService.authenticate, Controller.deleteVehicleDetail);
+Routes.get('/api/data-setup/vehicle-detail/list', authService.authenticate, Controller.getVehicleDetail);
+
 export default Routes;
