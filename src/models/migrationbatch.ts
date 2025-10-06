@@ -342,6 +342,29 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_supplier_co_product_information (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            supplier_id VARCHAR(255),
+            co_product_id VARCHAR(255),
+            manufacturer_id VARCHAR(255),
+            economic_or_co_product_value DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_material_composition_emission_value (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            type_of_material VARCHAR(255),
+            material_composition VARCHAR(255),
+            material_composition_weight DOUBLE PRECISION,
+            ef_kg_co_two DOUBLE PRECISION,
+            total DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
