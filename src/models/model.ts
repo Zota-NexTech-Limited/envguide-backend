@@ -362,7 +362,8 @@ export async function createTables() {
   );`,
 
         `CREATE TABLE IF NOT EXISTS task_managment (
-            id VARCHAR(255) PRIMARY KEY,      
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),      
             task_title VARCHAR(255),
             category_id VARCHAR(255),
             priority VARCHAR(255),
@@ -375,6 +376,8 @@ export async function createTables() {
             attachments TEXT,
             progress VARCHAR(255),
             status VARCHAR(255) DEFAULT 'To Do',
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
