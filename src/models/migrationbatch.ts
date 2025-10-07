@@ -365,6 +365,24 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+        `CREATE TABLE IF NOT EXISTS task_managment (
+            id VARCHAR(255) PRIMARY KEY,      
+            task_title VARCHAR(255),
+            category_id VARCHAR(255),
+            priority VARCHAR(255),
+            assign_to VARCHAR(255),
+            due_date TIMESTAMPTZ,
+            description TEXT,
+            related_product VARCHAR(255),
+            estimated_hour INTEGER,
+            tags VARCHAR(255)[],
+            attachments TEXT,
+            progress VARCHAR(255),
+            status VARCHAR(255) DEFAULT 'To Do',
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
