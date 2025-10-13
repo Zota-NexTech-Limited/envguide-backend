@@ -5,7 +5,7 @@ export const bomService = {
                 id, code, material_number, component_name, qunatity,
                 production_location, manufacturer_id, detail_description,
                 weight_gms, total_weight_gms, component_category_id,
-                price, total_price, economic_rate, created_by
+                price, total_price, economic_ratio, created_by
             ) VALUES (
                 $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
             )
@@ -14,11 +14,117 @@ export const bomService = {
             data.id, data.code, data.material_number, data.component_name, data.qunatity,
             data.production_location, data.manufacturer_id, data.detail_description,
             data.weight_gms, data.total_weight_gms, data.component_category_id,
-            data.price, data.total_price, data.economic_rate,
+            data.price, data.total_price, data.economic_ratio,
             data.created_by
         ];
         await client.query(query, values);
     },
+
+    insertSupplierCoProduct: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_supplier_co_product_value_calculation (
+                id, bom_id, supplier_id, co_product_id,
+                manufacturer_id, economic_or_co_product_value
+            ) VALUES ($1,$2,$3,$4,$5,$6)
+        `;
+        const values = [
+            data.id, data.bom_id, data.supplier_id, data.co_product_id,
+            data.manufacturer_id || null, data.economic_or_co_product_value
+        ];
+        await client.query(query, values);
+    },
+
+    insertMaterialCalValue: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_emission_material_calculation_engine (
+                id, bom_id, material_composition_weight, material_emission_factor ,material_emission ,
+                aluminium_id, silicon_id, magnesium_id, iron_id
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `;
+        const values = [
+            data.id, data.bom_id, data.material_composition_weight, data.material_emission_factor, data.material_emission,
+            data.aluminium_id, data.silicon_id, data.magnesium_id, data.iron_id
+        ];
+        await client.query(query, values);
+    },
+
+    insertProductionCalValue: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_emission_production_calculation_engine (
+                id, bom_id, electricity_energy_consumed_factory_level_kwh,total_weight_produced_factory_level_kg,no_products_current_component_produced,
+            total_weight_current_component_produced_kg,total_eu_for_production_all_current_component_kwh,production_ee_use_per_unit,
+            emission_factor_of_electricity,manufacturing_emission
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        `;
+        const values = [
+            data.id, data.bom_id, data.electricity_energy_consumed_factory_level_kwh, data.total_weight_produced_factory_level_kg,
+            data.no_products_current_component_produced, data.total_weight_current_component_produced_kg, data.total_eu_for_production_all_current_component_kwh,
+            data.production_ee_use_per_unit, data.emission_factor_of_electricity, data.manufacturing_emission
+        ];
+        await client.query(query, values);
+    },
+
+    insertPackaginCalValue: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_emission_packaging_calculation_engine (
+                id, bom_id, packaging,pack_size_l_w_h_m,material_box_weight_kg,
+            emission_factor_box_kg,packaging_carbon_emission
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+        `;
+        const values = [
+            data.id, data.bom_id, data.packaging, data.pack_size_l_w_h_m,
+            data.material_box_weight_kg, data.emission_factor_box_kg, data.packaging_carbon_emission
+        ];
+        await client.query(query, values);
+    },
+
+    insertWasteCalValue: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_emission_waste_calculation_engine (
+                id, bom_id, waste_generated_per_box_kg,emission_factor_box_waste_treatment_kg,packaging_waste_treatment_energy_kg,
+            emission_factor_box_packaging_treatment_kg,waste_disposal_emission
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+        `;
+        const values = [
+            data.id, data.bom_id, data.waste_generated_per_box_kg, data.emission_factor_box_waste_treatment_kg,
+            data.packaging_waste_treatment_energy_kg, data.emission_factor_box_packaging_treatment_kg, data.waste_disposal_emission
+        ];
+        await client.query(query, values);
+    },
+
+    insertLogsticsCalValue: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_emission_logistic_calculation_engine (
+                id, bom_id,transport_mode_id, vehicle_id, manufacturer_id, user_id,
+                destination_site, mass_transported_kg, mass_transported_ton,
+                distance_km, transport_mode_emission_factor_value_kg, leg_wise_transport_emissions_per_unit_kg
+            ) VALUES (
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+            )
+        `;
+        const values = [
+            data.id, data.bom_id, data.transport_mode_id, data.vehicle_id, data.manufacturer_id, data.user_id,
+            data.destination_site, data.mass_transported_kg, data.mass_transported_ton,
+            data.distance_km, data.transport_mode_emission_factor_value_kg, data.leg_wise_transport_emissions_per_unit_kg
+        ];
+        await client.query(query, values);
+    },
+
+    insertEmissionFinalPCFCalValue: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_emission_calculation_engine (
+                id, bom_id, material_value,production_value,packaging_value,
+            waste_value,logistic_value,pcf_value
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        `;
+        const values = [
+            data.id, data.bom_id, data.material_value, data.production_value,
+            data.packaging_value, data.waste_value, data.logistic_value, data.pcf_value
+        ];
+        await client.query(query, values);
+    },
+
+
 
     insertTransportValue: async (client: any, data: any) => {
         const query = `
@@ -62,158 +168,23 @@ export const bomService = {
         await client.query(query, values);
     },
 
-    insertSupplierCoProduct: async (client: any, data: any) => {
-        const query = `
-            INSERT INTO bom_supplier_co_product_information (
-                id, bom_id, supplier_id, co_product_id,
-                manufacturer_id, economic_or_co_product_value
-            ) VALUES ($1,$2,$3,$4,$5,$6)
-        `;
-        const values = [
-            data.id, data.bom_id, data.supplier_id, data.co_product_id,
-            data.manufacturer_id || null, data.economic_or_co_product_value
-        ];
-        await client.query(query, values);
-    },
-
-    insertAllocationMethod: async (client: any, data: any) => {
-        const query = `
-            INSERT INTO allocation_methodology (
-                id, bom_id, split_allocation, sys_expansion_allocation,
-                check_er_less_than_five, phy_mass_allocation_er_less_than_five,
-                econ_allocation_er_greater_than_five
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7)
-        `;
-        const values = [
-            data.id, data.bom_id, data.split_allocation, data.sys_expansion_allocation,
-            data.check_er_less_than_five, data.phy_mass_allocation_er_less_than_five,
-            data.econ_allocation_er_greater_than_five
-        ];
-        await client.query(query, values);
-    },
+    // insertAllocationMethod: async (client: any, data: any) => {
+    //     const query = `
+    //         INSERT INTO allocation_methodology (
+    //             id, bom_id, split_allocation, sys_expansion_allocation,
+    //             check_er_less_than_five, phy_mass_allocation_er_less_than_five,
+    //             econ_allocation_er_greater_than_five
+    //         ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+    //     `;
+    //     const values = [
+    //         data.id, data.bom_id, data.split_allocation, data.sys_expansion_allocation,
+    //         data.check_er_less_than_five, data.phy_mass_allocation_er_less_than_five,
+    //         data.econ_allocation_er_greater_than_five
+    //     ];
+    //     await client.query(query, values);
+    // },
 
     // -> Update BOM and related details ->
-
-    updateBOM: async (client: any, data: any) => {
-        const query = `
-            UPDATE bom SET
-                material_number = $1,
-                component_name = $2,
-                qunatity = $3,
-                production_location = $4,
-                manufacturer_id = $5,
-                detail_description = $6,
-                weight_gms = $7,
-                total_weight_gms = $8,
-                component_category_id = $9,
-                price = $10,
-                total_price = $11,
-                economic_rate = $12,
-                updated_by = $13,
-                update_date = CURRENT_TIMESTAMP
-            WHERE id = $14
-        `;
-        const values = [
-            data.material_number, data.component_name, data.qunatity, data.production_location,
-            data.manufacturer_id, data.detail_description, data.weight_gms, data.total_weight_gms,
-            data.component_category_id, data.price, data.total_price, data.economic_rate,
-            data.updated_by, data.id
-        ];
-        await client.query(query, values);
-    },
-
-    updateTransportValue: async (client: any, data: any) => {
-        const query = `
-            UPDATE bom_emission_tansport_value_calculation SET
-                transport_mode_id = $1,
-                vehicle_id = $2,
-                manufacturer_id = $3,
-                user_id = $4,
-                distance = $5,
-                emission_value = $6,
-                update_date = CURRENT_TIMESTAMP
-            WHERE id = $7 AND bom_id = $8
-        `;
-        const values = [
-            data.transport_mode_id, data.vehicle_id, data.manufacturer_id, data.user_id,
-            data.distance, data.emission_value, data.id, data.bom_id
-        ];
-        await client.query(query, values);
-    },
-
-    updateMaterialComposition: async (client: any, data: any) => {
-        const query = `
-            UPDATE bom_material_composition_emission_value SET
-                type_of_material = $1,
-                material_composition = $2,
-                material_composition_weight = $3,
-                ef_kg_co_two = $4,
-                total = $5,
-                update_date = CURRENT_TIMESTAMP
-            WHERE id = $6 AND bom_id = $7
-        `;
-        const values = [
-            data.type_of_material, data.material_composition,
-            data.material_composition_weight, data.ef_kg_co_two, data.total,
-            data.id, data.bom_id
-        ];
-        await client.query(query, values);
-    },
-
-    updateMaterialValue: async (client: any, data: any) => {
-        const query = `
-            UPDATE bom_emission_material_value_calculation SET
-                material_value = $1,
-                production_value = $2,
-                packaging_value = $3,
-                waste_value = $4,
-                logistic_value = $5,
-                pcf_value = $6,
-                update_date = CURRENT_TIMESTAMP
-            WHERE id = $7 AND bom_id = $8
-        `;
-        const values = [
-            data.material_value, data.production_value, data.packaging_value,
-            data.waste_value, data.logistic_value, data.pcf_value, data.id, data.bom_id
-        ];
-        await client.query(query, values);
-    },
-
-    updateSupplierCoProduct: async (client: any, data: any) => {
-        const query = `
-            UPDATE bom_supplier_co_product_information SET
-                supplier_id = $1,
-                co_product_id = $2,
-                manufacturer_id = $3,
-                economic_or_co_product_value = $4,
-                update_date = CURRENT_TIMESTAMP
-            WHERE id = $5 AND bom_id = $6
-        `;
-        const values = [
-            data.supplier_id, data.co_product_id, data.manufacturer_id,
-            data.economic_or_co_product_value, data.id, data.bom_id
-        ];
-        await client.query(query, values);
-    },
-
-    updateAllocationMethod: async (client: any, data: any) => {
-        const query = `
-            UPDATE allocation_methodology SET
-                split_allocation = $1,
-                sys_expansion_allocation = $2,
-                check_er_less_than_five = $3,
-                phy_mass_allocation_er_less_than_five = $4,
-                econ_allocation_er_greater_than_five = $5,
-                update_date = CURRENT_TIMESTAMP
-            WHERE id = $6 AND bom_id = $7
-        `;
-        const values = [
-            data.split_allocation, data.sys_expansion_allocation, data.check_er_less_than_five,
-            data.phy_mass_allocation_er_less_than_five, data.econ_allocation_er_greater_than_five,
-            data.id, data.bom_id
-        ];
-        await client.query(query, values);
-    },
 
     getFullBOMDetails: async (client: any, bom_id: string) => {
         //  Fetch main BOM with manufacturer + component_category
@@ -279,8 +250,11 @@ export const bomService = {
 
         // Fetch Supplier/Co-Product Information
         const supplierQuery = `
-            SELECT * 
-            FROM bom_supplier_co_product_information 
+            SELECT bs.*,
+            pt.name AS product_type_name,
+            pt.code AS product_type_code
+            FROM bom_supplier_co_product_information bs
+            LEFT JOIN product_type pt ON bs.co_product_id = pt.id
             WHERE bom_id = $1
         `;
         const supplierResult = await client.query(supplierQuery, [bom_id]);
