@@ -9,6 +9,8 @@ export async function createBOMWithDetails(req: any, res: any) {
             await client.query("BEGIN");
 
             const {
+                bom_pcf_request,
+                bom_pcf_request_product_specification,
                 bom,
                 bom_supplier_co_product_information,
                 bom_emission_material_calculation_engine,
@@ -18,6 +20,32 @@ export async function createBOMWithDetails(req: any, res: any) {
                 bom_emission_logistic_calculation_engine,
                 allocation_methodology
             } = req.body;
+
+
+            // Insert into bom_pcf_request
+            const bomPcfId = ulid();
+            const bomPcfCode = `BOMPCF-${Date.now()}`;
+
+
+            const bomPcfData = {
+                id: bomPcfId,
+                code: bomPcfCode,
+                ...bom_pcf_request
+            };
+
+
+            await bomService.insertPCFBOMRequest(client, bomPcfData);
+
+            // Insert into bom_pcf_request_product_specification
+            if (Array.isArray(bom_pcf_request_product_specification)) {
+                for (const spec of bom_pcf_request_product_specification) {
+                    await bomService.insertPCFBOMRequestProductSpec(client, {   
+                        id: ulid(),
+                        bom_pcf_id: bomPcfId,
+                        ...spec
+                    });
+                }
+            }
 
             // Insert into BOM (Parent)
             const bomId = ulid();
@@ -58,6 +86,7 @@ export async function createBOMWithDetails(req: any, res: any) {
                 total_weight_gms: TWG,
                 total_price: TP,
                 economic_ratio: ER,
+                bom_pcf_id: bomPcfId,
                 ...bom
             };
 

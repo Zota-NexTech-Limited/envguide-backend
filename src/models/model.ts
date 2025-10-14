@@ -279,9 +279,34 @@ export async function createTables() {
   );`,
 
         //   need to update these below tables after updating screen
+
+        `CREATE TABLE IF NOT EXISTS bom_pcf_request (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),    
+            product_category_id VARCHAR(255),
+            component_category_id VARCHAR(255),
+            component_type_id VARCHAR(255),
+            product_code VARCHAR(255),
+            manufacturer_id VARCHAR(255),
+            model_version VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_pcf_request_product_specification (
+            id VARCHAR(255) PRIMARY KEY,    
+            bom_pcf_id VARCHAR(255),
+            specification_name VARCHAR(255),
+            specification_value VARCHAR(255),
+            specification_unit VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         `CREATE TABLE IF NOT EXISTS bom (
             id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255),
+            bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),      
             component_name VARCHAR(255), 
             qunatity DOUBLE PRECISION, 

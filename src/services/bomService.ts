@@ -1,13 +1,43 @@
 export const bomService = {
+    insertPCFBOMRequest: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_pcf_request (
+                id, code, product_category_id, component_category_id, component_type_id,
+                product_code, manufacturer_id, model_version
+            ) VALUES (
+                $1,$2,$3,$4,$5,$6,$7,$8
+            )
+        `;
+        const values = [
+            data.id, data.code, data.product_category_id, data.component_category_id, data.component_type_id,
+            data.product_code, data.manufacturer_id, data.model_version
+        ];
+        await client.query(query, values);
+    },
+
+    insertPCFBOMRequestProductSpec: async (client: any, data: any) => {
+        const query = `
+            INSERT INTO bom_pcf_request_product_specification (
+                id, bom_pcf_id, specification_name, specification_value, specification_unit
+            ) VALUES (
+                $1,$2,$3,$4,$5
+            )
+        `;
+        const values = [
+            data.id, data.bom_pcf_id, data.specification_name, data.specification_value, data.specification_unit
+        ];
+        return await client.query(query, values);
+    },
+
     insertBOM: async (client: any, data: any) => {
         const query = `
             INSERT INTO bom (
                 id, code, material_number, component_name, qunatity,
                 production_location, manufacturer_id, detail_description,
                 weight_gms, total_weight_gms, component_category_id,
-                price, total_price, economic_ratio, created_by
+                price, total_price, economic_ratio, created_by ,bom_pcf_id
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
             )
         `;
         const values = [
@@ -15,7 +45,7 @@ export const bomService = {
             data.production_location, data.manufacturer_id, data.detail_description,
             data.weight_gms, data.total_weight_gms, data.component_category_id,
             data.price, data.total_price, data.economic_ratio,
-            data.created_by
+            data.created_by, data.bom_pcf_id
         ];
         await client.query(query, values);
     },
