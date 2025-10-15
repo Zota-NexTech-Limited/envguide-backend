@@ -289,6 +289,8 @@ export async function createTables() {
             product_code VARCHAR(255),
             manufacturer_id VARCHAR(255),
             model_version VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,

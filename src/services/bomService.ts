@@ -3,14 +3,14 @@ export const bomService = {
         const query = `
             INSERT INTO bom_pcf_request (
                 id, code, product_category_id, component_category_id, component_type_id,
-                product_code, manufacturer_id, model_version
+                product_code, manufacturer_id, model_version, created_by
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8
+                $1,$2,$3,$4,$5,$6,$7,$8,$9
             )
         `;
         const values = [
             data.id, data.code, data.product_category_id, data.component_category_id, data.component_type_id,
-            data.product_code, data.manufacturer_id, data.model_version
+            data.product_code, data.manufacturer_id, data.model_version, data.created_by
         ];
         await client.query(query, values);
     },
