@@ -3569,3 +3569,755 @@ export async function deleteVehicleDetail(req: any, res: any) {
         }
     });
 }
+
+// AluminiumType
+export async function addAluminiumType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { code, name, description } = req.body;
+            const id = ulid();
+
+            const checkExists = await client.query(
+                `SELECT * 
+             FROM aluminium_type 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
+
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Code is already used", 400, null));
+                }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+            INSERT INTO aluminium_type (id, code, name, description)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *;
+        `;
+            const result = await client.query(query, [id, code, name, description]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getAluminiumType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `SELECT id, code, name, description FROM aluminium_type;`;
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function updateAluminiumType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
+                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([_, value]) => value);
+
+                const query = `
+                UPDATE aluminium_type 
+                SET ${columnValuePairs}, update_date = NOW() 
+                WHERE id = $${values.length + 1} 
+                RETURNING *;
+            `;
+                const result = await client.query(query, [...values, item.id]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getAluminiumTypeList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+
+            let whereClause = '';
+            let orderByClause = 'ORDER BY i.created_date ASC';
+
+            if (searchValue) {
+                whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            }
+
+            const listQuery = `
+            SELECT i.* 
+            FROM aluminium_type i
+            WHERE 1=1 ${whereClause}
+            GROUP BY i.id
+            ${orderByClause};
+        `;
+
+            const countQuery = `
+            SELECT COUNT(*) 
+            FROM aluminium_type i
+            WHERE 1=1 ${whereClause};
+        `;
+
+            const values = searchValue ? [`%${searchValue}%`] : [];
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function AluminiumTypeDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const obj = req.body;
+
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const finalData = obj.map((item: any) => ({
+                id: ulid(),
+                code: item.code,
+                name: item.name,
+                description: item.description,
+                created_by: item.created_by,
+                updated_by: item.updated_by
+            }));
+
+            const columns = Object.keys(finalData[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            finalData.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+                placeholders.push(`(${placeholder.join(', ')})`);
+            });
+
+            const insertQuery = `
+            INSERT INTO aluminium_type (${columns.join(', ')})
+            VALUES ${placeholders.join(', ')}
+            RETURNING *;
+        `;
+
+            const result = await client.query(insertQuery, values);
+            return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    })
+}
+
+export async function deleteAluminiumType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.body;
+            const query = `DELETE FROM aluminium_type WHERE id = $1;`;
+            await client.query(query, [id]);
+
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+// Silicon Type
+export async function addSiliconType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { code, name, description } = req.body;
+            const id = ulid();
+
+            const checkExists = await client.query(
+                `SELECT * 
+             FROM silicon_type 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
+
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Code is already used", 400, null));
+                }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+            INSERT INTO silicon_type (id, code, name, description)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *;
+        `;
+            const result = await client.query(query, [id, code, name, description]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getSiliconType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `SELECT id, code, name, description FROM silicon_type;`;
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function updateSiliconType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
+                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([_, value]) => value);
+
+                const query = `
+                UPDATE silicon_type 
+                SET ${columnValuePairs}, update_date = NOW() 
+                WHERE id = $${values.length + 1} 
+                RETURNING *;
+            `;
+                const result = await client.query(query, [...values, item.id]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getSiliconListType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+
+            let whereClause = '';
+            let orderByClause = 'ORDER BY i.created_date ASC';
+
+            if (searchValue) {
+                whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            }
+
+            const listQuery = `
+            SELECT i.* 
+            FROM silicon_type i
+            WHERE 1=1 ${whereClause}
+            GROUP BY i.id
+            ${orderByClause};
+        `;
+
+            const countQuery = `
+            SELECT COUNT(*) 
+            FROM silicon_type i
+            WHERE 1=1 ${whereClause};
+        `;
+
+            const values = searchValue ? [`%${searchValue}%`] : [];
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function SiliconDataSetupType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const obj = req.body;
+
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const finalData = obj.map((item: any) => ({
+                id: ulid(),
+                code: item.code,
+                name: item.name,
+                description: item.description,
+                created_by: item.created_by,
+                updated_by: item.updated_by
+            }));
+
+            const columns = Object.keys(finalData[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            finalData.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+                placeholders.push(`(${placeholder.join(', ')})`);
+            });
+
+            const insertQuery = `
+            INSERT INTO silicon_type (${columns.join(', ')})
+            VALUES ${placeholders.join(', ')}
+            RETURNING *;
+        `;
+
+            const result = await client.query(insertQuery, values);
+            return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    })
+}
+
+export async function deleteSiliconType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.body;
+            const query = `DELETE FROM silicon_type WHERE id = $1;`;
+            await client.query(query, [id]);
+
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+// Magnesium Type
+export async function addMagnesiumType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { code, name, description } = req.body;
+            const id = ulid();
+
+            const checkExists = await client.query(
+                `SELECT * 
+             FROM magnesium_type 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
+
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Code is already used", 400, null));
+                }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+            INSERT INTO magnesium_type (id, code, name, description)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *;
+        `;
+            const result = await client.query(query, [id, code, name, description]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getMagnesiumType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `SELECT id, code, name, description FROM magnesium_type;`;
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function updateMagnesiumType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
+                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([_, value]) => value);
+
+                const query = `
+                UPDATE magnesium_type 
+                SET ${columnValuePairs}, update_date = NOW() 
+                WHERE id = $${values.length + 1} 
+                RETURNING *;
+            `;
+                const result = await client.query(query, [...values, item.id]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getMagnesiumListType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+
+            let whereClause = '';
+            let orderByClause = 'ORDER BY i.created_date ASC';
+
+            if (searchValue) {
+                whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            }
+
+            const listQuery = `
+            SELECT i.* 
+            FROM magnesium_type i
+            WHERE 1=1 ${whereClause}
+            GROUP BY i.id
+            ${orderByClause};
+        `;
+
+            const countQuery = `
+            SELECT COUNT(*) 
+            FROM magnesium_type i
+            WHERE 1=1 ${whereClause};
+        `;
+
+            const values = searchValue ? [`%${searchValue}%`] : [];
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function MagnesiumDataSetupType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const obj = req.body;
+
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const finalData = obj.map((item: any) => ({
+                id: ulid(),
+                code: item.code,
+                name: item.name,
+                description: item.description,
+                created_by: item.created_by,
+                updated_by: item.updated_by
+            }));
+
+            const columns = Object.keys(finalData[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            finalData.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+                placeholders.push(`(${placeholder.join(', ')})`);
+            });
+
+            const insertQuery = `
+            INSERT INTO magnesium_type (${columns.join(', ')})
+            VALUES ${placeholders.join(', ')}
+            RETURNING *;
+        `;
+
+            const result = await client.query(insertQuery, values);
+            return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    })
+}
+
+export async function deleteMagnesiumType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.body;
+            const query = `DELETE FROM magnesium_type WHERE id = $1;`;
+            await client.query(query, [id]);
+
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+// Iron Type
+export async function addIronType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { code, name, description } = req.body;
+            const id = ulid();
+
+            const checkExists = await client.query(
+                `SELECT * 
+             FROM iron_type 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
+
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Code is already used", 400, null));
+                }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+            INSERT INTO iron_type (id, code, name, description)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *;
+        `;
+            const result = await client.query(query, [id, code, name, description]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getIronType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `SELECT id, code, name, description FROM iron_type;`;
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function updateIronType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
+                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([_, value]) => value);
+
+                const query = `
+                UPDATE iron_type 
+                SET ${columnValuePairs}, update_date = NOW() 
+                WHERE id = $${values.length + 1} 
+                RETURNING *;
+            `;
+                const result = await client.query(query, [...values, item.id]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getIronListType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+
+            let whereClause = '';
+            let orderByClause = 'ORDER BY i.created_date ASC';
+
+            if (searchValue) {
+                whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            }
+
+            const listQuery = `
+            SELECT i.* 
+            FROM iron_type i
+            WHERE 1=1 ${whereClause}
+            GROUP BY i.id
+            ${orderByClause};
+        `;
+
+            const countQuery = `
+            SELECT COUNT(*) 
+            FROM iron_type i
+            WHERE 1=1 ${whereClause};
+        `;
+
+            const values = searchValue ? [`%${searchValue}%`] : [];
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function IronDataSetupType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const obj = req.body;
+
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const finalData = obj.map((item: any) => ({
+                id: ulid(),
+                code: item.code,
+                name: item.name,
+                description: item.description,
+                created_by: item.created_by,
+                updated_by: item.updated_by
+            }));
+
+            const columns = Object.keys(finalData[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            finalData.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+                placeholders.push(`(${placeholder.join(', ')})`);
+            });
+
+            const insertQuery = `
+            INSERT INTO iron_type (${columns.join(', ')})
+            VALUES ${placeholders.join(', ')}
+            RETURNING *;
+        `;
+
+            const result = await client.query(insertQuery, values);
+            return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    })
+}
+
+export async function deleteIronType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.body;
+            const query = `DELETE FROM iron_type WHERE id = $1;`;
+            await client.query(query, [id]);
+
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}

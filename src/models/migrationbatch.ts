@@ -282,6 +282,185 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+        //   need to update these below BOM tables after updating screen
+        `CREATE TABLE IF NOT EXISTS bom_pcf_request (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),    
+            product_category_id VARCHAR(255),
+            component_category_id VARCHAR(255),
+            component_type_id VARCHAR(255),
+            product_code VARCHAR(255),
+            manufacturer_id VARCHAR(255),
+            model_version VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_pcf_request_product_specification (
+            id VARCHAR(255) PRIMARY KEY,    
+            bom_pcf_id VARCHAR(255),
+            specification_name VARCHAR(255),
+            specification_value VARCHAR(255),
+            specification_unit VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),
+            bom_pcf_id VARCHAR(255),
+            material_number VARCHAR(255),      
+            component_name VARCHAR(255), 
+            qunatity DOUBLE PRECISION, 
+            production_location TEXT, 
+            manufacturer_id VARCHAR(255), 
+            detail_description text,
+            weight_gms DOUBLE PRECISION, 
+            total_weight_gms DOUBLE PRECISION, 
+            component_category_id VARCHAR(255),
+            price DOUBLE PRECISION, 
+            total_price DOUBLE PRECISION,
+            economic_ratio DOUBLE PRECISION,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            is_weight_gms BOOLEAN DEFAULT false,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_supplier_co_product_value_calculation (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            supplier_id VARCHAR(255),
+            co_product_id VARCHAR(255),
+            manufacturer_id VARCHAR(255),
+            economic_or_co_product_value DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_emission_material_calculation_engine (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),
+            aluminium_id VARCHAR(255), 
+            silicon_id VARCHAR(255),
+            magnesium_id VARCHAR(255),
+            iron_id VARCHAR(255),
+            material_composition DOUBLE PRECISION,
+            material_composition_weight DOUBLE PRECISION,
+            material_emission_factor DOUBLE PRECISION,
+            material_emission DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_emission_production_calculation_engine (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            production_ee_use_per_unit DOUBLE PRECISION,
+            emission_factor_of_electricity DOUBLE PRECISION,
+            manufacturing_emission DOUBLE PRECISION,
+            no_products_current_component_produced DOUBLE PRECISION,
+            total_eu_for_production_all_current_component_kwh DOUBLE PRECISION,
+            electricity_energy_consumed_factory_level_kwh DOUBLE PRECISION,
+            total_weight_produced_factory_level_kg DOUBLE PRECISION,
+            total_weight_current_component_produced_kg DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_emission_packaging_calculation_engine (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            material_box_weight_kg DOUBLE PRECISION,
+            emission_factor_box_kg  DOUBLE PRECISION,
+            packaging_carbon_emission DOUBLE PRECISION,
+            pack_size_l_w_h_m VARCHAR(255),
+            packaging VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_emission_waste_calculation_engine (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            emission_factor_box_waste_treatment_kg DOUBLE PRECISION,
+            packaging_waste_treatment_energy_kg  DOUBLE PRECISION,
+            emission_factor_box_packaging_treatment_kg DOUBLE PRECISION,
+            waste_generated_per_box_kg VARCHAR(255),
+            waste_disposal_emission DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_emission_logistic_calculation_engine (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            transport_mode_id VARCHAR(255),
+            vehicle_id VARCHAR(255),
+            manufacturer_id VARCHAR(255),
+            user_id VARCHAR(255),
+            destination_site VARCHAR(255),
+            mass_transported_kg DOUBLE PRECISION,
+            mass_transported_ton DOUBLE PRECISION,
+            distance_km DOUBLE PRECISION,
+            transport_mode_emission_factor_value_kg DOUBLE PRECISION,
+            leg_wise_transport_emissions_per_unit_kg DOUBLE PRECISION,
+            total_transportation_emissions_per_unit_kg DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS bom_emission_calculation_engine (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),      
+            material_value DOUBLE PRECISION,
+            production_value DOUBLE PRECISION,
+            packaging_value DOUBLE PRECISION,
+            waste_value DOUBLE PRECISION,
+            logistic_value DOUBLE PRECISION,
+            pcf_value DOUBLE PRECISION,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS allocation_methodology (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_id VARCHAR(255),   
+            split_allocation BOOLEAN DEFAULT false,   
+            sys_expansion_allocation BOOLEAN DEFAULT false,
+            check_er_less_than_five VARCHAR(255),
+            phy_mass_allocation_er_less_than_five VARCHAR(255),
+            econ_allocation_er_greater_than_five VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+
+        `CREATE TABLE IF NOT EXISTS task_managment (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),      
+            task_title VARCHAR(255),
+            category_id VARCHAR(255),
+            priority VARCHAR(255),
+            assign_to VARCHAR(255),
+            due_date TIMESTAMPTZ,
+            description TEXT,
+            related_product VARCHAR(255),
+            estimated_hour INTEGER,
+            tags VARCHAR(255)[],
+            attachments TEXT,
+            progress VARCHAR(255),
+            status VARCHAR(255) DEFAULT 'To Do',
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
@@ -516,6 +695,55 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT uq_vd_code UNIQUE (code),
             CONSTRAINT uq_vd_name UNIQUE (name)
+  );`,
+
+
+        `CREATE TABLE IF NOT EXISTS aluminium_type (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_aluminium_code_name UNIQUE (code, name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS silicon_type (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_silicon_code_name UNIQUE (code, name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS magnesium_type (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_cmagnesium_code_name UNIQUE (code, name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS iron_type (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_iron_code_name UNIQUE (code, name)
   );`,
         //   ==========>Data Setup tables end<============
     ]

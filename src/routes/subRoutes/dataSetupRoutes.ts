@@ -155,4 +155,37 @@ Routes.post('/api/data-setup/vehicle-detail/bulk/add', authService.authenticate,
 Routes.post('/api/data-setup/vehicle-detail/delete', authService.authenticate, Controller.deleteVehicleDetail);
 Routes.get('/api/data-setup/vehicle-detail/list', authService.authenticate, Controller.getVehicleDetail);
 
+// Aluminum Type
+Routes.post('/api/data-setup/aluminium-type/add', authService.authenticate, Controller.addAluminiumType);
+Routes.post('/api/data-setup/aluminium-type/update', authService.authenticate, Controller.updateAluminiumType);
+Routes.get('/api/data-setup/aluminium-type/list/search', authService.authenticate, Controller.getAluminiumTypeList);
+Routes.post('/api/data-setup/aluminium-type/bulk/add', authService.authenticate, Controller.AluminiumTypeDataSetup);
+Routes.post('/api/data-setup/aluminium-type/delete', authService.authenticate, Controller.deleteAluminiumType);
+Routes.get('/api/data-setup/aluminium-type/list', authService.authenticate, Controller.getAluminiumType);
+
+// Silicon Type
+Routes.post('/api/data-setup/silicon-type/add', authService.authenticate, Controller.addSiliconType);
+Routes.post('/api/data-setup/silicon-type/update', authService.authenticate, Controller.updateSiliconType);
+Routes.get('/api/data-setup/silicon-type/list/search', authService.authenticate, Controller.getSiliconListType);
+Routes.post('/api/data-setup/silicon-type/bulk/add', authService.authenticate, Controller.SiliconDataSetupType);
+Routes.post('/api/data-setup/silicon-type/delete', authService.authenticate, Controller.deleteSiliconType);
+Routes.get('/api/data-setup/silicon-type/list', authService.authenticate, Controller.getSiliconType);
+
+// Magnesium Type
+Routes.post('/api/data-setup/magnesium-type/add', authService.authenticate, Controller.addMagnesiumType);
+Routes.post('/api/data-setup/magnesium-type/update', authService.authenticate, Controller.updateMagnesiumType);
+Routes.get('/api/data-setup/magnesium-type/list/search', authService.authenticate, Controller.getMagnesiumListType);
+Routes.post('/api/data-setup/magnesium-type/bulk/add', authService.authenticate, Controller.MagnesiumDataSetupType);
+Routes.post('/api/data-setup/magnesium-type/delete', authService.authenticate, Controller.deleteMagnesiumType);
+Routes.get('/api/data-setup/magnesium-type/list', authService.authenticate, Controller.getMagnesiumType);
+
+// Iron Type
+Routes.post('/api/data-setup/iron-type/add', authService.authenticate, Controller.addIronType);
+Routes.post('/api/data-setup/iron-type/update', authService.authenticate, Controller.updateIronType);
+Routes.get('/api/data-setup/iron-type/list/search', authService.authenticate, Controller.getIronListType);
+Routes.post('/api/data-setup/iron-type/bulk/add', authService.authenticate, Controller.IronDataSetupType);
+Routes.post('/api/data-setup/iron-type/delete', authService.authenticate, Controller.deleteIronType);
+Routes.get('/api/data-setup/iron-type/list', authService.authenticate, Controller.getIronType);
+
+
 export default Routes;
