@@ -4,6 +4,6 @@ import * as  authService from '../../middleware/authService'
 const Routes = Router();
 
 Routes.post('/api/pcf-bom/add', authService.authenticate, Controller.createBOMWithDetails);
-Routes.get('/api/bom/get-by-id', authService.authenticate, Controller.getBOMWithDetails);
+Routes.get('/api/pcf-bom/get-by-id', authService.authenticate, Controller.getPcfBOMWithDetails);
 
 export default Routes;

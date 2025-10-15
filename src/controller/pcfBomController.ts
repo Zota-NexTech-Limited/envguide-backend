@@ -39,7 +39,7 @@ export async function createBOMWithDetails(req: any, res: any) {
             // Insert into bom_pcf_request_product_specification
             if (Array.isArray(bom_pcf_request_product_specification)) {
                 for (const spec of bom_pcf_request_product_specification) {
-                    await bomService.insertPCFBOMRequestProductSpec(client, {   
+                    await bomService.insertPCFBOMRequestProductSpec(client, {
                         id: ulid(),
                         bom_pcf_id: bomPcfId,
                         ...spec
@@ -259,8 +259,8 @@ export async function createBOMWithDetails(req: any, res: any) {
 
             return res.status(201).send(
                 generateResponse(true, "BOM and related data created successfully", 201, {
-                    bom_id: bomId,
-                    code: bomCode
+                    pcf_id: bomPcfId,
+                    code: bomPcfCode
                 })
             );
 
@@ -275,29 +275,352 @@ export async function createBOMWithDetails(req: any, res: any) {
     });
 }
 
-export async function getBOMWithDetails(req: any, res: any) {
+// export async function getPcfBOMWithDetails(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const { pcf_id } = req.query;
+
+//             if (!pcf_id) {
+//                 return res.status(400).json({
+//                     success: false,
+//                     message: "pcf_id is required",
+//                 });
+//             }
+
+//             // 1️⃣ Fetch PCF Request with lookup fields
+//             const pcfRequestQuery = `
+//         SELECT 
+//           pcf.*, 
+//           pc.id AS product_category_id,
+//           pc.code AS product_category_code,
+//           pc.name AS product_category_name,
+
+//           cc.id AS component_category_id,
+//           cc.code AS component_category_code,
+//           cc.name AS component_category_name,
+
+//           ct.id AS component_type_id,
+//           ct.code AS component_type_code,
+//           ct.name AS component_type_name,
+
+//           m.id AS manufacturer_id,
+//           m.code AS manufacturer_code,
+//           m.name AS manufacturer_name,
+//           m.address AS manufacturer_address,
+//           m.lat AS manufacturer_lat,
+//           m.long AS manufacturer_long
+//         FROM bom_pcf_request pcf
+//         LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
+//         LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
+//         LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
+//         LEFT JOIN manufacturer m ON m.id = pcf.manufacturer_id
+//         WHERE pcf.id = $1
+//       `;
+//             const pcfRequestResult = await client.query(pcfRequestQuery, [pcf_id]);
+//             const pcfRequest = pcfRequestResult.rows[0];
+
+//             if (!pcfRequest) {
+//                 return res.status(404).json({
+//                     success: false,
+//                     message: "No PCF request found with the given ID",
+//                 });
+//             }
+
+//             // 2️⃣ Product Specification details
+//             const specQuery = `
+//         SELECT * FROM bom_pcf_request_product_specification
+//         WHERE bom_pcf_id = $1
+//       `;
+//             const specResult = await client.query(specQuery, [pcf_id]);
+//             const productSpecifications = specResult.rows;
+
+//             // 3️⃣ Fetch BOM(s) with lookup fields
+//             const bomQuery = `
+//         SELECT 
+//           b.*, 
+//           m.id AS manufacturer_id,
+//           m.code AS manufacturer_code,
+//           m.name AS manufacturer_name,
+//           m.address AS manufacturer_address,
+//           m.lat AS manufacturer_lat,
+//           m.long AS manufacturer_long,
+
+//           cc.id AS component_category_id,
+//           cc.code AS component_category_code,
+//           cc.name AS component_category_name
+//         FROM bom b
+//         LEFT JOIN manufacturer m ON m.id = b.manufacturer_id
+//         LEFT JOIN component_category cc ON cc.id = b.component_category_id
+//         WHERE b.bom_pcf_id = $1
+//       `;
+//             const bomResult = await client.query(bomQuery, [pcf_id]);
+//             const boms = bomResult.rows;
+
+//             // 4️⃣ Fetch related child tables for each BOM
+//             const detailedBoms = [];
+//             for (const bom of boms) {
+//                 const bomId = bom.id;
+
+//                 const [
+//                     supplierRes,
+//                     materialRes,
+//                     productionRes,
+//                     packagingRes,
+//                     wasteRes,
+//                     logisticRes,
+//                     emissionRes,
+//                 ] = await Promise.all([
+//                     client.query(
+//                         `SELECT * FROM bom_supplier_co_product_value_calculation WHERE bom_id = $1`,
+//                         [bomId]
+//                     ),
+//                     client.query(
+//                         `SELECT * FROM bom_emission_material_calculation_engine WHERE bom_id = $1`,
+//                         [bomId]
+//                     ),
+//                     client.query(
+//                         `SELECT * FROM bom_emission_production_calculation_engine WHERE bom_id = $1`,
+//                         [bomId]
+//                     ),
+//                     client.query(
+//                         `SELECT * FROM bom_emission_packaging_calculation_engine WHERE bom_id = $1`,
+//                         [bomId]
+//                     ),
+//                     client.query(
+//                         `SELECT * FROM bom_emission_waste_calculation_engine WHERE bom_id = $1`,
+//                         [bomId]
+//                     ),
+//                     client.query(
+//                         `SELECT * FROM bom_emission_logistic_calculation_engine WHERE bom_id = $1`,
+//                         [bomId]
+//                     ),
+//                     client.query(
+//                         `SELECT * FROM bom_emission_calculation_engine WHERE bom_id = $1`,
+//                         [bomId]
+//                     ),
+//                 ]);
+
+//                 detailedBoms.push({
+//                     ...bom,
+//                     supplier_co_product_information: supplierRes.rows,
+//                     emission_material_calculation_engine: materialRes.rows,
+//                     emission_production_calculation_engine: productionRes.rows,
+//                     emission_packaging_calculation_engine: packagingRes.rows,
+//                     emission_waste_calculation_engine: wasteRes.rows,
+//                     emission_logistic_calculation_engine: logisticRes.rows,
+//                     emission_final_pcf_value: emissionRes.rows[0] || null,
+//                 });
+//             }
+
+//             // ✅ Final Response
+//             return res.status(200).json({
+//                 success: true,
+//                 message: "PCF BOM details fetched successfully",
+//                 data: {
+//                     pcf_request: pcfRequest,
+//                     product_specifications: productSpecifications,
+//                     bom_details: detailedBoms,
+//                 },
+//             });
+//         } catch (error: any) {
+//             console.error("Error fetching PCF BOM details:", error);
+//             return res.status(500).json({
+//                 success: false,
+//                 message: error.message || "Failed to fetch PCF BOM details",
+//             });
+//         }
+//     });
+// }
+export async function getPcfBOMWithDetails(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { bom_id } = req.query;
-            if (!bom_id) {
-                return res.status(400).json({ success: false, message: "Missing bom_id" });
+            const { pcf_id } = req.query;
+
+            if (!pcf_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "pcf_id is required",
+                });
             }
 
-            const bomData = await bomService.getFullBOMDetails(client, bom_id);
+            // 1️⃣ Fetch PCF Request with joined master data
+            const pcfRequestQuery = `
+        SELECT 
+          pcf.*,
+          pc.id AS product_category_id,
+          pc.code AS product_category_code,
+          pc.name AS product_category_name,
 
-            if (!bomData) {
-                return res.status(404).json({ success: false, message: "BOM not found" });
+          cc.id AS component_category_id,
+          cc.code AS component_category_code,
+          cc.name AS component_category_name,
+
+          ct.id AS component_type_id,
+          ct.code AS component_type_code,
+          ct.name AS component_type_name,
+
+          m.id AS manufacturer_id,
+          m.code AS manufacturer_code,
+          m.name AS manufacturer_name,
+          m.address AS manufacturer_address,
+          m.lat AS manufacturer_lat,
+          m.long AS manufacturer_long
+        FROM bom_pcf_request pcf
+        LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
+        LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
+        LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
+        LEFT JOIN manufacturer m ON m.id = pcf.manufacturer_id
+        WHERE pcf.id = $1
+      `;
+            const pcfRequestResult = await client.query(pcfRequestQuery, [pcf_id]);
+            const pcfRequest = pcfRequestResult.rows[0];
+
+            if (!pcfRequest) {
+                return res.status(404).json({
+                    success: false,
+                    message: "No PCF request found with the given ID",
+                });
             }
 
-            return res.status(200).send(
-                generateResponse(true, "BOM fetched successfully", 200, bomData)
-            );
+            // 2️⃣ Product Specification details
+            const specQuery = `
+        SELECT * FROM bom_pcf_request_product_specification
+        WHERE bom_pcf_id = $1
+      `;
+            const specResult = await client.query(specQuery, [pcf_id]);
+            const productSpecifications = specResult.rows;
+
+            // 3️⃣ Fetch BOM(s) with joined manufacturer and component_category
+            const bomQuery = `
+        SELECT 
+          b.*,
+          m.id AS manufacturer_id,
+          m.code AS manufacturer_code,
+          m.name AS manufacturer_name,
+          m.address AS manufacturer_address,
+          m.lat AS manufacturer_lat,
+          m.long AS manufacturer_long,
+          cc.id AS component_category_id,
+          cc.code AS component_category_code,
+          cc.name AS component_category_name
+        FROM bom b
+        LEFT JOIN manufacturer m ON m.id = b.manufacturer_id
+        LEFT JOIN component_category cc ON cc.id = b.component_category_id
+        WHERE b.bom_pcf_id = $1
+      `;
+            const bomResult = await client.query(bomQuery, [pcf_id]);
+            const boms = bomResult.rows;
+
+            // 4️⃣ Fetch related child tables for each BOM
+            const detailedBoms = [];
+            for (const bom of boms) {
+                const bomId = bom.id;
+
+                const [
+                    supplierRes,
+                    materialRes,
+                    productionRes,
+                    packagingRes,
+                    wasteRes,
+                    logisticRes,
+                    emissionRes,
+                ] = await Promise.all([
+                    // Supplier co-product info with product_type join
+                    client.query(`
+            SELECT scp.*, 
+              pt.id AS product_type_id,
+              pt.code AS product_type_code,
+              pt.name AS product_type_name
+            FROM bom_supplier_co_product_value_calculation scp
+            LEFT JOIN product_type pt ON pt.id = scp.co_product_id
+            WHERE scp.bom_id = $1
+          `, [bomId]),
+
+                    // Material emission calc with multiple type joins
+                    client.query(`
+            SELECT mc.*, 
+              al.id AS aluminium_type_id, al.code AS aluminium_code, al.name AS aluminium_name,
+              si.id AS silicon_type_id, si.code AS silicon_code, si.name AS silicon_name,
+              mg.id AS magnesium_type_id, mg.code AS magnesium_code, mg.name AS magnesium_name,
+              ir.id AS iron_type_id, ir.code AS iron_code, ir.name AS iron_name
+            FROM bom_emission_material_calculation_engine mc
+            LEFT JOIN aluminium_type al ON al.id = mc.aluminium_id
+            LEFT JOIN silicon_type si ON si.id = mc.silicon_id
+            LEFT JOIN magnesium_type mg ON mg.id = mc.magnesium_id
+            LEFT JOIN iron_type ir ON ir.id = mc.iron_id
+            WHERE mc.bom_id = $1
+          `, [bomId]),
+
+                    // Production emission calc
+                    client.query(`
+            SELECT * FROM bom_emission_production_calculation_engine
+            WHERE bom_id = $1
+          `, [bomId]),
+
+                    // Packaging emission calc
+                    client.query(`
+            SELECT * FROM bom_emission_packaging_calculation_engine
+            WHERE bom_id = $1
+          `, [bomId]),
+
+                    // Waste emission calc
+                    client.query(`
+            SELECT * FROM bom_emission_waste_calculation_engine
+            WHERE bom_id = $1
+          `, [bomId]),
+
+                    // Logistics emission calc with multiple joins
+                    client.query(`
+            SELECT le.*, 
+              tm.code AS transport_mode_code, tm.name AS transport_mode_name,
+              vd.code AS vehicle_code, vd.name AS vehicle_name, 
+              vd.make AS vehicle_make, vd.model AS vehicle_model, vd.year AS vehicle_year, vd.number AS vehicle_number,
+              mf.code AS manufacturer_code, mf.name AS manufacturer_name,
+              u.user_name AS user_name
+            FROM bom_emission_logistic_calculation_engine le
+            LEFT JOIN transport_mode tm ON tm.id = le.transport_mode_id
+            LEFT JOIN vehicle_detail vd ON vd.id = le.vehicle_id
+            LEFT JOIN manufacturer mf ON mf.id = le.manufacturer_id
+            LEFT JOIN users_table u ON u.user_id = le.user_id
+            WHERE le.bom_id = $1
+          `, [bomId]),
+
+                    // Final emission values
+                    client.query(`
+            SELECT * FROM bom_emission_calculation_engine
+            WHERE bom_id = $1
+          `, [bomId]),
+                ]);
+
+                detailedBoms.push({
+                    ...bom,
+                    supplier_co_product_information: supplierRes.rows,
+                    emission_material_calculation_engine: materialRes.rows,
+                    emission_production_calculation_engine: productionRes.rows,
+                    emission_packaging_calculation_engine: packagingRes.rows,
+                    emission_waste_calculation_engine: wasteRes.rows,
+                    emission_logistic_calculation_engine: logisticRes.rows,
+                    emission_final_pcf_value: emissionRes.rows[0] || null,
+                });
+            }
+
+            // ✅ Final response
+            return res.status(200).json({
+                success: true,
+                message: "PCF BOM details fetched successfully",
+                data: {
+                    pcf_request: pcfRequest,
+                    product_specifications: productSpecifications,
+                    bom_details: detailedBoms,
+                },
+            });
         } catch (error: any) {
-            console.error("Error fetching BOM details:", error);
+            console.error("Error fetching PCF BOM details:", error);
             return res.status(500).json({
                 success: false,
-                message: error.message || "Failed to fetch BOM details"
+                message: error.message || "Failed to fetch PCF BOM details",
             });
         }
-    })
+    });
 }
+
