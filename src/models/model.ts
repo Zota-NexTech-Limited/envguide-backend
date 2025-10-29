@@ -456,6 +456,185 @@ export async function createTables() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+
+        //   =======>Supplier Organization Questionnaire Tables<==========
+
+        `CREATE TABLE IF NOT EXISTS supplier_general_info_questions (
+            sgiq_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255),   
+            name_of_organization VARCHAR(255),   
+            core_business_activities VARCHAR(255)[],
+            company_site_address TEXT,  
+            designation VARCHAR(255),
+            email_address VARCHAR(255),
+            type_of_product_manufacture TEXT[],
+            annul_or_monthly_product_volume_of_product TEXT[],
+            weight_of_product TEXT,
+            where_production_site_product_manufactured TEXT,
+            price_of_product VARCHAR(255),   
+            organization_annual_revenue VARCHAR(255),
+            organization_annual_reporting_period VARCHAR(255),
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS material_composition_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),   
+            main_raw_materials_used TEXT[],   -- e.g., ['Aluminum', 'Iron', 'Copper', 'Alloy']
+            contact_enviguide_support BOOLEAN DEFAULT false,
+            has_recycled_material_usage BOOLEAN DEFAULT false,
+            percentage_recycled_material NUMERIC(5,2), -- 0-100 range
+            knows_material_breakdown BOOLEAN DEFAULT false,
+            percentage_pre_consumer NUMERIC(5,2),
+            percentage_post_consumer NUMERIC(5,2),
+            percentage_reutilization NUMERIC(5,2),
+            has_recycled_copper BOOLEAN DEFAULT false,
+            percentage_recycled_copper NUMERIC(5,2),
+            has_recycled_aluminum BOOLEAN DEFAULT false,
+            percentage_recycled_aluminum NUMERIC(5,2),
+            has_recycled_steel BOOLEAN DEFAULT false,
+            percentage_recycled_steel NUMERIC(5,2),
+            has_recycled_plastics BOOLEAN DEFAULT false,
+            percentage_total_recycled_plastics NUMERIC(5,2),
+            percentage_recycled_thermoplastics NUMERIC(5,2),
+            percentage_recycled_plastic_fillers NUMERIC(5,2),
+            percentage_recycled_fibers NUMERIC(5,2),
+            has_recycling_process BOOLEAN DEFAULT false,
+            has_future_recycling_strategy BOOLEAN DEFAULT false,
+            planned_recycling_year INTEGER,
+            track_transport_emissions BOOLEAN DEFAULT false,
+            estimated_transport_emissions TEXT,
+            need_support_for_emissions_calc BOOLEAN DEFAULT false,
+            emission_calc_requirement TEXT,
+            percentage_pcr NUMERIC(5,2),
+            percentage_pir NUMERIC(5,2),
+            use_bio_based_materials BOOLEAN DEFAULT false,
+            bio_based_material_details TEXT,
+            msds_or_composition_link TEXT,
+            main_alloy_metals TEXT,
+            metal_grade TEXT,
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS energy_manufacturing_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),   
+            energy_sources_used TEXT[], -- ['Solar Energy', 'Wind Energy', 'Hydro Electric Energy', etc.]
+            electricity_consumption_per_year TEXT, -- e.g. '250000 kWh/year'
+            purchases_renewable_electricity BOOLEAN DEFAULT false,
+            renewable_electricity_percentage NUMERIC(5,2), -- if yes in Q45
+            has_energy_calculation_method BOOLEAN DEFAULT false,
+            energy_calculation_method_details TEXT, -- document link or description
+            energy_intensity_per_unit TEXT, -- e.g. '120 kWh per ton'
+            process_specific_energy_usage TEXT[], -- ['Casting', 'Moulding', 'Welding', etc.]
+            enviguide_support BOOLEAN DEFAULT false,
+            uses_abatement_systems BOOLEAN DEFAULT false, -- e.g. VOC treatment or heat recovery
+            abatement_system_energy_consumption TEXT, -- if applicable
+            water_consumption_and_treatment_details TEXT, -- free text or numeric value
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS packaging_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),   
+            packaging_materials_used TEXT[], -- ['Cardboard', 'Plastic Film', 'Wood Pallets', 'Another Component']
+            enviguide_support BOOLEAN DEFAULT false,
+            packaging_weight_per_unit TEXT, -- e.g. '1.5 kg/unit'
+            packaging_size TEXT[], -- can store dimensions like ['30x20x10 cm', 'Custom Box']
+            uses_recycled_packaging BOOLEAN,
+            recycled_packaging_percentage NUMERIC(5,2), -- if YES in Q57
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS transportation_logistics_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),   
+            transport_modes_used TEXT[],  -- ['Truck', 'Rail', 'Ship', 'Air', 'Multimode']
+            enviguide_support BOOLEAN DEFAULT false,
+            uses_certified_logistics_provider BOOLEAN, 
+            logistics_provider_details TEXT[], -- if YES, details via Add Button
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS waste_by_products_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            waste_types_generated TEXT[], -- ['Scrap Metal', 'Plastic Scrap', 'Sludge', 'Solvents', 'Packaging Waste']
+            waste_treatment_methods TEXT[],  -- ['Landfill', 'Incineration', 'Recycling', 'Recovery']
+            recycling_percentage NUMERIC(5,2), -- % of total scrap/waste recycled
+            has_byproducts BOOLEAN DEFAULT false,
+            byproduct_types TEXT[], -- list if YES in Q65
+            byproduct_quantity TEXT, -- free text like "200 kg/month"
+            byproduct_price TEXT[], -- multiple prices or product-wise via Add Button   
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS end_of_life_circularity_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            product_designed_for_recycling BOOLEAN DEFAULT false,
+            product_recycling_details TEXT[], -- if YES in Q69 (Add Button inputs)
+            has_takeback_program BOOLEAN DEFAULT false,
+            takeback_program_details TEXT[], -- if YES in Q71, includes % recyclability
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS emission_factors_or_lca_data_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            reports_product_carbon_footprint BOOLEAN DEFAULT false, -- Q73
+            pcf_methodologies_used TEXT[], -- if YES in Q73 (e.g., ['ISO 14067', 'GHG Protocol'])
+            has_scope_emission_data BOOLEAN DEFAULT false, -- Q75
+            emission_data_details TEXT[], -- if YES in Q75 (Add Button inputs)
+            required_environmental_impact_methods TEXT[], -- ['Product Carbon Footprint', 'Water Impact', 'Toxicity']
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS certification_and_standards_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            certified_iso_environmental_or_energy BOOLEAN DEFAULT false, -- Q78: ISO 14001 or ISO 50001
+            follows_recognized_standards BOOLEAN DEFAULT false, -- Q79: ISO 14067, GHG Protocol, Catena-X PCF Guideline, etc.
+            reports_to_esg_frameworks BOOLEAN DEFAULT false, -- Q80: CDP, SBTi, or other ESG frameworks
+            previous_reports TEXT[], -- if YES in Q78/Q79/Q80 (Add Button inputs, file links, report names, etc.)
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+
+        `CREATE TABLE IF NOT EXISTS additional_notes_questions (
+            id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            carbon_reduction_measures TEXT, -- Q82: What measures are you taking to reduce carbon emissions? [DQR Required]
+            renewable_energy_or_recycling_programs TEXT, -- Q83: What renewable energy initiatives or recycling programs are in place? [DQR Required]
+            willing_to_provide_primary_data BOOLEAN DEFAULT false, -- Q84: Are you willing to provide primary data directly into PCF platforms?
+            primary_data_details TEXT[], -- if YES in Q84 (Add Button inputs with primary data or file links) [DQR Required]
+            user_id VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        //  ==========>Supplier Organization Questionnaire Tables end<============
+
+
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
