@@ -7,6 +7,7 @@ import documentMasterRoutes from './subRoutes/documentMasterRoutes';
 import bomRoutes from './subRoutes/bomRoutes';
 import taskManagementRoutes from './subRoutes/taskManagementRoutes';
 import supplierInputQuestions from './subRoutes/supplierInputQuestionRoutes';
+import dqrRating from './subRoutes/dqrRatingRoutes';
 
 export function routes(app: any) {
 
@@ -18,6 +19,7 @@ export function routes(app: any) {
     app.use(bomRoutes);
     app.use(taskManagementRoutes);
     app.use(supplierInputQuestions);
+    app.use(dqrRating);
     app.get('/health', (req: any, res: any) => {
         res.send('ok');
     });

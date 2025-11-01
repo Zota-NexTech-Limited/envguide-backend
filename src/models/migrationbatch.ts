@@ -553,7 +553,7 @@ export async function mirgation() {
             packaging_weight_per_unit TEXT, -- e.g. '1.5 kg/unit'
             packaging_size TEXT[], -- can store dimensions like ['30x20x10 cm', 'Custom Box']
             uses_recycled_packaging BOOLEAN,
-            recycled_packaging_percentage NUMERIC(5,2), -- if YES in Q57
+            recycled_packaging_percentage TEXT[], -- if YES in Q57
             user_id VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -638,7 +638,7 @@ export async function mirgation() {
 
         //  ==========>Supplier Organization Questionnaire Tables end<============
 
-        //===========> DQR Rating Tables total 39 tables
+        //===========> DQR Rating Tables total 41 tables
         // Q13
         `CREATE TABLE IF NOT EXISTS dqr_raw_material_product_rating (
             id VARCHAR(255) PRIMARY KEY,
@@ -663,8 +663,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q15
@@ -691,8 +690,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q17
@@ -719,8 +717,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q18
@@ -747,8 +744,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q19
@@ -775,8 +771,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q21
@@ -803,8 +798,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q23
@@ -831,8 +825,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q25
@@ -859,8 +852,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q27
@@ -887,8 +879,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q28
@@ -915,8 +906,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q29
@@ -943,8 +933,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q30
@@ -971,8 +960,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q33
@@ -999,8 +987,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q34
@@ -1027,8 +1014,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q37
@@ -1055,8 +1041,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q39
@@ -1083,8 +1068,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q41
@@ -1111,8 +1095,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q42
@@ -1139,8 +1122,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q43
@@ -1167,8 +1149,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q44
@@ -1195,8 +1176,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q46
@@ -1223,8 +1203,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q49
@@ -1251,8 +1230,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q50
@@ -1279,8 +1257,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q52
@@ -1307,8 +1284,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q53
@@ -1335,8 +1311,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q54
@@ -1363,8 +1338,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q55
@@ -1391,8 +1365,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q58
@@ -1419,8 +1392,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q59
@@ -1447,8 +1419,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q61
@@ -1475,8 +1446,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q64
@@ -1503,8 +1473,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q66
@@ -1531,8 +1500,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q67
@@ -1559,8 +1527,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q70
@@ -1587,8 +1554,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q72
@@ -1615,8 +1581,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
 
@@ -1644,8 +1609,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q76
@@ -1672,8 +1636,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q81
@@ -1700,8 +1663,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q82
@@ -1728,8 +1690,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q83
@@ -1756,8 +1717,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
         //   Q85
@@ -1784,8 +1744,7 @@ export async function mirgation() {
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_calculation_method_code_name UNIQUE (code, name)
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
 
