@@ -476,6 +476,7 @@ export async function createTables() {
             organization_annual_revenue VARCHAR(255),
             organization_annual_reporting_period VARCHAR(255),
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -517,6 +518,7 @@ export async function createTables() {
             main_alloy_metals TEXT,
             metal_grade TEXT,
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -537,6 +539,7 @@ export async function createTables() {
             abatement_system_energy_consumption TEXT, -- if applicable
             water_consumption_and_treatment_details TEXT, -- free text or numeric value
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -551,6 +554,7 @@ export async function createTables() {
             uses_recycled_packaging BOOLEAN,
             recycled_packaging_percentage TEXT[], -- if YES in Q57
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -563,6 +567,7 @@ export async function createTables() {
             uses_certified_logistics_provider BOOLEAN, 
             logistics_provider_details TEXT[], -- if YES, details via Add Button
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -578,6 +583,7 @@ export async function createTables() {
             byproduct_quantity TEXT, -- free text like "200 kg/month"
             byproduct_price TEXT[], -- multiple prices or product-wise via Add Button   
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -590,6 +596,7 @@ export async function createTables() {
             has_takeback_program BOOLEAN DEFAULT false,
             takeback_program_details TEXT[], -- if YES in Q71, includes % recyclability
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -603,6 +610,7 @@ export async function createTables() {
             emission_data_details TEXT[], -- if YES in Q75 (Add Button inputs)
             required_environmental_impact_methods TEXT[], -- ['Product Carbon Footprint', 'Water Impact', 'Toxicity']
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -615,6 +623,7 @@ export async function createTables() {
             reports_to_esg_frameworks BOOLEAN DEFAULT false, -- Q80: CDP, SBTi, or other ESG frameworks
             previous_reports TEXT[], -- if YES in Q78/Q79/Q80 (Add Button inputs, file links, report names, etc.)
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -628,6 +637,7 @@ export async function createTables() {
             willing_to_provide_primary_data BOOLEAN DEFAULT false, -- Q84: Are you willing to provide primary data directly into PCF platforms?
             primary_data_details TEXT[], -- if YES in Q84 (Add Button inputs with primary data or file links) [DQR Required]
             user_id VARCHAR(255),
+            updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,

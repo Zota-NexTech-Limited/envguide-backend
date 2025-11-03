@@ -161,29 +161,69 @@ const DQR_TABLES = [
     "dqr_primary_data_details_rating"
 ];
 
+// export async function getSupplierDqrDetailsService(sgiq_id: string) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const result: any = {};
+
+//             // ✅ Step 1: Fetch main supplier general info
+//             const generalInfo = await client.query(
+//                 `SELECT * FROM supplier_general_info_questions WHERE sgiq_id = $1`,
+//                 [sgiq_id]
+//             );
+//             if (!generalInfo.rows.length) return null;
+//             result.general_info = generalInfo.rows[0];
+
+//             // ✅ Step 2: Fetch all related question tables
+//             for (const table of QUESTION_TABLES.slice(1)) {
+//                 const res = await client.query(`SELECT * FROM ${table} WHERE sgiq_id = $1`, [sgiq_id]);
+//                 result[table] = res.rows;
+//             }
+
+//             // ✅ Step 3: Fetch all DQR rating tables
+//             for (const table of DQR_TABLES) {
+//                 const res = await client.query(`SELECT * FROM ${table} WHERE sgiq_id = $1`, [sgiq_id]);
+//                 result[table] = res.rows;
+//             }
+
+//             return result;
+//         } catch (error: any) {
+//             console.error("Error in getSupplierDqrDetailsService:", error.message);
+//             throw new Error(error.message);
+//         }
+//     });
+// }
+
 export async function getSupplierDqrDetailsService(sgiq_id: string) {
     return withClient(async (client: any) => {
         try {
-            const result: any = {};
+            const result: any = {
+                supplier_questions: {},
+                dqr_ratings: {}
+            };
 
-            // ✅ Step 1: Fetch main supplier general info
-            const generalInfo = await client.query(
-                `SELECT * FROM supplier_general_info_questions WHERE sgiq_id = $1`,
-                [sgiq_id]
-            );
+            // Fetch main supplier_general_info_questions + user_name
+            const generalInfoQuery = `
+        SELECT gq.*, u.user_name
+        FROM supplier_general_info_questions gq
+        LEFT JOIN users_table u ON gq.user_id = u.user_id
+        WHERE gq.sgiq_id = $1
+      `;
+            const generalInfo = await client.query(generalInfoQuery, [sgiq_id]);
+
             if (!generalInfo.rows.length) return null;
-            result.general_info = generalInfo.rows[0];
+            result.supplier_questions["supplier_general_info_questions"] = generalInfo.rows[0];
 
-            // ✅ Step 2: Fetch all related question tables
+            // Fetch all related supplier question tables
             for (const table of QUESTION_TABLES.slice(1)) {
                 const res = await client.query(`SELECT * FROM ${table} WHERE sgiq_id = $1`, [sgiq_id]);
-                result[table] = res.rows;
+                result.supplier_questions[table] = res.rows;
             }
 
-            // ✅ Step 3: Fetch all DQR rating tables
+            // Fetch all DQR rating tables
             for (const table of DQR_TABLES) {
                 const res = await client.query(`SELECT * FROM ${table} WHERE sgiq_id = $1`, [sgiq_id]);
-                result[table] = res.rows;
+                result.dqr_ratings[table] = res.rows;
             }
 
             return result;
@@ -193,3 +233,50 @@ export async function getSupplierDqrDetailsService(sgiq_id: string) {
         }
     });
 }
+
+export async function updateDqrRatingService(type: string, records: any[], updated_by: string) {
+    return withClient(async (client: any) => {
+        await client.query("BEGIN");
+
+        try {
+            const updatePromises = records.map(async (record: any) => {
+                const { id, sgiq_id, ...updateFields } = record;
+
+                if (!id || !sgiq_id) {
+                    throw new Error("Each record must include id and sgiq_id");
+                }
+
+                const fields = Object.keys(updateFields);
+                const values = Object.values(updateFields);
+
+                if (fields.length === 0) return null;
+
+                // Build dynamic SET clause
+                const setClauses = fields.map((field, index) => `${field} = $${index + 1}`);
+                setClauses.push(`updated_by = $${fields.length + 1}`);
+                setClauses.push(`update_date = NOW()`);
+
+                const query = `
+          UPDATE ${type}
+          SET ${setClauses.join(", ")}
+          WHERE id = $${fields.length + 2} AND sgiq_id = $${fields.length + 3}
+          RETURNING *;
+        `;
+
+                const params = [...values, updated_by, id, sgiq_id];
+                const result = await client.query(query, params);
+                return result.rows[0] || null;
+            });
+
+            const updatedRows = await Promise.all(updatePromises);
+
+            await client.query("COMMIT");
+            return updatedRows.filter(Boolean);
+        } catch (error: any) {
+            await client.query("ROLLBACK");
+            console.error(`❌ Error updating ${type}:`, error.message);
+            throw new Error(error.message);
+        }
+    });
+}
+
