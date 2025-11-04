@@ -258,26 +258,9 @@ export async function createBOMWithDetails(req: any, res: any) {
             // }
 
 
-            // Insert into pcf_request_stages 
-            const lastCodeResult = await client.query(`
-            SELECT code 
-            FROM pcf_request_stages 
-            WHERE code IS NOT NULL
-            ORDER BY code DESC 
-            LIMIT 1;
-        `);
-
-            let newCode = "PCFRS0001";
-            if (lastCodeResult.rows.length > 0) {
-                const lastCode = lastCodeResult.rows[0].code; // e.g. "PCFRS0007"
-                const lastNumber = parseInt(lastCode.replace("PCFRS", ""), 10);
-                const nextNumber = lastNumber + 1;
-                newCode = "PCFRS" + String(nextNumber).padStart(4, "0");
-            }
-
             const bomPCFStagesData = {
-                bom_pcf_id: bomId,
-                code: newCode,
+                id: ulid(),
+                bom_pcf_id: bomPcfId,
                 is_pcf_request_created: true,
                 is_pcf_request_submitted: true,
                 pcf_request_created_by: req.user_id,
@@ -486,6 +469,41 @@ export async function getPcfBOMWithDetails(req: any, res: any) {
                 });
             }
 
+            const pcfRequestStagesQuery = `
+        SELECT 
+          pcfrs.*,
+
+          u1.user_name AS pcf_request_created_by_name,
+          u1.user_role AS pcf_request_created_by_role,
+          u1.user_department AS pcf_request_created_by_department,
+          u2.user_name AS pcf_request_submitted_by_name,
+          u2.user_role AS pcf_request_submitted_by_role,
+          u2.user_department AS pcf_request_submitted_by_department,
+          u3.user_name AS bom_verified_by_name,
+          u3.user_role AS bom_verified_by_role,
+          u3.user_department AS bom_verified_by_department,
+          u4.user_name AS dqr_completed_by_name,
+          u4.user_role AS dqr_completed_by_role,
+          u4.user_department AS dqr_completed_by_department,
+          u5.user_name AS result_validation_verified_by_name,
+          u5.user_role AS result_validation_verified_by_role,
+          u5.user_department AS result_validation_verified_by_department,
+          u6.user_name AS result_submitted_by_name,
+          u6.user_role AS result_submitted_by_role,
+          u6.user_department AS result_submitted_by_department
+
+        FROM pcf_request_stages pcfrs
+        LEFT JOIN users_table u1 ON pcfrs.pcf_request_created_by = u1.user_id
+        LEFT JOIN users_table u2 ON pcfrs.pcf_request_submitted_by = u2.user_id
+        LEFT JOIN users_table u3 ON pcfrs.bom_verified_by = u3.user_id
+        LEFT JOIN users_table u4 ON pcfrs.dqr_completed_by = u4.user_id
+        LEFT JOIN users_table u5 ON pcfrs.result_validation_verified_by = u5.user_id
+        LEFT JOIN users_table u6 ON pcfrs.result_submitted_by = u6.user_id
+        WHERE pcfrs.bom_pcf_id = $1
+      `;
+            const pcfRequestStagesResult = await client.query(pcfRequestStagesQuery, [pcf_id]);
+            const pcfRequestStages = pcfRequestStagesResult.rows[0];
+
             // ✅ Final response
             return res.status(200).json({
                 success: true,
@@ -494,6 +512,7 @@ export async function getPcfBOMWithDetails(req: any, res: any) {
                     pcf_request: pcfRequest,
                     product_specifications: productSpecifications,
                     bom_details: detailedBoms,
+                    pcf_request_stages_status: pcfRequestStages
                 },
             });
         } catch (error: any) {
@@ -595,6 +614,52 @@ export async function getPcfBOMList(req: any, res: any) {
                 success: false,
                 message: error.message || "Failed to fetch PCF BOM list",
             });
+        }
+    });
+}
+
+export async function updateBomVerificationStatus(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id, is_bom_verified } = req.body;
+
+            const user_id = req.user_id;
+
+            // Validate input
+            if (!bom_pcf_id) {
+                return res.send(generateResponse(false, "bom_pcf_id is required", 400, null));
+            }
+
+            if (typeof is_bom_verified === "undefined") {
+                return res.send(generateResponse(false, "is_bom_verified is required", 400, null));
+            }
+
+            // Update query
+            const updateQuery = `
+                UPDATE pcf_request_stages
+                SET 
+                    is_bom_verified = $1,
+                    bom_verified_by = $3,
+                    bom_verified_date = NOW(),
+                    update_date = NOW()
+                WHERE bom_pcf_id = $2
+                RETURNING *;
+            `;
+
+            const result = await client.query(updateQuery, [is_bom_verified, bom_pcf_id, user_id]);
+
+            if (result.rows.length === 0) {
+                return res.send(generateResponse(false, "No record found for given bom_pcf_id", 404, null));
+            }
+
+            // ✅ Success
+            return res.send(
+                generateResponse(true, "BOM verification status updated successfully", 200, result.rows[0])
+            );
+
+        } catch (error: any) {
+            console.error("❌ Error in updateBomVerificationStatus:", error.message);
+            return res.send(generateResponse(false, error.message, 400, null));
         }
     });
 }

@@ -219,15 +219,15 @@ export const bomService = {
     insertPCFBOMRequestStages: async (client: any, data: any) => {
         const query = `
             INSERT INTO pcf_request_stages (
-                id, code, bom_pcf_id, is_pcf_request_created, is_pcf_request_submitted,
+                id, bom_pcf_id, is_pcf_request_created, is_pcf_request_submitted,
                 pcf_request_created_by, pcf_request_submitted_by, pcf_request_created_date,
                 pcf_request_submitted_date
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9
+                $1,$2,$3,$4,$5,$6,$7,$8
             )
         `;
         const values = [
-            data.id, data.code, data.bom_pcf_id, data.is_pcf_request_created, data.is_pcf_request_submitted,
+            data.id, data.bom_pcf_id, data.is_pcf_request_created, data.is_pcf_request_submitted,
             data.pcf_request_created_by, data.pcf_request_submitted_by, data.pcf_request_created_date, data.pcf_request_submitted_date
         ];
         await client.query(query, values);
