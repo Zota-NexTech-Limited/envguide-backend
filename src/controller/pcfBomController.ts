@@ -257,6 +257,37 @@ export async function createBOMWithDetails(req: any, res: any) {
             //     }
             // }
 
+
+            // Insert into pcf_request_stages 
+            const lastCodeResult = await client.query(`
+            SELECT code 
+            FROM pcf_request_stages 
+            WHERE code IS NOT NULL
+            ORDER BY code DESC 
+            LIMIT 1;
+        `);
+
+            let newCode = "PCFRS0001";
+            if (lastCodeResult.rows.length > 0) {
+                const lastCode = lastCodeResult.rows[0].code; // e.g. "PCFRS0007"
+                const lastNumber = parseInt(lastCode.replace("PCFRS", ""), 10);
+                const nextNumber = lastNumber + 1;
+                newCode = "PCFRS" + String(nextNumber).padStart(4, "0");
+            }
+
+            const bomPCFStagesData = {
+                bom_pcf_id: bomId,
+                code: newCode,
+                is_pcf_request_created: true,
+                is_pcf_request_submitted: true,
+                pcf_request_created_by: req.user_id,
+                pcf_request_submitted_by: req.user_id,
+                pcf_request_created_date: new Date(),
+                pcf_request_submitted_date: new Date()
+            };
+
+            await bomService.insertPCFBOMRequestStages(client, bomPCFStagesData);
+
             await client.query("COMMIT");
 
             return res.status(201).send(
