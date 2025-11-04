@@ -1757,6 +1757,50 @@ export async function createTables() {
 
         //   ========>DQR Rating Tables end<============
 
+        //===========> PCF Request Stages Tables start<============
+
+        `CREATE TABLE IF NOT EXISTS pcf_request_stages (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_pcf_id VARCHAR(255),
+            is_pcf_request_created BOOLEAN DEFAULT FALSE,
+            is_pcf_request_submitted BOOLEAN DEFAULT FALSE,
+            is_bom_verified BOOLEAN DEFAULT FALSE,
+            is_data_collected BOOLEAN DEFAULT FALSE,
+            is_dqr_completed BOOLEAN DEFAULT FALSE,
+            is_pcf_calculated BOOLEAN DEFAULT FALSE,
+            is_result_validation_verified BOOLEAN DEFAULT FALSE,
+            is_result_submitted BOOLEAN DEFAULT FALSE,
+            pcf_request_created_by VARCHAR(255),
+            pcf_request_submitted_by VARCHAR(255),
+            bom_verified_by VARCHAR(255),
+            dqr_completed_by VARCHAR(255),
+            pcf_calculated_by VARCHAR(255) DEFAULT 'system',
+            result_validation_verified_by VARCHAR(255),
+            result_submitted_by VARCHAR(255),
+            pcf_request_created_date TIMESTAMPTZ,
+            pcf_request_submitted_date TIMESTAMPTZ,
+            bom_verified_date TIMESTAMPTZ,
+            dqr_completed_date TIMESTAMPTZ,
+            pcf_calculated_date TIMESTAMPTZ,
+            result_validation_verified_date TIMESTAMPTZ,
+            result_submitted_date TIMESTAMPTZ,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        //   this below table for more than supplier input quetions is right so data collection stage
+        `CREATE TABLE IF NOT EXISTS pcf_request_data_collection_stage (
+            id VARCHAR(255) PRIMARY KEY,
+            pcf_request_stages_id VARCHAR(255),
+            bom_pcf_id VARCHAR(255),
+            data_collected_by VARCHAR(255),
+            completed_date TIMESTAMPTZ,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        //========>PCF Request Stages Tables end<============
+
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
             id VARCHAR(255) PRIMARY KEY,
