@@ -21,6 +21,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
         try {
             const {
+                bom_pcf_id,
                 general_info,
                 material_composition,
                 energy_manufacturing,
@@ -33,8 +34,13 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                 additional_notes
             } = req.body;
 
+            if (!bom_pcf_id) {
+                return res.send(generateResponse(false, "bom_pcf_id is required", 400, null));
+            }
+
             const user_id = req.user_id;
 
+            general_info.bom_pcf_id = bom_pcf_id;
             general_info.updated_by = user_id;
             material_composition.updated_by = user_id;
             energy_manufacturing.updated_by = user_id;
@@ -56,9 +62,9 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                     company_site_address, designation, email_address,
                     type_of_product_manufacture, annul_or_monthly_product_volume_of_product,
                     weight_of_product, where_production_site_product_manufactured, price_of_product,
-                    organization_annual_revenue, organization_annual_reporting_period, user_id
+                    organization_annual_revenue, organization_annual_reporting_period, user_id,bom_pcf_id
                 )
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
                 RETURNING *;
             `;
 
@@ -77,7 +83,8 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                 general_info.price_of_product,
                 general_info.organization_annual_revenue,
                 general_info.organization_annual_reporting_period,
-                general_info.user_id
+                general_info.user_id,
+                general_info.bom_pcf_id
             ]);
 
             // Material Composition
@@ -158,6 +165,29 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                     `INSERT INTO additional_notes_questions (id, sgiq_id, carbon_reduction_measures, renewable_energy_or_recycling_programs, willing_to_provide_primary_data, primary_data_details, user_id)
                     VALUES ($1,$2,$3,$4,$5,$6,$7);`,
                     [ulid(), sgiq_id, ...Object.values(additional_notes)]
+                );
+            }
+
+
+            const bomPCFStagesData = {
+                bom_pcf_id: bom_pcf_id,
+                data_collected_by: req.user_id,
+                completed_date: new Date()
+            };
+
+            // PCF Request Stages - Data Collection Stage updated
+            if (bomPCFStagesData) {
+                await client.query(
+                    `
+                        INSERT INTO pcf_request_data_collection_stage 
+                        (id, bom_pcf_id, data_collected_by, completed_date)
+                        VALUES ($1, $2, $3, $4);
+                        `,
+                    [ulid(), bom_pcf_id, bomPCFStagesData.data_collected_by, bomPCFStagesData.completed_date]
+                );
+
+                await client.query(
+                    `UPDATE pcf_request_stages SET is_data_collected = true WHERE bom_pcf_id = $1;`, [bom_pcf_id]
                 );
             }
 

@@ -504,7 +504,31 @@ export async function getPcfBOMWithDetails(req: any, res: any) {
             const pcfRequestStagesResult = await client.query(pcfRequestStagesQuery, [pcf_id]);
             const pcfRequestStages = pcfRequestStagesResult.rows[0];
 
-            // ✅ Final response
+            // ✅ Fetch Data Collection Stage Entries (Many-to-One)
+            let dataCollectionEntries: any[] = [];
+            if (pcfRequestStages) {
+                const dataCollectionQuery = `
+                    SELECT 
+                      dc.*,
+                      u.user_name AS data_collected_by_name,
+                      u.user_role AS data_collected_by_role,
+                      u.user_department AS data_collected_by_department
+                    FROM pcf_request_data_collection_stage dc
+                    LEFT JOIN users_table u ON dc.data_collected_by = u.user_id
+                    WHERE dc.bom_pcf_id = $1
+                    ORDER BY dc.completed_date ASC;
+                 `;
+                const dataCollectionResult = await client.query(dataCollectionQuery, [pcf_id]);
+                dataCollectionEntries = dataCollectionResult.rows;
+            }
+
+            // Add the data collection info to your existing stage object
+            if (pcfRequestStages) {
+                pcfRequestStages.data_collection_stage = dataCollectionEntries;
+            }
+
+
+            // Final response
             return res.status(200).json({
                 success: true,
                 message: "PCF BOM details fetched successfully",

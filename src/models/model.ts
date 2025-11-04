@@ -463,6 +463,7 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS supplier_general_info_questions (
             sgiq_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255),   
+            bom_pcf_id VARCHAR(255), 
             name_of_organization VARCHAR(255),   
             core_business_activities VARCHAR(255)[],
             company_site_address TEXT,  
@@ -1791,7 +1792,6 @@ export async function createTables() {
         //   this below table for more than supplier input quetions is right so data collection stage
         `CREATE TABLE IF NOT EXISTS pcf_request_data_collection_stage (
             id VARCHAR(255) PRIMARY KEY,
-            pcf_request_stages_id VARCHAR(255),
             bom_pcf_id VARCHAR(255),
             data_collected_by VARCHAR(255),
             completed_date TIMESTAMPTZ,
