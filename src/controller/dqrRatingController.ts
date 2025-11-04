@@ -62,7 +62,7 @@ const QUESTION_TABLES = [
 
 export async function createDqrRating(req: any, res: any) {
     try {
-        const { type, ...ratingData } = req.body;
+        const { type, bom_pcf_id, ...ratingData } = req.body;
 
         // ✅ Validate type
         if (!type || !ALLOWED_TYPES.includes(type)) {
@@ -81,7 +81,7 @@ export async function createDqrRating(req: any, res: any) {
         const code = "DQR-" + Date.now();
         const records = ratingData[type];
 
-        const inserted = await createDqrRatingService(type, records, created_by, code);
+        const inserted = await createDqrRatingService(type, records, created_by, code,bom_pcf_id);
 
         return res
             .status(200)

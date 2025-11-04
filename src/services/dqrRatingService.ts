@@ -1,7 +1,7 @@
 import { withClient } from '../util/database';
 import { ulid } from 'ulid';
 
-export async function createDqrRatingService(type: string, records: any[], created_by: string, code: string) {
+export async function createDqrRatingService(type: string, records: any[], created_by: string, code: string, bom_pcf_id: string) {
     return withClient(async (client: any) => {
         await client.query("BEGIN");
 
@@ -93,6 +93,16 @@ export async function createDqrRatingService(type: string, records: any[], creat
             });
 
             const insertedRows = await Promise.all(insertPromises);
+
+            const updatePCFRequestStages = await client.query(
+                `UPDATE pcf_request_stages 
+                    SET 
+                      is_dqr_completed = true, 
+                      dqr_completed_by = $2, 
+                      bom_verified_date = NOW() 
+                    WHERE bom_pcf_id = $1;`,
+                [bom_pcf_id, created_by]
+            );
 
             await client.query("COMMIT");
             return insertedRows;
