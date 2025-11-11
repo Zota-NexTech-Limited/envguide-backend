@@ -8,4 +8,6 @@ Routes.get('/api/pcf-bom/get-by-id', authService.authenticate, Controller.getPcf
 Routes.get('/api/pcf-bom/list', authService.authenticate, Controller.getPcfBOMList);
 Routes.post('/api/pcf-bom/verify', authService.authenticate, Controller.updateBomVerificationStatus);
 
+Routes.post('/api/pcf-bom/create', authService.authenticate, Controller.createBOMWithDetailsFinal);
+
 export default Routes;
