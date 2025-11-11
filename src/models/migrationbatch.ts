@@ -464,6 +464,16 @@ export async function mirgation() {
 
         //   =======>Supplier Organization Questionnaire Tables<==========
 
+        `CREATE TABLE IF NOT EXISTS supplier_details (
+            id VARCHAR(255) PRIMARY KEY, 
+            code VARCHAR(255),   
+            supplier_name VARCHAR(255),
+            supplier_email VARCHAR(255),
+            supplier_phone_number VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         `CREATE TABLE IF NOT EXISTS supplier_general_info_questions (
             sgiq_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255),   
