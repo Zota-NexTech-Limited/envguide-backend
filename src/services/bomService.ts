@@ -154,8 +154,6 @@ export const bomService = {
         await client.query(query, values);
     },
 
-
-
     insertTransportValue: async (client: any, data: any) => {
         const query = `
             INSERT INTO bom_emission_tansport_value_calculation (

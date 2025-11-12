@@ -318,6 +318,7 @@ export async function createTables() {
             weight_gms DOUBLE PRECISION, 
             total_weight_gms DOUBLE PRECISION, 
             component_category_id VARCHAR(255),
+            transport_mode_id VARCHAR(255),
             price DOUBLE PRECISION, 
             total_price DOUBLE PRECISION,
             economic_ratio DOUBLE PRECISION,
@@ -459,6 +460,16 @@ export async function createTables() {
 
 
         //   =======>Supplier Organization Questionnaire Tables<==========
+
+        `CREATE TABLE IF NOT EXISTS supplier_details (
+            id VARCHAR(255) PRIMARY KEY,   
+            code VARCHAR(255),    
+            supplier_name VARCHAR(255),
+            supplier_email VARCHAR(255),
+            supplier_phone_number VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
 
         `CREATE TABLE IF NOT EXISTS supplier_general_info_questions (
             sgiq_id VARCHAR(255) PRIMARY KEY,

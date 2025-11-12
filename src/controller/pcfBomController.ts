@@ -3,6 +3,8 @@ import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes';
 import { bomService } from "../services/bomService";
 
+// below code also working but no need all the details remainng should create after dqr so 
+// created  createBOMWithDetailsFinal API
 export async function createBOMWithDetails(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
@@ -395,9 +397,15 @@ export async function getPcfBOMWithDetails(req: any, res: any) {
             SELECT scp.*, 
               pt.id AS product_type_id,
               pt.code AS product_type_code,
-              pt.name AS product_type_name
+              pt.name AS product_type_name,
+              pt.name AS product_type_name,
+              sup.code AS supplier_code,
+              sup.supplier_name,
+              sup.supplier_email,
+              sup.supplier_phone_number
             FROM bom_supplier_co_product_value_calculation scp
             LEFT JOIN product_type pt ON pt.id = scp.co_product_id
+            LEFT JOIN supplier_details sup ON sup.id = scp.supplier_id
             WHERE scp.bom_id = $1
           `, [bomId]),
 
@@ -687,3 +695,286 @@ export async function updateBomVerificationStatus(req: any, res: any) {
         }
     });
 }
+
+// export async function createBOMWithDetailsFinal(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             await client.query("BEGIN");
+
+//             const {
+//                 bom_pcf_request,
+//                 bom_pcf_request_product_specification,
+//                 bom
+//             } = req.body;
+
+//             const created_by = req.user_id;
+
+//             // === Validate required data ===
+//             if (!bom_pcf_request || !bom || !Array.isArray(bom) || bom.length === 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Invalid or missing BOM data", 400, null));
+//             }
+
+//             // === Insert into bom_pcf_request ===
+//             const bomPcfId = ulid();
+//             const bomPcfCode = `BOMPCF-${Date.now()}`;
+
+//             const bomPcfData = {
+//                 id: bomPcfId,
+//                 code: bomPcfCode,
+//                 created_by,
+//                 ...bom_pcf_request
+//             };
+
+//             await bomService.insertPCFBOMRequest(client, bomPcfData);
+
+//             // === Insert into bom_pcf_request_product_specification ===
+//             if (Array.isArray(bom_pcf_request_product_specification)) {
+//                 for (const spec of bom_pcf_request_product_specification) {
+//                     await bomService.insertPCFBOMRequestProductSpec(client, {
+//                         id: ulid(),
+//                         bom_pcf_id: bomPcfId,
+//                         ...spec
+//                     });
+//                 }
+//             }
+
+//             // === Insert each BOM item ===
+//             for (const item of bom) {
+//                 const bomId = ulid();
+//                 const bomCode = `BOM-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+//                 // Total Weight and Price
+//                 const total_weight_gms = (item.weight_gms || 0) * (item.qunatity || 1);
+//                 const total_price = (item.price || 0) * (item.qunatity || 1);
+
+//                 const bomData = {
+//                     id: bomId,
+//                     code: bomCode,
+//                     created_by,
+//                     bom_pcf_id: bomPcfId,
+//                     total_weight_gms,
+//                     total_price,
+//                     ...item
+//                 };
+
+//                 await bomService.insertBOM(client, bomData);
+//             }
+
+//             // === Insert into PCF stages ===
+//             const bomPCFStagesData = {
+//                 id: ulid(),
+//                 bom_pcf_id: bomPcfId,
+//                 is_pcf_request_created: true,
+//                 is_pcf_request_submitted: true,
+//                 pcf_request_created_by: created_by,
+//                 pcf_request_submitted_by: created_by,
+//                 pcf_request_created_date: new Date(),
+//                 pcf_request_submitted_date: new Date()
+//             };
+
+//             await bomService.insertPCFBOMRequestStages(client, bomPCFStagesData);
+
+//             await client.query("COMMIT");
+
+//             return res.status(201).send(
+//                 generateResponse(true, "BOM and related data created successfully", 201, {
+//                     pcf_id: bomPcfId,
+//                     code: bomPcfCode
+//                 })
+//             );
+//         } catch (error: any) {
+//             await client.query("ROLLBACK");
+//             console.error("❌ Error creating BOM:", error);
+//             return res.status(500).json({
+//                 success: false,
+//                 message: error.message || "Failed to create BOM data"
+//             });
+//         }
+//     });
+// }
+
+// ✅ Manufacturer lookup or creation
+
+async function getOrCreateManufacturer(client: any, name: string, address: string) {
+    const findQuery = `SELECT id FROM manufacturer WHERE name = $1 LIMIT 1`;
+    const findResult = await client.query(findQuery, [name]);
+
+    if (findResult.rows.length > 0) {
+        return findResult.rows[0].id;
+    }
+
+    const newId = ulid();
+    const newCode = `MANU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    const insertQuery = `
+        INSERT INTO manufacturer (id, name, address,code)
+        VALUES ($1, $2, $3,$4)
+    `;
+    await client.query(insertQuery, [newId, name, address, newCode]);
+    return newId;
+}
+
+// Component Category lookup or creation
+async function getOrCreateComponentCategory(client: any, name: string, description: string) {
+    const findQuery = `SELECT id FROM component_category WHERE name = $1 LIMIT 1`;
+    const findResult = await client.query(findQuery, [name]);
+
+    if (findResult.rows.length > 0) {
+        return findResult.rows[0].id;
+    }
+
+    const newId = ulid();
+    const newCode = `COMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    const insertQuery = `
+        INSERT INTO component_category (id, name, description,code)
+        VALUES ($1, $2, $3,$4)
+    `;
+    await client.query(insertQuery, [newId, name, description, newCode]);
+    return newId;
+}
+
+//Transport Mode lookup or creation
+async function getOrCreateTransportMode(client: any, name: string) {
+    const findQuery = `SELECT id FROM transport_mode WHERE name = $1 LIMIT 1`;
+    const findResult = await client.query(findQuery, [name]);
+
+    if (findResult.rows.length > 0) {
+        return findResult.rows[0].id;
+    }
+
+    const newId = ulid();
+    const newCode = `TRANS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    const insertQuery = `
+        INSERT INTO transport_mode (id, name,code)
+        VALUES ($1, $2,$3)
+    `;
+    await client.query(insertQuery, [newId, name, newCode]);
+    return newId;
+}
+
+
+export async function createBOMWithDetailsFinal(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            await client.query("BEGIN");
+
+            const {
+                bom_pcf_request,
+                bom_pcf_request_product_specification,
+                bom
+            } = req.body;
+
+            const created_by = req.user_id;
+
+            // === Validate required data ===
+            if (!bom_pcf_request || !bom || !Array.isArray(bom) || bom.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid or missing BOM data", 400, null));
+            }
+
+            // === Insert into bom_pcf_request ===
+            const bomPcfId = ulid();
+            const bomPcfCode = `BOMPCF-${Date.now()}`;
+
+            const bomPcfData = {
+                id: bomPcfId,
+                code: bomPcfCode,
+                created_by,
+                ...bom_pcf_request
+            };
+
+            await bomService.insertPCFBOMRequest(client, bomPcfData);
+
+            // === Insert into bom_pcf_request_product_specification ===
+            if (Array.isArray(bom_pcf_request_product_specification)) {
+                for (const spec of bom_pcf_request_product_specification) {
+                    await bomService.insertPCFBOMRequestProductSpec(client, {
+                        id: ulid(),
+                        bom_pcf_id: bomPcfId,
+                        ...spec
+                    });
+                }
+            }
+
+            // === Insert each BOM item with manufacturer, component category, transport mode ===
+            for (const item of bom) {
+                const bomId = ulid();
+                const bomCode = `BOM-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+                // 🔹 1. Manufacturer Handling
+                let manufacturer_id = null;
+                if (item.manufacturer_name) {
+                    manufacturer_id = await getOrCreateManufacturer(client, item.manufacturer_name, item.production_location);
+                }
+
+                // 🔹 2. Component Category Handling
+                let component_category_id = null;
+                if (item.component_category_name) {
+                    component_category_id = await getOrCreateComponentCategory(client, item.component_category_name, item.detail_description);
+                }
+
+                // 🔹 3. Transport Mode Handling
+                let transport_mode_id = null;
+                if (item.transport_mode_name) {
+                    transport_mode_id = await getOrCreateTransportMode(client, item.transport_mode_name);
+                }
+
+                // Compute totals
+                const total_weight_gms = (item.weight_gms || 0) * (item.qunatity || 1);
+                const total_price = (item.price || 0) * (item.qunatity || 1);
+
+                const bomData = {
+                    id: bomId,
+                    code: bomCode,
+                    created_by,
+                    bom_pcf_id: bomPcfId,
+                    total_weight_gms,
+                    total_price,
+                    manufacturer_id,
+                    component_category_id,
+                    transport_mode_id,
+                    ...item
+                };
+
+                await bomService.insertBOM(client, bomData);
+            }
+
+            // === Insert into PCF stages ===
+            const bomPCFStagesData = {
+                id: ulid(),
+                bom_pcf_id: bomPcfId,
+                is_pcf_request_created: true,
+                is_pcf_request_submitted: true,
+                pcf_request_created_by: created_by,
+                pcf_request_submitted_by: created_by,
+                pcf_request_created_date: new Date(),
+                pcf_request_submitted_date: new Date()
+            };
+
+            await bomService.insertPCFBOMRequestStages(client, bomPCFStagesData);
+
+            await client.query("COMMIT");
+
+            return res.status(201).send(
+                generateResponse(true, "BOM and related data created successfully", 201, {
+                    pcf_id: bomPcfId,
+                    code: bomPcfCode
+                })
+            );
+
+        } catch (error: any) {
+            await client.query("ROLLBACK");
+            console.error("❌ Error creating BOM:", error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to create BOM data"
+            });
+        }
+    });
+}
+
