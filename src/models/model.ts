@@ -318,6 +318,7 @@ export async function createTables() {
             weight_gms DOUBLE PRECISION, 
             total_weight_gms DOUBLE PRECISION, 
             component_category_id VARCHAR(255),
+            transport_mode_id VARCHAR(255),
             price DOUBLE PRECISION, 
             total_price DOUBLE PRECISION,
             economic_ratio DOUBLE PRECISION,
