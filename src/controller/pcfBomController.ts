@@ -383,6 +383,32 @@ export async function getPcfBOMWithDetails(req: any, res: any) {
             for (const bom of boms) {
                 const bomId = bom.id;
 
+                let supplierDetails: any[] = [];
+                if (bom.supplier_ids && bom.supplier_ids.length > 0) {
+                    const supplierQuery = `
+            SELECT 
+                id,
+                code AS supplier_code,
+                supplier_name,
+                supplier_email,
+                supplier_phone_number
+            FROM supplier_details
+            WHERE id = ANY($1::varchar[])
+        `;
+                    const supplierResult = await client.query(supplierQuery, [bom.supplier_ids]);
+                    supplierDetails = supplierResult.rows;
+                    for (const supplier of supplierDetails) {
+                        const checkQuery = `
+                            SELECT 1
+                            FROM supplier_general_info_questions
+                            WHERE user_id = $1 AND bom_pcf_id = $2
+                            LIMIT 1;
+                         `;
+                        const checkResult = await client.query(checkQuery, [supplier.id, bom.bom_pcf_id]);
+                        supplier.is_responded_questions = checkResult.rowCount > 0;
+                    }
+                }
+
                 const [
                     supplierRes,
                     materialRes,
@@ -467,6 +493,7 @@ export async function getPcfBOMWithDetails(req: any, res: any) {
 
                 detailedBoms.push({
                     ...bom,
+                    suppliers: supplierDetails,
                     supplier_co_product_information: supplierRes.rows,
                     emission_material_calculation_engine: materialRes.rows,
                     emission_production_calculation_engine: productionRes.rows,
@@ -856,6 +883,52 @@ async function getOrCreateTransportMode(client: any, name: string) {
     return newId;
 }
 
+async function getOrCreateSupplier(client: any, supplier: any) {
+    const { supplier_name, supplier_email, supplier_phone_number } = supplier;
+
+    // Check if supplier exists
+    const findQuery = `SELECT id FROM supplier_details WHERE supplier_email = $1 LIMIT 1`;
+    const findResult = await client.query(findQuery, [supplier_email]);
+
+    if (findResult.rows.length > 0) {
+        const existingId = findResult.rows[0].id;
+
+        // Update supplier info if changed
+        const updateQuery = `
+            UPDATE supplier_details
+            SET supplier_name = $1, supplier_phone_number = $2, update_date = NOW()
+            WHERE id = $3
+        `;
+        await client.query(updateQuery, [supplier_name, supplier_phone_number, existingId]);
+        return existingId;
+    }
+
+    // If not found → insert new supplier
+    const newId = ulid();
+    // === Generate new code ===
+    const lastCodeRes = await client.query(`
+        SELECT code 
+        FROM supplier_details 
+        WHERE code LIKE 'SUP%' 
+        ORDER BY created_date DESC 
+        LIMIT 1;
+      `);
+
+    let newCode = "SUP00001";
+    if (lastCodeRes.rows.length > 0) {
+        const lastCode = lastCodeRes.rows[0].code; // e.g. "SUP00012"
+        const numPart = parseInt(lastCode.replace("SUP", ""), 10);
+        const nextNum = numPart + 1;
+        newCode = "SUP" + String(nextNum).padStart(5, "0");
+    }
+
+    const insertQuery = `
+        INSERT INTO supplier_details (id, code, supplier_name, supplier_email, supplier_phone_number)
+        VALUES ($1, $2, $3, $4, $5)
+    `;
+    await client.query(insertQuery, [newId, newCode, supplier_name, supplier_email, supplier_phone_number]);
+    return newId;
+}
 
 export async function createBOMWithDetailsFinal(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -863,6 +936,7 @@ export async function createBOMWithDetailsFinal(req: any, res: any) {
             await client.query("BEGIN");
 
             const {
+                basic_details,
                 bom_pcf_request,
                 bom_pcf_request_product_specification,
                 bom
@@ -870,6 +944,11 @@ export async function createBOMWithDetailsFinal(req: any, res: any) {
 
             const created_by = req.user_id;
 
+            if (!basic_details) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid or missing basic details data", 400, null));
+            }
             // === Validate required data ===
             if (!bom_pcf_request || !bom || !Array.isArray(bom) || bom.length === 0) {
                 return res
@@ -885,6 +964,11 @@ export async function createBOMWithDetailsFinal(req: any, res: any) {
                 id: bomPcfId,
                 code: bomPcfCode,
                 created_by,
+                request_title: basic_details.request_title,
+                priority: basic_details.priority,
+                request_organization: basic_details.request_organization,
+                due_date: basic_details.due_date,
+                request_description: basic_details.request_description,
                 ...bom_pcf_request
             };
 
@@ -924,6 +1008,17 @@ export async function createBOMWithDetailsFinal(req: any, res: any) {
                     transport_mode_id = await getOrCreateTransportMode(client, item.transport_mode_name);
                 }
 
+                // 🔹 Supplier handling
+                let supplier_ids: string[] = [];
+                if (Array.isArray(item.supplier_data)) {
+                    for (const supplier of item.supplier_data) {
+                        const supplier_id = await getOrCreateSupplier(client, supplier);
+                        supplier_ids.push(supplier_id);
+                    }
+                }
+
+                console.log(supplier_ids, "supplier_idssupplier_idssupplier_ids");
+
                 // Compute totals
                 const total_weight_gms = (item.weight_gms || 0) * (item.qunatity || 1);
                 const total_price = (item.price || 0) * (item.qunatity || 1);
@@ -938,6 +1033,7 @@ export async function createBOMWithDetailsFinal(req: any, res: any) {
                     manufacturer_id,
                     component_category_id,
                     transport_mode_id,
+                    supplier_ids,
                     ...item
                 };
 

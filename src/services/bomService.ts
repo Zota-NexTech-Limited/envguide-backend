@@ -3,14 +3,16 @@ export const bomService = {
         const query = `
             INSERT INTO bom_pcf_request (
                 id, code, product_category_id, component_category_id, component_type_id,
-                product_code, manufacturer_id, model_version, created_by
+                product_code, manufacturer_id, model_version, created_by,request_title,
+                priority,request_organization,due_date,request_description
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
             )
         `;
         const values = [
             data.id, data.code, data.product_category_id, data.component_category_id, data.component_type_id,
-            data.product_code, data.manufacturer_id, data.model_version, data.created_by
+            data.product_code, data.manufacturer_id, data.model_version, data.created_by, data.request_title,
+            data.priority, data.request_organization, data.due_date, data.request_description
         ];
         await client.query(query, values);
     },
@@ -35,9 +37,9 @@ export const bomService = {
                 id, code, material_number, component_name, qunatity,
                 production_location, manufacturer_id, detail_description,
                 weight_gms, total_weight_gms, component_category_id,
-                price, total_price, economic_ratio, created_by ,bom_pcf_id
+                price, total_price, economic_ratio, created_by ,bom_pcf_id,supplier_ids
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
             )
         `;
         const values = [
@@ -45,7 +47,7 @@ export const bomService = {
             data.production_location, data.manufacturer_id, data.detail_description,
             data.weight_gms, data.total_weight_gms, data.component_category_id,
             data.price, data.total_price, data.economic_ratio,
-            data.created_by, data.bom_pcf_id
+            data.created_by, data.bom_pcf_id, data.supplier_ids
         ];
         await client.query(query, values);
     },
