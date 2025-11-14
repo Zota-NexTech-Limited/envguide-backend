@@ -187,5 +187,30 @@ Routes.post('/api/data-setup/iron-type/bulk/add', authService.authenticate, Cont
 Routes.post('/api/data-setup/iron-type/delete', authService.authenticate, Controller.deleteIronType);
 Routes.get('/api/data-setup/iron-type/list', authService.authenticate, Controller.getIronType);
 
+// Material Composition Metal
+Routes.post('/api/data-setup/material-composition-metal/add', authService.authenticate, Controller.addMaterialCompositionMetal);
+Routes.post('/api/data-setup/material-composition-metal/update', authService.authenticate, Controller.updateMaterialCompositionMetal);
+Routes.get('/api/data-setup/material-composition-metal/list/search', authService.authenticate, Controller.getMaterialCompositionMetalList);
+Routes.post('/api/data-setup/material-composition-metal/bulk/add', authService.authenticate, Controller.MaterialCompositionMetalDataSetup);
+Routes.post('/api/data-setup/material-composition-metal/delete', authService.authenticate, Controller.deleteMaterialCompositionMetal);
+Routes.get('/api/data-setup/material-composition-metal/list', authService.authenticate, Controller.getMaterialCompositionMetal);
+
+// Material Composition Metal Type
+Routes.post('/api/data-setup/material-composition-metal-type/add', authService.authenticate, Controller.addMaterialCompositionMetalType);
+Routes.post('/api/data-setup/material-composition-metal-type/update', authService.authenticate, Controller.updateMaterialCompositionMetalType);
+Routes.get('/api/data-setup/material-composition-metal-type/list/search', authService.authenticate, Controller.getMaterialCompositionMetalTypeList);
+Routes.post('/api/data-setup/material-composition-metal-type/bulk/add', authService.authenticate, Controller.MaterialCompositionMetalTypeDataSetup);
+Routes.post('/api/data-setup/material-composition-metal-type/delete', authService.authenticate, Controller.deleteMaterialCompositionMetalType);
+Routes.get('/api/data-setup/material-composition-metal-type/list', authService.authenticate, Controller.getMaterialCompositionMetalType);
+
+
+// Fuel type
+Routes.post('/api/data-setup/fuel-type/add', authService.authenticate, Controller.addFuelType);
+Routes.post('/api/data-setup/fuel-type/update', authService.authenticate, Controller.updateFuelType);
+Routes.get('/api/data-setup/fuel-type/list/search', authService.authenticate, Controller.getFuelTypeList);
+Routes.post('/api/data-setup/fuel-type/bulk/add', authService.authenticate, Controller.FuelTypeDataSetup);
+Routes.post('/api/data-setup/fuel-type/delete', authService.authenticate, Controller.deleteFuelType);
+Routes.get('/api/data-setup/fuel-type/list', authService.authenticate, Controller.getFuelType);
+
 
 export default Routes;

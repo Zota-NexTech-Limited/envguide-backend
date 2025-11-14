@@ -481,7 +481,8 @@ export async function createTables() {
 
         `CREATE TABLE IF NOT EXISTS supplier_general_info_questions (
             sgiq_id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255),   
+            code VARCHAR(255), 
+            bom_id VARCHAR(255),   
             bom_pcf_id VARCHAR(255), 
             name_of_organization VARCHAR(255),   
             core_business_activities VARCHAR(255)[],
@@ -504,7 +505,7 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS material_composition_questions (
             id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),   
-            main_raw_materials_used TEXT[],   -- e.g., ['Aluminum', 'Iron', 'Copper', 'Alloy']
+            main_raw_materials_used JSONB,   -- e.g., [{"mcm_id": "01KA0RJNTW695PNTWWCZ169SH2","mcmt_id": "01KA0S2GH73KHNWF9S43E4V869"}]
             contact_enviguide_support BOOLEAN DEFAULT false,
             has_recycled_material_usage BOOLEAN DEFAULT false,
             percentage_recycled_material NUMERIC(5,2), -- 0-100 range
@@ -538,6 +539,7 @@ export async function createTables() {
             main_alloy_metals TEXT,
             metal_grade TEXT,
             user_id VARCHAR(255),
+            total_weight_of_all_component_at_factory JSONB,
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -587,6 +589,10 @@ export async function createTables() {
             uses_certified_logistics_provider BOOLEAN, 
             logistics_provider_details TEXT[], -- if YES, details via Add Button
             user_id VARCHAR(255),
+            mass_weight_of_component_transported_kg VARCHAR(255),
+            transport_modes_fuel_used TEXT[], ---[petrol disel],
+            designation_of_goods_transported TEXT,
+            distance_of_goods_transported VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -2056,6 +2062,20 @@ export async function createTables() {
             CONSTRAINT uq_vd_name UNIQUE (name)
   );`,
 
+        `CREATE TABLE IF NOT EXISTS fuel_type (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_ft_code UNIQUE (code),
+            CONSTRAINT uq_ft_name UNIQUE (name)
+  );`,
+
+        //   from here to 
         `CREATE TABLE IF NOT EXISTS aluminium_type (
             id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255) NOT NULL, 
@@ -2103,6 +2123,33 @@ export async function createTables() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT uq_iron_code_name UNIQUE (code, name)
   );`,
+        //   Here these tables needed currently using these below table combining above four
+
+        `CREATE TABLE IF NOT EXISTS material_composition_metal (
+            mcm_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_material_composition_metal_code_name UNIQUE (code, name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS material_composition_metal_type (
+            mcmt_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,   
+            mcm_id VARCHAR(255),
+            value VARCHAR(255),
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         //   ==========>Data Setup tables end<============
     ]
 
