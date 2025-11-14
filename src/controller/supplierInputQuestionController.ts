@@ -22,6 +22,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
         try {
             const {
                 bom_pcf_id,
+                bom_id,
                 general_info,
                 material_composition,
                 energy_manufacturing,
@@ -34,13 +35,14 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                 additional_notes
             } = req.body;
 
-            if (!bom_pcf_id) {
-                return res.send(generateResponse(false, "bom_pcf_id is required", 400, null));
+            if (!bom_pcf_id || !bom_id) {
+                return res.send(generateResponse(false, "bom_pcf_id and bom_id is required", 400, null));
             }
 
             const user_id = req.user_id;
 
             general_info.bom_pcf_id = bom_pcf_id;
+            general_info.bom_id = bom_id;
             general_info.updated_by = user_id;
             material_composition.updated_by = user_id;
             energy_manufacturing.updated_by = user_id;
@@ -90,8 +92,8 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             // Material Composition
             if (material_composition) {
                 await client.query(
-                    `INSERT INTO material_composition_questions (id, sgiq_id, main_raw_materials_used, contact_enviguide_support, has_recycled_material_usage, percentage_recycled_material, knows_material_breakdown, percentage_pre_consumer, percentage_post_consumer, percentage_reutilization, has_recycled_copper, percentage_recycled_copper, has_recycled_aluminum, percentage_recycled_aluminum, has_recycled_steel, percentage_recycled_steel, has_recycled_plastics, percentage_total_recycled_plastics, percentage_recycled_thermoplastics, percentage_recycled_plastic_fillers, percentage_recycled_fibers, has_recycling_process, has_future_recycling_strategy, planned_recycling_year, track_transport_emissions, estimated_transport_emissions, need_support_for_emissions_calc, emission_calc_requirement, percentage_pcr, percentage_pir, use_bio_based_materials, bio_based_material_details, msds_or_composition_link, main_alloy_metals, metal_grade, user_id)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36);`,
+                    `INSERT INTO material_composition_questions (id, sgiq_id, main_raw_materials_used, contact_enviguide_support, has_recycled_material_usage, percentage_recycled_material, knows_material_breakdown, percentage_pre_consumer, percentage_post_consumer, percentage_reutilization, has_recycled_copper, percentage_recycled_copper, has_recycled_aluminum, percentage_recycled_aluminum, has_recycled_steel, percentage_recycled_steel, has_recycled_plastics, percentage_total_recycled_plastics, percentage_recycled_thermoplastics, percentage_recycled_plastic_fillers, percentage_recycled_fibers, has_recycling_process, has_future_recycling_strategy, planned_recycling_year, track_transport_emissions, estimated_transport_emissions, need_support_for_emissions_calc, emission_calc_requirement, percentage_pcr, percentage_pir, use_bio_based_materials, bio_based_material_details, msds_or_composition_link, main_alloy_metals, metal_grade, user_id,total_weight_of_all_component_at_factory)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37);`,
                     [ulid(), sgiq_id, ...Object.values(material_composition)]
                 );
             }
@@ -654,6 +656,51 @@ export async function updateSupplierSustainabilityData(req: any, res: any) {
         } catch (error: any) {
             await client.query("ROLLBACK");
             console.error("❌ Update Error:", error);
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getMaterialCompositionMetal(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `SELECT mcm_id, code, name, description FROM material_composition_metal;`;
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getMaterialCompositionMetalType(req: any, res: any) {
+    const { mcm_id } = req.query;
+
+    return withClient(async (client: any) => {
+        try {
+            const query = `
+                SELECT 
+                    mcmt.mcmt_id AS mcmt_id,
+                    mcmt.code AS mcmt_code,
+                    mcmt.name AS mcmt_name,
+                    mcmt.description AS mcmt_description,
+
+                    mcm.mcm_id AS mcm_id,
+                    mcm.code AS mcm_code,
+                    mcm.name AS mcm_name,
+                    mcm.description AS mcm_description
+
+                FROM material_composition_metal_type mcmt
+                LEFT JOIN material_composition_metal mcm 
+                    ON mcm.mcm_id = mcmt.mcm_id
+                WHERE mcmt.mcm_id = $1;
+            `;
+
+            const result = await client.query(query, [mcm_id]);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }
     });

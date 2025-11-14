@@ -7,5 +7,7 @@ Routes.post('/api/create-supplier-input-questions', authService.authenticate, Co
 Routes.get('/api/get-by-id-supplier-input-questions', authService.authenticate, Controller.getSupplierSustainabilityDataById);
 Routes.get('/api/supplier-input-questions-list', authService.authenticate, Controller.getSupplierDetailsList);
 Routes.post('/api/update-supplier-input-questions', authService.authenticate, Controller.updateSupplierSustainabilityData);
+Routes.get('/api/supplier/material-composition-metal-dropdown', authService.authenticate, Controller.getMaterialCompositionMetal);
+Routes.get('/api/supplier/material-composition-metal-type-dropdown', authService.authenticate, Controller.getMaterialCompositionMetalType);
 
 export default Routes;
