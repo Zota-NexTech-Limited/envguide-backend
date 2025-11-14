@@ -204,4 +204,13 @@ Routes.post('/api/data-setup/material-composition-metal-type/delete', authServic
 Routes.get('/api/data-setup/material-composition-metal-type/list', authService.authenticate, Controller.getMaterialCompositionMetalType);
 
 
+// Fuel type
+Routes.post('/api/data-setup/fuel-type/add', authService.authenticate, Controller.addFuelType);
+Routes.post('/api/data-setup/fuel-type/update', authService.authenticate, Controller.updateFuelType);
+Routes.get('/api/data-setup/fuel-type/list/search', authService.authenticate, Controller.getFuelTypeList);
+Routes.post('/api/data-setup/fuel-type/bulk/add', authService.authenticate, Controller.FuelTypeDataSetup);
+Routes.post('/api/data-setup/fuel-type/delete', authService.authenticate, Controller.deleteFuelType);
+Routes.get('/api/data-setup/fuel-type/list', authService.authenticate, Controller.getFuelType);
+
+
 export default Routes;
