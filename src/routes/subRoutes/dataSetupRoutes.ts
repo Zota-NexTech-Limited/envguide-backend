@@ -213,4 +213,21 @@ Routes.post('/api/data-setup/fuel-type/delete', authService.authenticate, Contro
 Routes.get('/api/data-setup/fuel-type/list', authService.authenticate, Controller.getFuelType);
 
 
+// Manufacturing Process
+Routes.post('/api/data-setup/manufacturing-process/add', authService.authenticate, Controller.addManufacturingProcess);
+Routes.post('/api/data-setup/manufacturing-process/update', authService.authenticate, Controller.updateManufacturingProcess);
+Routes.get('/api/data-setup/manufacturing-process/list/search', authService.authenticate, Controller.getManufacturingProcessList);
+Routes.post('/api/data-setup/manufacturing-process/bulk/add', authService.authenticate, Controller.ManufacturingProcessDataSetup);
+Routes.post('/api/data-setup/manufacturing-process/delete', authService.authenticate, Controller.deleteManufacturingProcess);
+Routes.get('/api/data-setup/manufacturing-process/list', authService.authenticate, Controller.getManufacturingProcess);
+
+// Life Cycle Stage
+Routes.post('/api/data-setup/life-cycle-stage/add', authService.authenticate, Controller.addLifeCycleStage);
+Routes.post('/api/data-setup/life-cycle-stage/update', authService.authenticate, Controller.updateLifeCycleStage);
+Routes.get('/api/data-setup/life-cycle-stage/list/search', authService.authenticate, Controller.getLifeCycleStageList);
+Routes.post('/api/data-setup/life-cycle-stage/bulk/add', authService.authenticate, Controller.LifeCycleStageDataSetup);
+Routes.post('/api/data-setup/life-cycle-stage/delete', authService.authenticate, Controller.deleteLifeCycleStage);
+Routes.get('/api/data-setup/life-cycle-stage/list', authService.authenticate, Controller.getLifeCycleStage);
+
+
 export default Routes;
