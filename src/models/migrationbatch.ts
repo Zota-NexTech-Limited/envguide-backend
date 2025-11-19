@@ -300,6 +300,7 @@ export async function mirgation() {
             ed_recyclability DOUBLE PRECISION,
             ed_life_cycle_stage_id VARCHAR(255), 
             ed_renewable_energy DOUBLE PRECISION,
+            pcf_status VARCHAR(255) DEFAULT 'Not Available',
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
