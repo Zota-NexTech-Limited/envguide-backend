@@ -9,6 +9,7 @@ import taskManagementRoutes from './subRoutes/taskManagementRoutes';
 import supplierInputQuestions from './subRoutes/supplierInputQuestionRoutes';
 import dqrRating from './subRoutes/dqrRatingRoutes';
 import supplierDetails from './subRoutes/supplierInfoRoutes';
+import product from './subRoutes/productRoutes';
 
 export function routes(app: any) {
 
@@ -22,6 +23,7 @@ export function routes(app: any) {
     app.use(supplierInputQuestions);
     app.use(dqrRating);
     app.use(supplierDetails);
+    app.use(product);
     app.get('/health', (req: any, res: any) => {
         res.send('ok');
     });

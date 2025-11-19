@@ -278,6 +278,30 @@ export async function createTables() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        `CREATE TABLE IF NOT EXISTS product (
+            id VARCHAR(255) PRIMARY KEY,
+            product_code VARCHAR(255),
+            product_name VARCHAR(255),  
+            product_category_id VARCHAR(255), 
+            product_sub_category_id VARCHAR(255), 
+            description text,
+            ts_weight_kg DOUBLE PRECISION,
+            ts_dimensions VARCHAR(255),
+            ts_material TEXT,
+            ts_manufacturing_process_id VARCHAR(255), 
+            ts_supplier VARCHAR(255),
+            ts_part_number VARCHAR(255),
+            ed_estimated_pcf DOUBLE PRECISION,
+            ed_recyclability DOUBLE PRECISION,
+            ed_life_cycle_stage_id VARCHAR(255), 
+            ed_renewable_energy DOUBLE PRECISION,
+            pcf_status VARCHAR(255) DEFAULT 'Not Available',
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         //   need to update these below tables after updating screen
 
         `CREATE TABLE IF NOT EXISTS bom_pcf_request (
@@ -2148,6 +2172,30 @@ export async function createTables() {
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS manufacturing_process (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_mp_code_name UNIQUE (code, name)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS life_cycle_stage (
+            id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,       
+            description text,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_lc_code_name UNIQUE (code, name)
   );`,
 
         //   ==========>Data Setup tables end<============
