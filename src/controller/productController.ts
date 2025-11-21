@@ -190,7 +190,7 @@ export async function getProductById(req: any, res: any) {
         try {
             const { id } = req.query;
 
-            const query = `
+            const productQuery = `
                 SELECT p.*,
                        pc.code AS category_code,
                        pc.name AS category_name,
@@ -212,13 +212,54 @@ export async function getProductById(req: any, res: any) {
                 WHERE p.id = $1;
             `;
 
-            const result = await client.query(query, [id]);
+            const productResult = await client.query(productQuery, [id]);
 
-            if (result.rows.length === 0) {
+            if (productResult.rows.length === 0) {
                 return res.send(generateResponse(false, "Product not found", 404, null));
             }
 
-            return res.send(generateResponse(true, "Fetched successfully", 200, result.rows[0]));
+            let product = productResult.rows[0];
+
+            // ---------- Fetch Own Emission (Separate) ----------
+            const ownEmissionQuery = `
+                SELECT oe.*,
+                       cm.name AS calculation_method_name,
+                       fc.name AS fuel_combustion_name,
+                       pe.name AS process_emission_name,
+                       fe.name AS fugitive_emission_name,
+                       elb.name AS electicity_location_based_name,
+                       emb.name AS electicity_market_based_name,
+                       shc.name AS steam_heat_cooling_name,
+                       u1.user_name AS created_by_name,
+                       u2.user_name AS updated_by_name
+                FROM own_emission oe
+                LEFT JOIN calculation_method cm ON oe.calculation_method_id = cm.id
+                LEFT JOIN fuel_combustion fc ON oe.fuel_combustion_id = fc.id
+                LEFT JOIN process_emission pe ON oe.process_emission_id = pe.id
+                LEFT JOIN fugitive_emission fe ON oe.fugitive_emission_id = fe.id
+                LEFT JOIN electicity_location_based elb ON oe.electicity_location_based_id = elb.id
+                LEFT JOIN electicity_market_based emb ON oe.electicity_market_based_id = emb.id
+                LEFT JOIN steam_heat_cooling shc ON oe.steam_heat_cooling_id = shc.id
+                LEFT JOIN users_table u1 ON oe.created_by = u1.user_id
+                LEFT JOIN users_table u2 ON oe.updated_by = u2.user_id
+                WHERE oe.product_id = $1;
+            `;
+
+            const ownEmissionResult = await client.query(ownEmissionQuery, [id]);
+
+            // Add separate nested object
+            product.own_emission = ownEmissionResult.rows.length ? ownEmissionResult.rows[0] : null;
+
+            if (product.own_emission) {
+                const docs = await client.query(
+                    `SELECT * FROM own_emission_supporting_document WHERE own_emission_id = $1;`,
+                    [ownEmissionResult.rows[0].id]
+                );
+                product.own_emission.supporting_documents = docs.rows;
+            }
+
+            return res.send(generateResponse(true, "Fetched successfully", 200, product));
+
 
         } catch (err: any) {
             return res.send(generateResponse(false, err.message, 400, null));
