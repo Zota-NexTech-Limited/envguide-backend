@@ -9,6 +9,7 @@ export async function addOwnEmission(req: any, res: any) {
             await client.query("BEGIN");
 
             const {
+                product_id,
                 reporting_period_from,
                 reporting_period_to,
                 calculation_method_id,
@@ -56,9 +57,9 @@ export async function addOwnEmission(req: any, res: any) {
                 electicity_location_based_id, electicity_location_based_value,
                 electicity_market_based_id, electicity_market_based_value,
                 steam_heat_cooling_id, steam_heat_cooling_value,
-                additional_notes, created_by
+                additional_notes, created_by,product_id
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
             ) RETURNING *;
         `;
             const result = await client.query(query, [
@@ -69,7 +70,7 @@ export async function addOwnEmission(req: any, res: any) {
                 electicity_location_based_id, electicity_location_based_value,
                 electicity_market_based_id, electicity_market_based_value,
                 steam_heat_cooling_id, steam_heat_cooling_value,
-                additional_notes, created_by
+                additional_notes, created_by, product_id
             ]);
 
             if (Array.isArray(supporting_documents) && supporting_documents.length > 0) {
@@ -231,6 +232,7 @@ export async function updateOwnEmission(req: any, res: any) {
 
             const {
                 id,
+                product_id,
                 reporting_period_from,
                 reporting_period_to,
                 calculation_method_id,
@@ -271,7 +273,8 @@ export async function updateOwnEmission(req: any, res: any) {
           steam_heat_cooling_value = $15,
           additional_notes = $16,
           updated_by = $17,
-          update_date = NOW()
+          update_date = NOW(),
+          product_id = $19
       WHERE id = $18
       RETURNING *;
     `;
@@ -294,7 +297,8 @@ export async function updateOwnEmission(req: any, res: any) {
                 steam_heat_cooling_value,
                 additional_notes,
                 updated_by,
-                id
+                id,
+                product_id
             ]);
 
             if (result.rows.length === 0) {

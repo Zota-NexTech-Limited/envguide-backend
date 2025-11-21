@@ -222,6 +222,7 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS own_emission (
             id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255), 
+            product_id VARCHAR(255),
             reporting_period_from DATE,
             reporting_period_to DATE,
             calculation_method_id VARCHAR(255), 
