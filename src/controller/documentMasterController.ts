@@ -243,3 +243,273 @@ export async function getDocumentById(req: any, res: any) {
         }
     });
 }
+
+// export async function listDocumentMaster(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const {
+//                 pageNumber = 1,
+//                 pageSize = 10,
+//                 search = "",
+//                 status,
+//                 category,
+//                 sortBy = "created_date",
+//                 sortOrder = "DESC"
+//             } = req.query;
+
+//             const offset = (pageNumber - 1) * pageSize;
+//             const limit = Number(pageSize);
+
+//             const values: any[] = [];
+//             let where = `WHERE 1=1`;
+
+//             if (search) {
+//                 values.push(`%${search}%`);
+//                 where += ` AND (
+//                     dm.document_title ILIKE $${values.length} OR
+//                     dm.code ILIKE $${values.length} OR
+//                     dm.document_type ILIKE $${values.length}
+//                 )`;
+//             }
+
+//             if (status) {
+//                 values.push(status);
+//                 where += ` AND dm.status = $${values.length}`;
+//             }
+
+//             if (category) {
+//                 values.push(category);
+//                 where += ` AND dm.category = $${values.length}`;
+//             }
+
+//             // Main paginated list
+//             const query = `
+//                 SELECT 
+//                     dm.*,
+//                     (
+//                         SELECT json_build_object(
+//                             'code', c.code,
+//                             'name', c.name
+//                         )
+//                         FROM category c
+//                         WHERE c.code = dm.category
+//                     ) AS category_details,
+//                     (
+//                         SELECT jsonb_agg(
+//                             json_build_object(
+//                                 'id', t.id,
+//                                 'code', t.code,
+//                                 'name', t.name
+//                             )
+//                         )
+//                         FROM tag t
+//                         WHERE t.id = ANY(dm.tags)
+//                     ) AS tag_details
+//                 FROM document_master dm
+//                 ${where}
+//                 ORDER BY dm.${sortBy} ${sortOrder}
+//                 LIMIT ${limit} OFFSET ${offset};
+//             `;
+
+//             const result = await client.query(query, values);
+
+//             // Count total
+//             const countQuery = `SELECT COUNT(*) AS total FROM document_master dm ${where}`;
+//             const total = await client.query(countQuery, values);
+
+//             // Recent Activity (always fetch 5 recent documents)
+//             const recentQuery = `
+//                 SELECT 
+//                     dm.id,
+//                     dm.document_title,
+//                     dm.code,
+//                     dm.status,
+//                     dm.created_by,
+//                     dm.created_date
+//                 FROM document_master dm
+//                 ORDER BY dm.created_date DESC
+//                 LIMIT 10;
+//             `;
+//             const recentActivity = await client.query(recentQuery);
+
+//             return res.status(200).json({
+//                 message: "Document list fetched successfully",
+//                 currentPage: pageNumber,
+//                 totalRecords: total.rows[0].total,
+//                 totalPages: Math.ceil(total.rows[0].total / limit),
+//                 recentActivity: recentActivity.rows,
+//                 data: result.rows
+//             });
+
+//         } catch (error) {
+//             console.error(error);
+//             return res.status(500).json({ message: "Something went wrong", error });
+//         }
+//     });
+// }
+
+export async function listDocumentMaster(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const {
+                pageNumber = 1,
+                pageSize = 10,
+                search = "",
+                status,
+                category,
+                sortBy = "created_date",
+                sortOrder = "DESC"
+            } = req.query;
+
+            const offset = (pageNumber - 1) * pageSize;
+            const limit = Number(pageSize);
+
+            const values: any[] = [];
+            let where = `WHERE 1=1`;
+
+            if (search) {
+                values.push(`%${search}%`);
+                where += ` AND (
+                    dm.document_title ILIKE $${values.length} OR
+                    dm.code ILIKE $${values.length} OR
+                    dm.document_type ILIKE $${values.length}
+                )`;
+            }
+
+            if (status) {
+                values.push(status);
+                where += ` AND dm.status = $${values.length}`;
+            }
+
+            if (category) {
+                values.push(category);
+                where += ` AND dm.category = $${values.length}`;
+            }
+
+            // Main Query
+            const query = `
+                SELECT 
+                    dm.*,
+                    (
+                        SELECT json_build_object('code', c.code,'name', c.name)
+                        FROM category c
+                        WHERE c.code = dm.category
+                    ) AS category_details,
+                    (
+                        SELECT jsonb_agg(json_build_object('id', t.id,'code', t.code,'name', t.name))
+                        FROM tag t
+                        WHERE t.id = ANY(dm.tags)
+                    ) AS tag_details
+                FROM document_master dm
+                ${where}
+                ORDER BY dm.${sortBy} ${sortOrder}
+                LIMIT ${limit} OFFSET ${offset};
+            `;
+            const result = await client.query(query, values);
+
+            const countQuery = `SELECT COUNT(*)::int AS total FROM document_master dm ${where}`;
+            const total = await client.query(countQuery, values);
+
+            // Recent 10 Activity
+            const recentQuery = `
+                SELECT id, document_title, code, status, created_by, created_date
+                FROM document_master
+                ORDER BY created_date DESC
+                LIMIT 10;
+            `;
+            const recentActivity = await client.query(recentQuery);
+
+            // ---------------------- STATS SECTION ----------------------
+
+            // Total count
+            const totalDocuments = await client.query(`
+                SELECT COUNT(*) AS count FROM document_master
+            `);
+
+            // Pending count
+            const pendingDocuments = await client.query(`
+                SELECT COUNT(*) AS count FROM document_master WHERE status = 'Pending'
+            `);
+
+            // PCF count (case insensitive match)
+            const pcfDocuments = await client.query(`
+                SELECT COUNT(*) AS count 
+                FROM document_master 
+                WHERE LOWER(document_type) LIKE '%pcf%'
+            `);
+
+            // ---- TIME BASED COUNTS ----
+            const stats = async (currentQuery: string, previousQuery: string) => {
+                const current = Number((await client.query(currentQuery)).rows[0].count);
+                const previous = Number((await client.query(previousQuery)).rows[0].count);
+
+                let progress = 0;
+
+                if (previous === 0 && current > 0) {
+                    progress = 100;
+                } else if (previous > 0) {
+                    progress = Math.min((current / previous) * 100, 100);
+                }
+
+                return {
+                    current,
+                    previous,
+                    progress: Number(progress.toFixed(2))
+                };
+            };
+
+
+            // Daily
+            const daily = await stats(
+                `SELECT COUNT(*) FROM document_master WHERE DATE(created_date) = CURRENT_DATE`,
+                `SELECT COUNT(*) FROM document_master WHERE DATE(created_date) = CURRENT_DATE - INTERVAL '1 day'`
+            );
+
+            // Weekly
+            const weekly = await stats(
+                `SELECT COUNT(*) FROM document_master WHERE created_date >= date_trunc('week', CURRENT_DATE)`,
+                `SELECT COUNT(*) FROM document_master WHERE created_date >= date_trunc('week', CURRENT_DATE - INTERVAL '1 week')
+                 AND created_date < date_trunc('week', CURRENT_DATE)`
+            );
+
+            // Monthly
+            const monthly = await stats(
+                `SELECT COUNT(*) FROM document_master WHERE created_date >= date_trunc('month', CURRENT_DATE)`,
+                `SELECT COUNT(*) FROM document_master WHERE created_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+                 AND created_date < date_trunc('month', CURRENT_DATE)`
+            );
+
+            // Yearly
+            const yearly = await stats(
+                `SELECT COUNT(*) FROM document_master WHERE created_date >= date_trunc('year', CURRENT_DATE)`,
+                `SELECT COUNT(*) FROM document_master WHERE created_date >= date_trunc('year', CURRENT_DATE - INTERVAL '1 year')
+                 AND created_date < date_trunc('year', CURRENT_DATE)`
+            );
+
+
+            return res.status(200).json({
+                message: "Document list fetched successfully",
+                currentPage: Number(pageNumber),
+                totalRecords: total.rows[0].total,
+                totalPages: Math.ceil(total.rows[0].total / limit),
+                recentActivity: recentActivity.rows,
+                stats: {
+                    totalDocuments: Number(totalDocuments.rows[0].count),
+                    pendingDocuments: Number(pendingDocuments.rows[0].count),
+                    pcfDocuments: Number(pcfDocuments.rows[0].count),
+                    daily,
+                    weekly,
+                    monthly,
+                    yearly
+                },
+                data: result.rows
+            });
+
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ message: "Something went wrong", error });
+        }
+    });
+}
+
+
