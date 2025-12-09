@@ -412,8 +412,8 @@ export async function listDocumentMaster(req: any, res: any) {
 
             // Recent 10 Activity
             const recentQuery = `
-                SELECT id, document_title, code, status, created_by, created_date
-                FROM document_master
+                SELECT dmm.*
+                FROM document_master dmm
                 ORDER BY created_date DESC
                 LIMIT 10;
             `;

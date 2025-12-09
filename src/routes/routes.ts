@@ -10,6 +10,7 @@ import supplierInputQuestions from './subRoutes/supplierInputQuestionRoutes';
 import dqrRating from './subRoutes/dqrRatingRoutes';
 import supplierDetails from './subRoutes/supplierInfoRoutes';
 import product from './subRoutes/productRoutes';
+import imageRoutes from './subRoutes/imageRoutes';
 
 export function routes(app: any) {
 
@@ -24,6 +25,7 @@ export function routes(app: any) {
     app.use(dqrRating);
     app.use(supplierDetails);
     app.use(product);
+    app.use(imageRoutes);
     app.get('/health', (req: any, res: any) => {
         res.send('ok');
     });
