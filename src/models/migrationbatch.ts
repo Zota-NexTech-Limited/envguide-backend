@@ -2206,6 +2206,108 @@ export async function mirgation() {
   );`,
 
         //   ==========>Data Setup tables end<============
+
+        // ===========> Master Data Setup tables start<============
+        `CREATE TABLE IF NOT EXISTS material_composition_metals (
+            mcm_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS country_iso_two (
+            citw_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS country_iso_three (
+            cith_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS scope_two_method (
+            stm_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS method_type (
+            mt_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS transport_modes (
+            tm_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS transport_routes (
+            tr_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS packaging_level (
+            pl_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS waste_treatment (
+            wt_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS refrigerent_type (
+            rt_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        `CREATE TABLE IF NOT EXISTS liquid_fuel_unit (
+            lfu_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
     ]
 
     // try {
