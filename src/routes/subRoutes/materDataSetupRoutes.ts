@@ -140,4 +140,44 @@ Routes.post('/api/master-data-setup/energy-source/bulk/add', authService.authent
 Routes.post('/api/master-data-setup/energy-source/delete', authService.authenticate, Controller.deleteEnergySource);
 Routes.get('/api/master-data-setup/energy-source/drop-down-list', authService.authenticate, Controller.getEnergySourceDropDownList);
 
+// EnergyType
+Routes.post('/api/master-data-setup/energy-type/add', authService.authenticate, Controller.addEnergyType);
+Routes.post('/api/master-data-setup/energy-type/update', authService.authenticate, Controller.updateEnergyType);
+Routes.get('/api/master-data-setup/energy-type/list/search', authService.authenticate, Controller.getEnergyTypeListSearch);
+Routes.post('/api/master-data-setup/energy-type/bulk/add', authService.authenticate, Controller.EnergyTypeDataSetup);
+Routes.post('/api/master-data-setup/energy-type/delete', authService.authenticate, Controller.deleteEnergyType);
+Routes.get('/api/master-data-setup/energy-type/drop-down-list', authService.authenticate, Controller.getEnergyTypeDropDownList);
+
+// EnergyUnit
+Routes.post('/api/master-data-setup/energy-unit/add', authService.authenticate, Controller.addEnergyUnit);
+Routes.post('/api/master-data-setup/energy-unit/update', authService.authenticate, Controller.updateEnergyUnit);
+Routes.get('/api/master-data-setup/energy-unit/list/search', authService.authenticate, Controller.getEnergyUnitListSearch);
+Routes.post('/api/master-data-setup/energy-unit/bulk/add', authService.authenticate, Controller.EnergyUnitDataSetup);
+Routes.post('/api/master-data-setup/energy-unit/delete', authService.authenticate, Controller.deleteEnergyUnit);
+Routes.get('/api/master-data-setup/energy-unit/drop-down-list', authService.authenticate, Controller.getEnergyUnitDropDownList);
+
+// EFUnit
+Routes.post('/api/master-data-setup/ef-unit/add', authService.authenticate, Controller.addEFUnit);
+Routes.post('/api/master-data-setup/ef-unit/update', authService.authenticate, Controller.updateEFUnit);
+Routes.get('/api/master-data-setup/ef-unit/list/search', authService.authenticate, Controller.getEFUnitListSearch);
+Routes.post('/api/master-data-setup/ef-unit/bulk/add', authService.authenticate, Controller.EFUnitDataSetup);
+Routes.post('/api/master-data-setup/ef-unit/delete', authService.authenticate, Controller.deleteEFUnit);
+Routes.get('/api/master-data-setup/ef-unit/drop-down-list', authService.authenticate, Controller.getEFUnitDropDownList);
+
+// AllocationMethod
+Routes.post('/api/master-data-setup/allocation-method/add', authService.authenticate, Controller.addAllocationMethod);
+Routes.post('/api/master-data-setup/allocation-method/update', authService.authenticate, Controller.updateAllocationMethod);
+Routes.get('/api/master-data-setup/allocation-method/list/search', authService.authenticate, Controller.getAllocationMethodListSearch);
+Routes.post('/api/master-data-setup/allocation-method/bulk/add', authService.authenticate, Controller.AllocationMethodDataSetup);
+Routes.post('/api/master-data-setup/allocation-method/delete', authService.authenticate, Controller.deleteAllocationMethod);
+Routes.get('/api/master-data-setup/allocation-method/drop-down-list', authService.authenticate, Controller.getAllocationMethodDropDownList);
+
+// CertificateType
+Routes.post('/api/master-data-setup/certificate-type/add', authService.authenticate, Controller.addCertificateType);
+Routes.post('/api/master-data-setup/certificate-type/update', authService.authenticate, Controller.updateCertificateType);
+Routes.get('/api/master-data-setup/certificate-type/list/search', authService.authenticate, Controller.getCertificateTypeListSearch);
+Routes.post('/api/master-data-setup/certificate-type/bulk/add', authService.authenticate, Controller.CertificateTypeDataSetup);
+Routes.post('/api/master-data-setup/certificate-type/delete', authService.authenticate, Controller.deleteCertificateType);
+Routes.get('/api/master-data-setup/certificate-type/drop-down-list', authService.authenticate, Controller.getCertificateTypeDropDownList);
+
 export default Routes;
