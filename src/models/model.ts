@@ -2303,6 +2303,66 @@ export async function createTables() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        `CREATE TABLE IF NOT EXISTS gaseous_fuel_unit (
+            gfu_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS solid_fuel_unit (
+            sfu_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS process_specific_energy (
+            pse_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS fuel_types (
+            ft_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS vehicle_types (
+            ft_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS energy_source (
+            ft_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
     ]
 
     // try {
