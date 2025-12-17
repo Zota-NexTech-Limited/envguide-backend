@@ -2784,3 +2784,1485 @@ export async function getLiquidFuelUnitDropDownList(req: any, res: any) {
         }
     });
 }
+
+// ===>
+export async function addGaseousFuelUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+
+            if (!name) {
+                throw new Error("Name is required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM gaseous_fuel_unit WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const gfu_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'GFU', 'gaseous_fuel_unit');
+            const code = formatCode('GFU', nextNumber);
+
+            const query = `
+                INSERT INTO gaseous_fuel_unit (gfu_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [
+                gfu_id,
+                code,
+                name,
+                req.user_id
+            ]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateGaseousFuelUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                const checkName = await client.query(
+                    `SELECT 1
+                     FROM gaseous_fuel_unit
+                     WHERE name ILIKE $1 AND gfu_id <> $2`,
+                    [item.name, item.gfu_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE gaseous_fuel_unit
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE gfu_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.gfu_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getGaseousFuelUnitListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT i.*
+                FROM gaseous_fuel_unit i
+                WHERE 1=1 ${whereClause}
+                ORDER BY i.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM gaseous_fuel_unit i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function GaseousFuelUnitDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const duplicatePayloadNames = names.filter(
+                (n, i) => names.indexOf(n) !== i
+            );
+
+            if (duplicatePayloadNames.length > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            const existing = await client.query(
+                `SELECT name FROM gaseous_fuel_unit WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more names already exist", 400, null));
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'GFU', 'gaseous_fuel_unit');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                rows.push({
+                    gfu_id: ulid(),
+                    code: formatCode('GFU', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO gaseous_fuel_unit (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteGaseousFuelUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { gfu_id } = req.body;
+
+            await client.query(
+                `DELETE FROM gaseous_fuel_unit WHERE gfu_id = $1`,
+                [gfu_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getGaseousFuelUnitDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT *
+                FROM gaseous_fuel_unit
+                ORDER BY created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+// ===>
+export async function addSolidFuelUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+
+            if (!name) {
+                throw new Error("Name is required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM solid_fuel_unit WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const sfu_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'SFU', 'solid_fuel_unit');
+            const code = formatCode('SFU', nextNumber);
+
+            const query = `
+                INSERT INTO solid_fuel_unit (sfu_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [
+                sfu_id,
+                code,
+                name,
+                req.user_id
+            ]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateSolidFuelUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                const checkName = await client.query(
+                    `SELECT 1
+                     FROM solid_fuel_unit
+                     WHERE name ILIKE $1 AND sfu_id <> $2`,
+                    [item.name, item.sfu_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE solid_fuel_unit
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE sfu_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.sfu_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getSolidFuelUnitListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT i.*
+                FROM solid_fuel_unit i
+                WHERE 1=1 ${whereClause}
+                ORDER BY i.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM solid_fuel_unit i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function SolidFuelUnitDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const duplicatePayloadNames = names.filter(
+                (n, i) => names.indexOf(n) !== i
+            );
+
+            if (duplicatePayloadNames.length > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            const existing = await client.query(
+                `SELECT name FROM solid_fuel_unit WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more names already exist", 400, null));
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'SFU', 'solid_fuel_unit');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                rows.push({
+                    sfu_id: ulid(),
+                    code: formatCode('SFU', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO solid_fuel_unit (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteSolidFuelUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { sfu_id } = req.body;
+
+            await client.query(
+                `DELETE FROM solid_fuel_unit WHERE sfu_id = $1`,
+                [sfu_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getSolidFuelUnitDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT *
+                FROM solid_fuel_unit
+                ORDER BY created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+// ===>
+export async function addProcessSpecificEnergy(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+
+            if (!name) {
+                throw new Error("Name is required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM process_specific_energy WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const pse_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'PSE', 'process_specific_energy');
+            const code = formatCode('PSE', nextNumber);
+
+            const query = `
+                INSERT INTO process_specific_energy (pse_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [
+                pse_id,
+                code,
+                name,
+                req.user_id
+            ]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateProcessSpecificEnergy(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                const checkName = await client.query(
+                    `SELECT 1
+                     FROM process_specific_energy
+                     WHERE name ILIKE $1 AND pse_id <> $2`,
+                    [item.name, item.pse_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE process_specific_energy
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE pse_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.pse_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getProcessSpecificEnergyListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT i.*
+                FROM process_specific_energy i
+                WHERE 1=1 ${whereClause}
+                ORDER BY i.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM process_specific_energy i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function ProcessSpecificEnergyDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const duplicatePayloadNames = names.filter(
+                (n, i) => names.indexOf(n) !== i
+            );
+
+            if (duplicatePayloadNames.length > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            const existing = await client.query(
+                `SELECT name FROM process_specific_energy WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more names already exist", 400, null));
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'PSE', 'process_specific_energy');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                rows.push({
+                    pse_id: ulid(),
+                    code: formatCode('PSE', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO process_specific_energy (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteProcessSpecificEnergy(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { pse_id } = req.body;
+
+            await client.query(
+                `DELETE FROM process_specific_energy WHERE pse_id = $1`,
+                [pse_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getProcessSpecificEnergyDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT *
+                FROM process_specific_energy
+                ORDER BY created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+// ===>
+export async function addFuelType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+
+            if (!name) {
+                throw new Error("Name is required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM fuel_types WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const ft_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'FT', 'fuel_types');
+            const code = formatCode('FT', nextNumber);
+
+            const query = `
+                INSERT INTO fuel_types (ft_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [
+                ft_id,
+                code,
+                name,
+                req.user_id
+            ]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateFuelType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                const checkName = await client.query(
+                    `SELECT 1
+                     FROM fuel_types
+                     WHERE name ILIKE $1 AND ft_id <> $2`,
+                    [item.name, item.ft_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE fuel_types
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE ft_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.ft_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getFuelTypeListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT i.*
+                FROM fuel_types i
+                WHERE 1=1 ${whereClause}
+                ORDER BY i.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM fuel_types i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function FuelTypeDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const duplicatePayloadNames = names.filter(
+                (n, i) => names.indexOf(n) !== i
+            );
+
+            if (duplicatePayloadNames.length > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            const existing = await client.query(
+                `SELECT name FROM fuel_types WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more names already exist", 400, null));
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'FT', 'fuel_types');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                rows.push({
+                    ft_id: ulid(),
+                    code: formatCode('FT', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO fuel_types (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteFuelType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { ft_id } = req.body;
+
+            await client.query(
+                `DELETE FROM fuel_types WHERE ft_id = $1`,
+                [ft_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getFuelTypeDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT *
+                FROM fuel_types
+                ORDER BY created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+// ===>
+export async function addVehicleType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+
+            if (!name) {
+                throw new Error("Name is required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM vehicle_types WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const vt_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'VT', 'vehicle_types');
+            const code = formatCode('VT', nextNumber);
+
+            const query = `
+                INSERT INTO vehicle_types (vt_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [
+                vt_id,
+                code,
+                name,
+                req.user_id
+            ]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateVehicleType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                const checkName = await client.query(
+                    `SELECT 1
+                     FROM vehicle_types
+                     WHERE name ILIKE $1 AND vt_id <> $2`,
+                    [item.name, item.vt_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE vehicle_types
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE vt_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.vt_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getVehicleTypeListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT i.*
+                FROM vehicle_types i
+                WHERE 1=1 ${whereClause}
+                ORDER BY i.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM vehicle_types i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function VehicleTypeDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const duplicatePayloadNames = names.filter(
+                (n, i) => names.indexOf(n) !== i
+            );
+
+            if (duplicatePayloadNames.length > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            const existing = await client.query(
+                `SELECT name FROM vehicle_types WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more names already exist", 400, null));
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'VT', 'vehicle_types');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                rows.push({
+                    vt_id: ulid(),
+                    code: formatCode('VT', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO vehicle_types (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteVehicleType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { vt_id } = req.body;
+
+            await client.query(
+                `DELETE FROM vehicle_types WHERE vt_id = $1`,
+                [vt_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getVehicleTypeDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT *
+                FROM vehicle_types
+                ORDER BY created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+// ===>
+export async function addEnergySource(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+
+            if (!name) {
+                throw new Error("Name is required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM energy_source WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const es_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'ES', 'energy_source');
+            const code = formatCode('ES', nextNumber);
+
+            const query = `
+                INSERT INTO energy_source (es_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [
+                es_id,
+                code,
+                name,
+                req.user_id
+            ]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateEnergySource(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                const checkName = await client.query(
+                    `SELECT 1
+                     FROM energy_source
+                     WHERE name ILIKE $1 AND es_id <> $2`,
+                    [item.name, item.es_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE energy_source
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE es_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.es_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getEnergySourceListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT i.*
+                FROM energy_source i
+                WHERE 1=1 ${whereClause}
+                ORDER BY i.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM energy_source i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function EnergySourceDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const duplicatePayloadNames = names.filter(
+                (n, i) => names.indexOf(n) !== i
+            );
+
+            if (duplicatePayloadNames.length > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            const existing = await client.query(
+                `SELECT name FROM energy_source WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more names already exist", 400, null));
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'ES', 'energy_source');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                rows.push({
+                    es_id: ulid(),
+                    code: formatCode('ES', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO energy_source (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteEnergySource(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { es_id } = req.body;
+
+            await client.query(
+                `DELETE FROM energy_source WHERE es_id = $1`,
+                [es_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getEnergySourceDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT *
+                FROM energy_source
+                ORDER BY created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}

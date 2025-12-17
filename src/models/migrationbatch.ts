@@ -2349,7 +2349,7 @@ export async function mirgation() {
   );`,
 
         `CREATE TABLE IF NOT EXISTS vehicle_types (
-            ft_id VARCHAR(255) PRIMARY KEY,
+            vt_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255) NOT NULL, 
             name VARCHAR(255) NOT NULL,  
             created_by VARCHAR(255),
@@ -2359,7 +2359,7 @@ export async function mirgation() {
   );`,
 
         `CREATE TABLE IF NOT EXISTS energy_source (
-            ft_id VARCHAR(255) PRIMARY KEY,
+            es_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255) NOT NULL, 
             name VARCHAR(255) NOT NULL,  
             created_by VARCHAR(255),

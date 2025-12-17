@@ -92,4 +92,52 @@ Routes.post('/api/master-data-setup/liquid-fuel-unit/delete', authService.authen
 Routes.get('/api/master-data-setup/liquid-fuel-unit/drop-down-list', authService.authenticate, Controller.getLiquidFuelUnitDropDownList);
 
 
+// Gaseous Fuel Unit
+Routes.post('/api/master-data-setup/gaseous-fuel-unit/add', authService.authenticate, Controller.addGaseousFuelUnit);
+Routes.post('/api/master-data-setup/gaseous-fuel-unit/update', authService.authenticate, Controller.updateGaseousFuelUnit);
+Routes.get('/api/master-data-setup/gaseous-fuel-unit/list/search', authService.authenticate, Controller.getGaseousFuelUnitListSearch);
+Routes.post('/api/master-data-setup/gaseous-fuel-unit/bulk/add', authService.authenticate, Controller.GaseousFuelUnitDataSetup);
+Routes.post('/api/master-data-setup/gaseous-fuel-unit/delete', authService.authenticate, Controller.deleteGaseousFuelUnit);
+Routes.get('/api/master-data-setup/gaseous-fuel-unit/drop-down-list', authService.authenticate, Controller.getGaseousFuelUnitDropDownList);
+
+// Solid Fuel Unit
+Routes.post('/api/master-data-setup/solid-fuel-unit/add', authService.authenticate, Controller.addSolidFuelUnit);
+Routes.post('/api/master-data-setup/solid-fuel-unit/update', authService.authenticate, Controller.updateSolidFuelUnit);
+Routes.get('/api/master-data-setup/solid-fuel-unit/list/search', authService.authenticate, Controller.getSolidFuelUnitListSearch);
+Routes.post('/api/master-data-setup/solid-fuel-unit/bulk/add', authService.authenticate, Controller.SolidFuelUnitDataSetup);
+Routes.post('/api/master-data-setup/solid-fuel-unit/delete', authService.authenticate, Controller.deleteSolidFuelUnit);
+Routes.get('/api/master-data-setup/solid-fuel-unit/drop-down-list', authService.authenticate, Controller.getSolidFuelUnitDropDownList);
+
+// Process Specific Energy
+Routes.post('/api/master-data-setup/process-specific-energy/add', authService.authenticate, Controller.addProcessSpecificEnergy);
+Routes.post('/api/master-data-setup/process-specific-energy/update', authService.authenticate, Controller.updateProcessSpecificEnergy);
+Routes.get('/api/master-data-setup/process-specific-energy/list/search', authService.authenticate, Controller.getProcessSpecificEnergyListSearch);
+Routes.post('/api/master-data-setup/process-specific-energy/bulk/add', authService.authenticate, Controller.ProcessSpecificEnergyDataSetup);
+Routes.post('/api/master-data-setup/process-specific-energy/delete', authService.authenticate, Controller.deleteProcessSpecificEnergy);
+Routes.get('/api/master-data-setup/process-specific-energy/drop-down-list', authService.authenticate, Controller.getProcessSpecificEnergyDropDownList);
+
+// FuelType
+Routes.post('/api/master-data-setup/fuel-type/add', authService.authenticate, Controller.addFuelType);
+Routes.post('/api/master-data-setup/fuel-type/update', authService.authenticate, Controller.updateFuelType);
+Routes.get('/api/master-data-setup/fuel-type/list/search', authService.authenticate, Controller.getFuelTypeListSearch);
+Routes.post('/api/master-data-setup/fuel-type/bulk/add', authService.authenticate, Controller.FuelTypeDataSetup);
+Routes.post('/api/master-data-setup/fuel-type/delete', authService.authenticate, Controller.deleteFuelType);
+Routes.get('/api/master-data-setup/fuel-type/drop-down-list', authService.authenticate, Controller.getFuelTypeDropDownList);
+
+// VehicleType
+Routes.post('/api/master-data-setup/vehicle-type/add', authService.authenticate, Controller.addVehicleType);
+Routes.post('/api/master-data-setup/vehicle-type/update', authService.authenticate, Controller.updateVehicleType);
+Routes.get('/api/master-data-setup/vehicle-type/list/search', authService.authenticate, Controller.getVehicleTypeListSearch);
+Routes.post('/api/master-data-setup/vehicle-type/bulk/add', authService.authenticate, Controller.VehicleTypeDataSetup);
+Routes.post('/api/master-data-setup/vehicle-type/delete', authService.authenticate, Controller.deleteVehicleType);
+Routes.get('/api/master-data-setup/vehicle-type/drop-down-list', authService.authenticate, Controller.getVehicleTypeDropDownList);
+
+// EnergySource
+Routes.post('/api/master-data-setup/energy-source/add', authService.authenticate, Controller.addEnergySource);
+Routes.post('/api/master-data-setup/energy-source/update', authService.authenticate, Controller.updateEnergySource);
+Routes.get('/api/master-data-setup/energy-source/list/search', authService.authenticate, Controller.getEnergySourceListSearch);
+Routes.post('/api/master-data-setup/energy-source/bulk/add', authService.authenticate, Controller.EnergySourceDataSetup);
+Routes.post('/api/master-data-setup/energy-source/delete', authService.authenticate, Controller.deleteEnergySource);
+Routes.get('/api/master-data-setup/energy-source/drop-down-list', authService.authenticate, Controller.getEnergySourceDropDownList);
+
 export default Routes;
