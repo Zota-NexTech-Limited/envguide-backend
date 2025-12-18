@@ -2417,6 +2417,129 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+        `CREATE TABLE IF NOT EXISTS verification_status (
+            vs_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS reporting_standard (
+            rs_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS life_cycle_boundary (
+            lcb_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS life_cycle_stages_of_product (
+            lcsp_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS time_zone (
+            tmz_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS product_unit (
+            pu_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS supplier_tier (
+            st_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS credit_method (
+            cm_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS water_source (
+            ws_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS water_unit (
+            wu_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS water_treatment (
+            wt_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS discharge_destination (
+            dd_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        // ===========> Master Data Setup tables end<============
+
     ]
 
     // try {

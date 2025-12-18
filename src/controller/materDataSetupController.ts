@@ -5501,3 +5501,1472 @@ export async function getCertificateTypeDropDownList(req: any, res: any) {
         }
     });
 }
+
+// ====>
+export async function addVerificationStatus(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const checkName = await client.query(
+                `SELECT 1 FROM verification_status WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Name already exists", 400, null)
+                );
+            }
+
+            const vs_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'VS', 'verification_status');
+            const code = formatCode('VS', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO verification_status (vs_id, code, name, created_by)
+                 VALUES ($1, $2, $3, $4) RETURNING *`,
+                [vs_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateVerificationStatus(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatedRows: any[] = [];
+
+            for (const item of req.body) {
+                if (!item.name) throw new Error("Name is required");
+
+                const checkName = await client.query(
+                    `SELECT 1 FROM verification_status
+                     WHERE name ILIKE $1 AND vs_id <> $2`,
+                    [item.name, item.vs_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res.status(400).send(
+                        generateResponse(false, `Name '${item.name}' already exists`, 400, null)
+                    );
+                }
+
+                const result = await client.query(
+                    `UPDATE verification_status
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE vs_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.vs_id]
+                );
+
+                if (result.rows.length) updatedRows.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getVerificationStatusListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            const values: any[] = [];
+            let whereClause = '';
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const list = await client.query(
+                `SELECT i.* FROM verification_status i
+                 WHERE 1=1 ${whereClause}
+                 ORDER BY created_date ASC`,
+                values
+            );
+
+            const count = await client.query(
+                `SELECT COUNT(*) FROM verification_status i
+                 WHERE 1=1 ${whereClause}`,
+                values
+            );
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: count.rows[0].count,
+                list: list.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function VerificationStatusDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || !data.length) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM verification_status WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'VS', 'verification_status');
+            const rows = data.map(item => ({
+                vs_id: ulid(),
+                code: formatCode('VS', nextNumber++),
+                name: item.name,
+                created_by: req.user_id
+            }));
+
+            const cols = Object.keys(rows[0]);
+            const vals: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((r, i) => {
+                const rv = Object.values(r);
+                vals.push(...rv);
+                placeholders.push(
+                    `(${rv.map((_, j) => `$${i * rv.length + j + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO verification_status (${cols.join(',')})
+                 VALUES ${placeholders.join(',')} RETURNING *`,
+                vals
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteVerificationStatus(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM verification_status WHERE vs_id=$1`,
+            [req.body.vs_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getVerificationStatusDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM verification_status ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+// =====>
+export async function addReportingStandard(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const checkName = await client.query(
+                `SELECT 1 FROM reporting_standard WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Name already exists", 400, null)
+                );
+            }
+
+            const rs_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'RS', 'reporting_standard');
+            const code = formatCode('RS', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO reporting_standard (rs_id, code, name, created_by)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING *`,
+                [rs_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateReportingStandard(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatedRows: any[] = [];
+
+            for (const item of req.body) {
+                if (!item.name) throw new Error("Name is required");
+
+                const checkName = await client.query(
+                    `SELECT 1 FROM reporting_standard
+                     WHERE name ILIKE $1 AND rs_id <> $2`,
+                    [item.name, item.rs_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res.status(400).send(
+                        generateResponse(false, `Name '${item.name}' already exists`, 400, null)
+                    );
+                }
+
+                const result = await client.query(
+                    `UPDATE reporting_standard
+                     SET name = $1,
+                         updated_by = $2,
+                         update_date = NOW()
+                     WHERE rs_id = $3
+                     RETURNING *`,
+                    [item.name, req.user_id, item.rs_id]
+                );
+
+                if (result.rows.length) updatedRows.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getReportingStandardListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listResult = await client.query(
+                `SELECT i.*
+                 FROM reporting_standard i
+                 WHERE 1=1 ${whereClause}
+                 ORDER BY i.created_date ASC`,
+                values
+            );
+
+            const countResult = await client.query(
+                `SELECT COUNT(*)
+                 FROM reporting_standard i
+                 WHERE 1=1 ${whereClause}`,
+                values
+            );
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: countResult.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function ReportingStandardDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM reporting_standard WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'RS', 'reporting_standard');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    rs_id: ulid(),
+                    code: formatCode('RS', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO reporting_standard (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteReportingStandard(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM reporting_standard WHERE rs_id = $1`,
+            [req.body.rs_id]
+        );
+
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getReportingStandardDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM reporting_standard ORDER BY created_date ASC`
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+// =======>
+export async function addLifeCycleBoundary(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const checkName = await client.query(
+                `SELECT 1 FROM life_cycle_boundary WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Name already exists", 400, null)
+                );
+            }
+
+            const lcb_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'LCB', 'life_cycle_boundary');
+            const code = formatCode('LCB', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO life_cycle_boundary (lcb_id, code, name, created_by)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING *`,
+                [lcb_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateLifeCycleBoundary(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatedRows: any[] = [];
+
+            for (const item of req.body) {
+                if (!item.name) throw new Error("Name is required");
+
+                const checkName = await client.query(
+                    `SELECT 1 FROM life_cycle_boundary
+                     WHERE name ILIKE $1 AND lcb_id <> $2`,
+                    [item.name, item.lcb_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res.status(400).send(
+                        generateResponse(false, `Name '${item.name}' already exists`, 400, null)
+                    );
+                }
+
+                const result = await client.query(
+                    `UPDATE life_cycle_boundary
+                     SET name = $1,
+                         updated_by = $2,
+                         update_date = NOW()
+                     WHERE lcb_id = $3
+                     RETURNING *`,
+                    [item.name, req.user_id, item.lcb_id]
+                );
+
+                if (result.rows.length) updatedRows.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getLifeCycleBoundaryListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listResult = await client.query(
+                `SELECT i.*
+                 FROM life_cycle_boundary i
+                 WHERE 1=1 ${whereClause}
+                 ORDER BY i.created_date ASC`,
+                values
+            );
+
+            const countResult = await client.query(
+                `SELECT COUNT(*)
+                 FROM life_cycle_boundary i
+                 WHERE 1=1 ${whereClause}`,
+                values
+            );
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: countResult.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function LifeCycleBoundaryDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM life_cycle_boundary WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'LCB', 'life_cycle_boundary');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    lcb_id: ulid(),
+                    code: formatCode('LCB', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO life_cycle_boundary (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteLifeCycleBoundary(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM life_cycle_boundary WHERE lcb_id = $1`,
+            [req.body.lcb_id]
+        );
+
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getLifeCycleBoundaryDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM life_cycle_boundary ORDER BY created_date ASC`
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+// ======>
+
+export async function addLifeCycleStageOfProduct(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM life_cycle_stages_of_product WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const lcsp_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'LCSP', 'life_cycle_stages_of_product');
+            const code = formatCode('LCSP', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO life_cycle_stages_of_product (lcsp_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [lcsp_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateLifeCycleStageOfProduct(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM life_cycle_stages_of_product 
+                     WHERE name ILIKE $1 AND lcsp_id <> $2`,
+                    [item.name, item.lcsp_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE life_cycle_stages_of_product
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE lcsp_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.lcsp_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getLifeCycleStageOfProductListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM life_cycle_stages_of_product i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM life_cycle_stages_of_product i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function LifeCycleStageOfProductDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM life_cycle_stages_of_product WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'LCSP', 'life_cycle_stages_of_product');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    lcsp_id: ulid(),
+                    code: formatCode('LCSP', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO life_cycle_stages_of_product (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+
+export async function deleteLifeCycleStageOfProduct(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM life_cycle_stages_of_product WHERE lcsp_id=$1`,
+            [req.body.lcsp_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getLifeCycleStageOfProductDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM life_cycle_stages_of_product ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+// ======>
+
+export async function addTimeZone(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM time_zone WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const tmz_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'TMZ', 'time_zone');
+            const code = formatCode('TMZ', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO time_zone (tmz_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [tmz_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateTimeZone(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM time_zone 
+                     WHERE name ILIKE $1 AND tmz_id <> $2`,
+                    [item.name, item.tmz_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE time_zone
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE tmz_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.tmz_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getTimeZoneListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM time_zone i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM time_zone i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function TimeZoneDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM time_zone WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'TMZ', 'time_zone');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    tmz_id: ulid(),
+                    code: formatCode('TMZ', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO time_zone (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteTimeZone(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM time_zone WHERE tmz_id=$1`,
+            [req.body.tmz_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getTimeZoneDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM time_zone ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+// ======>
+
+export async function addProductUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM product_unit WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const pu_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'PU', 'product_unit');
+            const code = formatCode('PU', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO product_unit (pu_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [pu_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateProductUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM product_unit 
+                     WHERE name ILIKE $1 AND pu_id <> $2`,
+                    [item.name, item.pu_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE product_unit
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE pu_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.pu_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getProductUnitListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM product_unit i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM product_unit i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function ProductUnitDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM product_unit WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'PU', 'product_unit');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    pu_id: ulid(),
+                    code: formatCode('PU', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO product_unit (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteProductUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM product_unit WHERE pu_id=$1`,
+            [req.body.pu_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getProductUnitDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM product_unit ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+
+// ======>
+
+export async function addSupplierTier(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM supplier_tier WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const st_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'ST', 'supplier_tier');
+            const code = formatCode('ST', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO supplier_tier (st_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [st_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateSupplierTier(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM supplier_tier 
+                     WHERE name ILIKE $1 AND st_id <> $2`,
+                    [item.name, item.st_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE supplier_tier
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE st_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.st_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getSupplierTierListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM supplier_tier i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM supplier_tier i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function SupplierTierDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM supplier_tier WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'ST', 'supplier_tier');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    st_id: ulid(),
+                    code: formatCode('ST', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO supplier_tier (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteSupplierTier(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM supplier_tier WHERE st_id=$1`,
+            [req.body.st_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getSupplierTierDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM supplier_tier ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+// ======>
+
+export async function addCreditMethod(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM credit_method WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const cm_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'CM', 'credit_method');
+            const code = formatCode('CM', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO credit_method (cm_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [cm_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateCreditMethod(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM credit_method 
+                     WHERE name ILIKE $1 AND cm_id <> $2`,
+                    [item.name, item.cm_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE credit_method
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE cm_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.cm_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getCreditMethodListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM credit_method i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM credit_method i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function CreditMethodDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM credit_method WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'CM', 'credit_method');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    cm_id: ulid(),
+                    code: formatCode('CM', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO credit_method (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteCreditMethod(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM credit_method WHERE cm_id=$1`,
+            [req.body.cm_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getCreditMethodDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM credit_method ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
