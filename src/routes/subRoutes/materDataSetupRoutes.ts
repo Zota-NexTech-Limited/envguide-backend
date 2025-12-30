@@ -244,4 +244,28 @@ Routes.post('/api/master-data-setup/credit-method/bulk/add', authService.authent
 Routes.post('/api/master-data-setup/credit-method/delete', authService.authenticate, Controller.deleteCreditMethod);
 Routes.get('/api/master-data-setup/credit-method/drop-down-list', authService.authenticate, Controller.getCreditMethodDropDownList);
 
+// Water Source
+Routes.post('/api/master-data-setup/water-source/add', authService.authenticate, Controller.addWaterSource);
+Routes.post('/api/master-data-setup/water-source/update', authService.authenticate, Controller.updateWaterSource);
+Routes.get('/api/master-data-setup/water-source/list/search', authService.authenticate, Controller.getWaterSourceListSearch);
+Routes.post('/api/master-data-setup/water-source/bulk/add', authService.authenticate, Controller.WaterSourceDataSetup);
+Routes.post('/api/master-data-setup/water-source/delete', authService.authenticate, Controller.deleteWaterSource);
+Routes.get('/api/master-data-setup/water-source/drop-down-list', authService.authenticate, Controller.getWaterSourceDropDownList);
+
+// Water Unit
+Routes.post('/api/master-data-setup/water-unit/add', authService.authenticate, Controller.addWaterUnit);
+Routes.post('/api/master-data-setup/water-unit/update', authService.authenticate, Controller.updateWaterUnit);
+Routes.get('/api/master-data-setup/water-unit/list/search', authService.authenticate, Controller.getWaterUnitListSearch);
+Routes.post('/api/master-data-setup/water-unit/bulk/add', authService.authenticate, Controller.WaterUnitDataSetup);
+Routes.post('/api/master-data-setup/water-unit/delete', authService.authenticate, Controller.deleteWaterUnit);
+Routes.get('/api/master-data-setup/water-unit/drop-down-list', authService.authenticate, Controller.getWaterUnitDropDownList);
+
+// Water Treatment
+Routes.post('/api/master-data-setup/water-treatment/add', authService.authenticate, Controller.addWaterTreatment);
+Routes.post('/api/master-data-setup/water-treatment/update', authService.authenticate, Controller.updateWaterTreatment);
+Routes.get('/api/master-data-setup/water-treatment/list/search', authService.authenticate, Controller.getWaterTreatmentListSearch);
+Routes.post('/api/master-data-setup/water-treatment/bulk/add', authService.authenticate, Controller.WaterTreatmentDataSetup);
+Routes.post('/api/master-data-setup/water-treatment/delete', authService.authenticate, Controller.deleteWaterTreatment);
+Routes.get('/api/master-data-setup/water-treatment/drop-down-list', authService.authenticate, Controller.getWaterTreatmentDropDownList);
+
 export default Routes;

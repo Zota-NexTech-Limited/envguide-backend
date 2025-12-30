@@ -6970,3 +6970,538 @@ export async function getCreditMethodDropDownList(req: any, res: any) {
         return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
     });
 }
+
+// ======>
+
+export async function addWaterSource(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM water_source WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const ws_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'WS', 'water_source');
+            const code = formatCode('WS', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO water_source (ws_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [ws_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateWaterSource(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM water_source 
+                     WHERE name ILIKE $1 AND ws_id <> $2`,
+                    [item.name, item.ws_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE water_source
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE ws_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.ws_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getWaterSourceListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM water_source i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM water_source i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function WaterSourceDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM water_source WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'WS', 'water_source');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    ws_id: ulid(),
+                    code: formatCode('WS', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO water_source (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteWaterSource(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM water_source WHERE ws_id=$1`,
+            [req.body.cm_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getWaterSourceDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM water_source ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+
+// ======>
+
+export async function addWaterUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM water_unit WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const wu_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'WU', 'water_unit');
+            const code = formatCode('WU', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO water_unit (wu_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [wu_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateWaterUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM water_unit 
+                     WHERE name ILIKE $1 AND wu_id <> $2`,
+                    [item.name, item.wu_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE water_unit
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE wu_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.wu_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getWaterUnitListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM water_unit i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM water_unit i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function WaterUnitDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM water_unit WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'WU', 'water_unit');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    wu_id: ulid(),
+                    code: formatCode('WU', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO water_unit (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteWaterUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM water_unit WHERE wu_id=$1`,
+            [req.body.cm_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getWaterUnitDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM water_unit ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
+
+// ======>
+
+export async function addWaterTreatment(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM water_treatment WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const wt_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'WT', 'water_treatment');
+            const code = formatCode('WT', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO water_treatment (wt_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [wt_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateWaterTreatment(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM water_treatment 
+                     WHERE name ILIKE $1 AND wt_id <> $2`,
+                    [item.name, item.wt_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE water_treatment
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE wt_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.wt_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getWaterTreatmentListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM water_treatment i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM water_treatment i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function WaterTreatmentDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM water_treatment WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'WT', 'water_treatment');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    wt_id: ulid(),
+                    code: formatCode('WT', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO water_treatment (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteWaterTreatment(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM water_treatment WHERE wt_id=$1`,
+            [req.body.cm_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getWaterTreatmentDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM water_treatment ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}
