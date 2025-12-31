@@ -180,4 +180,100 @@ Routes.post('/api/master-data-setup/certificate-type/bulk/add', authService.auth
 Routes.post('/api/master-data-setup/certificate-type/delete', authService.authenticate, Controller.deleteCertificateType);
 Routes.get('/api/master-data-setup/certificate-type/drop-down-list', authService.authenticate, Controller.getCertificateTypeDropDownList);
 
+// verification status
+Routes.post('/api/master-data-setup/verification-status/add', authService.authenticate, Controller.addVerificationStatus);
+Routes.post('/api/master-data-setup/verification-status/update', authService.authenticate, Controller.updateVerificationStatus);
+Routes.get('/api/master-data-setup/verification-status/list/search', authService.authenticate, Controller.getVerificationStatusListSearch);
+Routes.post('/api/master-data-setup/verification-status/bulk/add', authService.authenticate, Controller.VerificationStatusDataSetup);
+Routes.post('/api/master-data-setup/verification-status/delete', authService.authenticate, Controller.deleteVerificationStatus);
+Routes.get('/api/master-data-setup/verification-status/drop-down-list', authService.authenticate, Controller.getVerificationStatusDropDownList);
+
+// reporting standard
+Routes.post('/api/master-data-setup/reporting-standard/add', authService.authenticate, Controller.addReportingStandard);
+Routes.post('/api/master-data-setup/reporting-standard/update', authService.authenticate, Controller.updateReportingStandard);
+Routes.get('/api/master-data-setup/reporting-standard/list/search', authService.authenticate, Controller.getReportingStandardListSearch);
+Routes.post('/api/master-data-setup/reporting-standard/bulk/add', authService.authenticate, Controller.ReportingStandardDataSetup);
+Routes.post('/api/master-data-setup/reporting-standard/delete', authService.authenticate, Controller.deleteReportingStandard);
+Routes.get('/api/master-data-setup/reporting-standard/drop-down-list', authService.authenticate, Controller.getReportingStandardDropDownList);
+
+// Life Cycle Boundary
+Routes.post('/api/master-data-setup/life-cycle-boundary/add', authService.authenticate, Controller.addLifeCycleBoundary);
+Routes.post('/api/master-data-setup/life-cycle-boundary/update', authService.authenticate, Controller.updateLifeCycleBoundary);
+Routes.get('/api/master-data-setup/life-cycle-boundary/list/search', authService.authenticate, Controller.getLifeCycleBoundaryListSearch);
+Routes.post('/api/master-data-setup/life-cycle-boundary/bulk/add', authService.authenticate, Controller.LifeCycleBoundaryDataSetup);
+Routes.post('/api/master-data-setup/life-cycle-boundary/delete', authService.authenticate, Controller.deleteLifeCycleBoundary);
+Routes.get('/api/master-data-setup/life-cycle-boundary/drop-down-list', authService.authenticate, Controller.getLifeCycleBoundaryDropDownList);
+
+// Life Cycle Stages of Product
+Routes.post('/api/master-data-setup/life-cycle-stage/add', authService.authenticate, Controller.addLifeCycleStageOfProduct);
+Routes.post('/api/master-data-setup/life-cycle-stage/update', authService.authenticate, Controller.updateLifeCycleStageOfProduct);
+Routes.get('/api/master-data-setup/life-cycle-stage/list/search', authService.authenticate, Controller.getLifeCycleStageOfProductListSearch);
+Routes.post('/api/master-data-setup/life-cycle-stage/bulk/add', authService.authenticate, Controller.LifeCycleStageOfProductDataSetup);
+Routes.post('/api/master-data-setup/life-cycle-stage/delete', authService.authenticate, Controller.deleteLifeCycleStageOfProduct);
+Routes.get('/api/master-data-setup/life-cycle-stage/drop-down-list', authService.authenticate, Controller.getLifeCycleStageOfProductDropDownList);
+
+// Time Zone
+Routes.post('/api/master-data-setup/time-zone/add', authService.authenticate, Controller.addTimeZone);
+Routes.post('/api/master-data-setup/time-zone/update', authService.authenticate, Controller.updateTimeZone);
+Routes.get('/api/master-data-setup/time-zone/list/search', authService.authenticate, Controller.getTimeZoneListSearch);
+Routes.post('/api/master-data-setup/time-zone/bulk/add', authService.authenticate, Controller.TimeZoneDataSetup);
+Routes.post('/api/master-data-setup/time-zone/delete', authService.authenticate, Controller.deleteTimeZone);
+Routes.get('/api/master-data-setup/time-zone/drop-down-list', authService.authenticate, Controller.getTimeZoneDropDownList);
+
+// Product Unit
+Routes.post('/api/master-data-setup/product-unit/add', authService.authenticate, Controller.addProductUnit);
+Routes.post('/api/master-data-setup/product-unit/update', authService.authenticate, Controller.updateProductUnit);
+Routes.get('/api/master-data-setup/product-unit/list/search', authService.authenticate, Controller.getProductUnitListSearch);
+Routes.post('/api/master-data-setup/product-unit/bulk/add', authService.authenticate, Controller.ProductUnitDataSetup);
+Routes.post('/api/master-data-setup/product-unit/delete', authService.authenticate, Controller.deleteProductUnit);
+Routes.get('/api/master-data-setup/product-unit/drop-down-list', authService.authenticate, Controller.getProductUnitDropDownList);
+
+// Supplier Tier
+Routes.post('/api/master-data-setup/supplier-tier/add', authService.authenticate, Controller.addSupplierTier);
+Routes.post('/api/master-data-setup/supplier-tier/update', authService.authenticate, Controller.updateSupplierTier);
+Routes.get('/api/master-data-setup/supplier-tier/list/search', authService.authenticate, Controller.getSupplierTierListSearch);
+Routes.post('/api/master-data-setup/supplier-tier/bulk/add', authService.authenticate, Controller.SupplierTierDataSetup);
+Routes.post('/api/master-data-setup/supplier-tier/delete', authService.authenticate, Controller.deleteSupplierTier);
+Routes.get('/api/master-data-setup/supplier-tier/drop-down-list', authService.authenticate, Controller.getSupplierTierDropDownList);
+
+// Credit Method
+Routes.post('/api/master-data-setup/credit-method/add', authService.authenticate, Controller.addCreditMethod);
+Routes.post('/api/master-data-setup/credit-method/update', authService.authenticate, Controller.updateCreditMethod);
+Routes.get('/api/master-data-setup/credit-method/list/search', authService.authenticate, Controller.getCreditMethodListSearch);
+Routes.post('/api/master-data-setup/credit-method/bulk/add', authService.authenticate, Controller.CreditMethodDataSetup);
+Routes.post('/api/master-data-setup/credit-method/delete', authService.authenticate, Controller.deleteCreditMethod);
+Routes.get('/api/master-data-setup/credit-method/drop-down-list', authService.authenticate, Controller.getCreditMethodDropDownList);
+
+// Water Source
+Routes.post('/api/master-data-setup/water-source/add', authService.authenticate, Controller.addWaterSource);
+Routes.post('/api/master-data-setup/water-source/update', authService.authenticate, Controller.updateWaterSource);
+Routes.get('/api/master-data-setup/water-source/list/search', authService.authenticate, Controller.getWaterSourceListSearch);
+Routes.post('/api/master-data-setup/water-source/bulk/add', authService.authenticate, Controller.WaterSourceDataSetup);
+Routes.post('/api/master-data-setup/water-source/delete', authService.authenticate, Controller.deleteWaterSource);
+Routes.get('/api/master-data-setup/water-source/drop-down-list', authService.authenticate, Controller.getWaterSourceDropDownList);
+
+// Water Unit
+Routes.post('/api/master-data-setup/water-unit/add', authService.authenticate, Controller.addWaterUnit);
+Routes.post('/api/master-data-setup/water-unit/update', authService.authenticate, Controller.updateWaterUnit);
+Routes.get('/api/master-data-setup/water-unit/list/search', authService.authenticate, Controller.getWaterUnitListSearch);
+Routes.post('/api/master-data-setup/water-unit/bulk/add', authService.authenticate, Controller.WaterUnitDataSetup);
+Routes.post('/api/master-data-setup/water-unit/delete', authService.authenticate, Controller.deleteWaterUnit);
+Routes.get('/api/master-data-setup/water-unit/drop-down-list', authService.authenticate, Controller.getWaterUnitDropDownList);
+
+// Water Treatment
+Routes.post('/api/master-data-setup/water-treatment/add', authService.authenticate, Controller.addWaterTreatment);
+Routes.post('/api/master-data-setup/water-treatment/update', authService.authenticate, Controller.updateWaterTreatment);
+Routes.get('/api/master-data-setup/water-treatment/list/search', authService.authenticate, Controller.getWaterTreatmentListSearch);
+Routes.post('/api/master-data-setup/water-treatment/bulk/add', authService.authenticate, Controller.WaterTreatmentDataSetup);
+Routes.post('/api/master-data-setup/water-treatment/delete', authService.authenticate, Controller.deleteWaterTreatment);
+Routes.get('/api/master-data-setup/water-treatment/drop-down-list', authService.authenticate, Controller.getWaterTreatmentDropDownList);
+
+// Discharge Destination
+Routes.post('/api/master-data-setup/discharge-destination/add', authService.authenticate, Controller.addDischargeDestination);
+Routes.post('/api/master-data-setup/discharge-destination/update', authService.authenticate, Controller.updateDischargeDestination);
+Routes.get('/api/master-data-setup/discharge-destination/list/search', authService.authenticate, Controller.getDischargeDestinationListSearch);
+Routes.post('/api/master-data-setup/discharge-destination/bulk/add', authService.authenticate, Controller.DischargeDestinationDataSetup);
+Routes.post('/api/master-data-setup/discharge-destination/delete', authService.authenticate, Controller.deleteDischargeDestination);
+Routes.get('/api/master-data-setup/discharge-destination/drop-down-list', authService.authenticate, Controller.getDischargeDestinationDropDownList);
+
 export default Routes;
