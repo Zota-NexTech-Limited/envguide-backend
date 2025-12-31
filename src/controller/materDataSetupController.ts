@@ -7505,3 +7505,181 @@ export async function getWaterTreatmentDropDownList(req: any, res: any) {
         return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
     });
 }
+
+// ======>
+
+export async function addDischargeDestination(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+            if (!name) throw new Error("Name is required");
+
+            const exists = await client.query(
+                `SELECT 1 FROM discharge_destination WHERE name ILIKE $1`,
+                [name]
+            );
+            if (exists.rowCount > 0) {
+                return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const dd_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'DD', 'discharge_destination');
+            const code = formatCode('DD', nextNumber);
+
+            const result = await client.query(
+                `INSERT INTO discharge_destination (dd_id, code, name, created_by)
+                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                [dd_id, code, name, req.user_id]
+            );
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function updateDischargeDestination(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const updated: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                const exists = await client.query(
+                    `SELECT 1 FROM discharge_destination 
+                     WHERE name ILIKE $1 AND dd_id <> $2`,
+                    [item.name, item.dd_id]
+                );
+                if (exists.rowCount > 0) {
+                    return res.status(400).send(generateResponse(false, "Name already exists", 400, null));
+                }
+
+                const result = await client.query(
+                    `UPDATE discharge_destination
+                     SET name=$1, updated_by=$2, update_date=NOW()
+                     WHERE dd_id=$3 RETURNING *`,
+                    [item.name, req.user_id, item.dd_id]
+                );
+                updated.push(result.rows[0]);
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updated));
+        } catch (e: any) {
+            return res.send(generateResponse(false, e.message, 400, null));
+        }
+    });
+}
+
+export async function getDischargeDestinationListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const { searchValue } = req.query;
+        const values: any[] = [];
+        let where = '';
+
+        if (searchValue) {
+            where = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            values.push(`%${searchValue}%`);
+        }
+
+        const list = await client.query(
+            `SELECT i.* FROM discharge_destination i WHERE 1=1 ${where} ORDER BY created_date ASC`,
+            values
+        );
+
+        const count = await client.query(
+            `SELECT COUNT(*) FROM discharge_destination i WHERE 1=1 ${where}`,
+            values
+        );
+
+        return res.send(generateResponse(true, "List fetched successfully", 200, {
+            totalCount: count.rows[0].count,
+            list: list.rows
+        }));
+    });
+}
+
+export async function DischargeDestinationDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
+            }
+
+            const names = data.map(d => d.name.toLowerCase());
+            const existing = await client.query(
+                `SELECT name FROM discharge_destination WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "One or more names already exist", 400, null)
+                );
+            }
+
+            let nextNumber = await generateDynamicCode(client, 'DD', 'discharge_destination');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name) throw new Error("Name is required");
+
+                rows.push({
+                    dd_id: ulid(),
+                    code: formatCode('DD', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const result = await client.query(
+                `INSERT INTO discharge_destination (${columns.join(', ')})
+                 VALUES ${placeholders.join(', ')}
+                 RETURNING *`,
+                values
+            );
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function deleteDischargeDestination(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query(
+            `DELETE FROM discharge_destination WHERE dd_id=$1`,
+            [req.body.cm_id]
+        );
+        return res.send(generateResponse(true, "Deleted successfully", 200, null));
+    });
+}
+
+export async function getDischargeDestinationDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        const result = await client.query(
+            `SELECT * FROM discharge_destination ORDER BY created_date ASC`
+        );
+        return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
+    });
+}

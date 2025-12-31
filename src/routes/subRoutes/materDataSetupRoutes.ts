@@ -268,4 +268,12 @@ Routes.post('/api/master-data-setup/water-treatment/bulk/add', authService.authe
 Routes.post('/api/master-data-setup/water-treatment/delete', authService.authenticate, Controller.deleteWaterTreatment);
 Routes.get('/api/master-data-setup/water-treatment/drop-down-list', authService.authenticate, Controller.getWaterTreatmentDropDownList);
 
+// Discharge Destination
+Routes.post('/api/master-data-setup/discharge-destination/add', authService.authenticate, Controller.addDischargeDestination);
+Routes.post('/api/master-data-setup/discharge-destination/update', authService.authenticate, Controller.updateDischargeDestination);
+Routes.get('/api/master-data-setup/discharge-destination/list/search', authService.authenticate, Controller.getDischargeDestinationListSearch);
+Routes.post('/api/master-data-setup/discharge-destination/bulk/add', authService.authenticate, Controller.DischargeDestinationDataSetup);
+Routes.post('/api/master-data-setup/discharge-destination/delete', authService.authenticate, Controller.deleteDischargeDestination);
+Routes.get('/api/master-data-setup/discharge-destination/drop-down-list', authService.authenticate, Controller.getDischargeDestinationDropDownList);
+
 export default Routes;
