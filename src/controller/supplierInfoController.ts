@@ -6,7 +6,7 @@ export async function addSupplierDetails(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const { supplier_name, supplier_email, supplier_phone_number } = req.body;
-            const id = ulid();
+            const sup_id = ulid();
 
             if (!supplier_name || !supplier_email || !supplier_phone_number) {
                 return res
@@ -67,12 +67,12 @@ export async function addSupplierDetails(req: any, res: any) {
 
             // === Insert supplier ===
             const insertQuery = `
-        INSERT INTO supplier_details (id, code, supplier_name, supplier_email, supplier_phone_number, created_date)
+        INSERT INTO supplier_details (sup_id, code, supplier_name, supplier_email, supplier_phone_number, created_date)
         VALUES ($1, $2, $3, $4, $5, NOW())
         RETURNING *;
       `;
             const result = await client.query(insertQuery, [
-                id,
+                sup_id,
                 newCode,
                 supplier_name,
                 supplier_email,
@@ -111,9 +111,9 @@ export async function updateSupplierDetails(req: any, res: any) {
             const updatedRows: any[] = [];
 
             for (const item of updatingData) {
-                const { id, supplier_email, supplier_phone_number } = item;
+                const { sup_id, supplier_email, supplier_phone_number } = item;
 
-                if (!id) {
+                if (!sup_id) {
                     throw new Error("Supplier ID is required");
                 }
 
@@ -125,12 +125,12 @@ export async function updateSupplierDetails(req: any, res: any) {
                         SELECT 1 
                         FROM supplier_details 
                         WHERE supplier_email = $1 
-                        AND id != $2
+                        AND sup_id != $2
                         LIMIT 1;
                     `;
                     const emailResult = await client.query(emailCheckQuery, [
                         supplier_email,
-                        id
+                        sup_id
                     ]);
 
                     if ((emailResult.rowCount ?? 0) > 0) {
@@ -146,12 +146,12 @@ export async function updateSupplierDetails(req: any, res: any) {
                         SELECT 1 
                         FROM supplier_details 
                         WHERE supplier_phone_number = $1 
-                        AND id != $2
+                        AND sup_id != $2
                         LIMIT 1;
                     `;
                     const phoneResult = await client.query(phoneCheckQuery, [
                         supplier_phone_number,
-                        id
+                        sup_id
                     ]);
 
                     if ((phoneResult.rowCount ?? 0) > 0) {
@@ -176,12 +176,11 @@ export async function updateSupplierDetails(req: any, res: any) {
                 const updateQuery = `
                     UPDATE supplier_details
                     SET ${columnValuePairs}, update_date = NOW()
-                    WHERE id = $${values.length + 1}
+                    WHERE sup_id = $${values.length + 1}
                     RETURNING *;
                 `;
 
-                const result = await client.query(updateQuery, [...values, id]);
-
+                const result = await client.query(updateQuery, [...values, sup_id]);
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
                 }
@@ -216,7 +215,7 @@ export async function getSupplierDetailsList(req: any, res: any) {
             SELECT i.* 
             FROM supplier_details i
             WHERE 1=1 ${whereClause}
-            GROUP BY i.id
+            GROUP BY i.sup_id
             ${orderByClause};
         `;
 
@@ -384,7 +383,7 @@ export async function SupplierDetailsDataSetup(req: any, res: any) {
                5️⃣ Prepare insert data
             ------------------------------------------------ */
             const finalData = obj.map((item: any) => ({
-                id: ulid(),
+                sup_id: ulid(),
                 code: newCode,
                 supplier_name: item.supplier_name,
                 supplier_email: item.supplier_email,
@@ -431,9 +430,9 @@ export async function SupplierDetailsDataSetup(req: any, res: any) {
 export async function deleteSupplierDetails(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { id } = req.body;
-            const query = `DELETE FROM supplier_details WHERE id = $1;`;
-            await client.query(query, [id]);
+            const { sup_id } = req.body;
+            const query = `DELETE FROM supplier_details WHERE sup_id = $1;`;
+            await client.query(query, [sup_id]);
 
             return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
         } catch (error: any) {

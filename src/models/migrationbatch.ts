@@ -499,7 +499,7 @@ export async function mirgation() {
         //   =======>Supplier Organization Questionnaire Tables<==========
 
         `CREATE TABLE IF NOT EXISTS supplier_details (
-            id VARCHAR(255) PRIMARY KEY, 
+            sup_id VARCHAR(255) PRIMARY KEY, 
             code VARCHAR(255),   
             supplier_name VARCHAR(255),
             supplier_email VARCHAR(255),
@@ -525,7 +525,7 @@ export async function mirgation() {
             price_of_product VARCHAR(255),   
             organization_annual_revenue VARCHAR(255),
             organization_annual_reporting_period VARCHAR(255),
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -567,7 +567,7 @@ export async function mirgation() {
             msds_or_composition_link TEXT,
             main_alloy_metals TEXT,
             metal_grade TEXT,
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             total_weight_of_all_component_at_factory JSONB,
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -589,7 +589,7 @@ export async function mirgation() {
             uses_abatement_systems BOOLEAN DEFAULT false, -- e.g. VOC treatment or heat recovery
             abatement_system_energy_consumption TEXT, -- if applicable
             water_consumption_and_treatment_details TEXT, -- free text or numeric value
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -604,7 +604,7 @@ export async function mirgation() {
             packaging_size TEXT[], -- can store dimensions like ['30x20x10 cm', 'Custom Box']
             uses_recycled_packaging BOOLEAN,
             recycled_packaging_percentage TEXT[], -- if YES in Q57
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -617,7 +617,7 @@ export async function mirgation() {
             enviguide_support BOOLEAN DEFAULT false,
             uses_certified_logistics_provider BOOLEAN, 
             logistics_provider_details TEXT[], -- if YES, details via Add Button
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             mass_weight_of_component_transported_kg VARCHAR(255),
             transport_modes_fuel_used TEXT[], ---[petrol disel],
             designation_of_goods_transported TEXT,
@@ -637,7 +637,7 @@ export async function mirgation() {
             byproduct_types TEXT[], -- list if YES in Q65
             byproduct_quantity TEXT, -- free text like "200 kg/month"
             byproduct_price TEXT[], -- multiple prices or product-wise via Add Button   
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -650,7 +650,7 @@ export async function mirgation() {
             product_recycling_details TEXT[], -- if YES in Q69 (Add Button inputs)
             has_takeback_program BOOLEAN DEFAULT false,
             takeback_program_details TEXT[], -- if YES in Q71, includes % recyclability
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -664,7 +664,7 @@ export async function mirgation() {
             has_scope_emission_data BOOLEAN DEFAULT false, -- Q75
             emission_data_details TEXT[], -- if YES in Q75 (Add Button inputs)
             required_environmental_impact_methods TEXT[], -- ['Product Carbon Footprint', 'Water Impact', 'Toxicity']
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -677,7 +677,7 @@ export async function mirgation() {
             follows_recognized_standards BOOLEAN DEFAULT false, -- Q79: ISO 14067, GHG Protocol, Catena-X PCF Guideline, etc.
             reports_to_esg_frameworks BOOLEAN DEFAULT false, -- Q80: CDP, SBTi, or other ESG frameworks
             previous_reports TEXT[], -- if YES in Q78/Q79/Q80 (Add Button inputs, file links, report names, etc.)
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -691,7 +691,7 @@ export async function mirgation() {
             renewable_energy_or_recycling_programs TEXT, -- Q83: What renewable energy initiatives or recycling programs are in place? [DQR Required]
             willing_to_provide_primary_data BOOLEAN DEFAULT false, -- Q84: Are you willing to provide primary data directly into PCF platforms?
             primary_data_details TEXT[], -- if YES in Q84 (Add Button inputs with primary data or file links) [DQR Required]
-            user_id VARCHAR(255),
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
