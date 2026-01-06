@@ -499,8 +499,8 @@ export async function mirgation() {
         //   =======>Supplier Organization Questionnaire Tables<==========
 
         `CREATE TABLE IF NOT EXISTS supplier_details (
-            id VARCHAR(255) PRIMARY KEY, 
-            code VARCHAR(255),   
+            sup_id VARCHAR(255) PRIMARY KEY,   
+            code VARCHAR(255),    
             supplier_name VARCHAR(255),
             supplier_email VARCHAR(255),
             supplier_phone_number VARCHAR(255),
@@ -508,204 +508,691 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        //   Gneral Info Questions
         `CREATE TABLE IF NOT EXISTS supplier_general_info_questions (
             sgiq_id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255), 
             bom_id VARCHAR(255),   
             bom_pcf_id VARCHAR(255), 
-            name_of_organization VARCHAR(255),   
-            core_business_activities VARCHAR(255)[],
-            company_site_address TEXT,  
+            ere_acknowledge BOOLEAN DEFAULT false,
+            repm_acknowledge BOOLEAN DEFAULT false,
+            dc_acknowledge BOOLEAN DEFAULT false,
+            organization_name VARCHAR(255),   
+            core_business_activitiy VARCHAR(255),
+            specify_other_activity VARCHAR(255),
             designation VARCHAR(255),
             email_address VARCHAR(255),
-            type_of_product_manufacture TEXT[],
-            annul_or_monthly_product_volume_of_product TEXT[],
-            weight_of_product TEXT,
-            where_production_site_product_manufactured TEXT,
-            price_of_product VARCHAR(255),   
-            organization_annual_revenue VARCHAR(255),
-            organization_annual_reporting_period VARCHAR(255),
-            user_id VARCHAR(255),
+            no_of_employees VARCHAR(255), 
+            specify_other_no_of_employees VARCHAR(255), 
+            annual_revenue VARCHAR(255),
+            specify_other_annual_revenue VARCHAR(255),
+            annual_reporting_period VARCHAR(255),
+            availability_of_scope_one_two_three_emissions_data BOOLEAN DEFAULT false,
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
-        `CREATE TABLE IF NOT EXISTS material_composition_questions (
-            id VARCHAR(255) PRIMARY KEY,
+        `CREATE TABLE IF NOT EXISTS availability_of_scope_one_two_three_emissions_questions (
+            aosotte_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),   
-            main_raw_materials_used JSONB,   -- e.g., ['Aluminum', 'Iron', 'Copper', 'Alloy']
-            contact_enviguide_support BOOLEAN DEFAULT false,
-            has_recycled_material_usage BOOLEAN DEFAULT false,
-            percentage_recycled_material NUMERIC(5,2), -- 0-100 range
-            knows_material_breakdown BOOLEAN DEFAULT false,
-            percentage_pre_consumer NUMERIC(5,2),
-            percentage_post_consumer NUMERIC(5,2),
-            percentage_reutilization NUMERIC(5,2),
-            has_recycled_copper BOOLEAN DEFAULT false,
-            percentage_recycled_copper NUMERIC(5,2),
-            has_recycled_aluminum BOOLEAN DEFAULT false,
-            percentage_recycled_aluminum NUMERIC(5,2),
-            has_recycled_steel BOOLEAN DEFAULT false,
-            percentage_recycled_steel NUMERIC(5,2),
-            has_recycled_plastics BOOLEAN DEFAULT false,
-            percentage_total_recycled_plastics NUMERIC(5,2),
-            percentage_recycled_thermoplastics NUMERIC(5,2),
-            percentage_recycled_plastic_fillers NUMERIC(5,2),
-            percentage_recycled_fibers NUMERIC(5,2),
-            has_recycling_process BOOLEAN DEFAULT false,
-            has_future_recycling_strategy BOOLEAN DEFAULT false,
-            planned_recycling_year INTEGER,
-            track_transport_emissions BOOLEAN DEFAULT false,
-            estimated_transport_emissions TEXT,
-            need_support_for_emissions_calc BOOLEAN DEFAULT false,
-            emission_calc_requirement TEXT,
-            percentage_pcr NUMERIC(5,2),
-            percentage_pir NUMERIC(5,2),
-            use_bio_based_materials BOOLEAN DEFAULT false,
-            bio_based_material_details TEXT,
-            msds_or_composition_link TEXT,
-            main_alloy_metals TEXT,
-            metal_grade TEXT,
-            user_id VARCHAR(255),
-            total_weight_of_all_component_at_factory JSONB,
-            updated_by VARCHAR(255),
+            country_iso_three VARCHAR(255),
+            scope_one NUMERIC(5,2),
+            scope_two NUMERIC(5,2),
+            scope_three NUMERIC(5,2),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sgiq_id) REFERENCES supplier_general_info_questions (sgiq_id)
   );`,
 
-        `CREATE TABLE IF NOT EXISTS energy_manufacturing_questions (
-            id VARCHAR(255) PRIMARY KEY,
-            sgiq_id VARCHAR(255),   
-            energy_sources_used TEXT[], -- ['Solar Energy', 'Wind Energy', 'Hydro Electric Energy', etc.]
-            electricity_consumption_per_year TEXT, -- e.g. '250000 kWh/year'
-            purchases_renewable_electricity BOOLEAN DEFAULT false,
-            renewable_electricity_percentage NUMERIC(5,2), -- if yes in Q45
-            has_energy_calculation_method BOOLEAN DEFAULT false,
-            energy_calculation_method_details TEXT, -- document link or description
-            energy_intensity_per_unit TEXT, -- e.g. '120 kWh per ton'
-            process_specific_energy_usage TEXT[], -- ['Casting', 'Moulding', 'Welding', etc.]
-            enviguide_support BOOLEAN DEFAULT false,
-            uses_abatement_systems BOOLEAN DEFAULT false, -- e.g. VOC treatment or heat recovery
-            abatement_system_energy_consumption TEXT, -- if applicable
-            water_consumption_and_treatment_details TEXT, -- free text or numeric value
-            user_id VARCHAR(255),
-            updated_by VARCHAR(255),
-            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-  );`,
-
-        `CREATE TABLE IF NOT EXISTS packaging_questions (
-            id VARCHAR(255) PRIMARY KEY,
-            sgiq_id VARCHAR(255),   
-            packaging_materials_used TEXT[], -- ['Cardboard', 'Plastic Film', 'Wood Pallets', 'Another Component']
-            enviguide_support BOOLEAN DEFAULT false,
-            packaging_weight_per_unit TEXT, -- e.g. '1.5 kg/unit'
-            packaging_size TEXT[], -- can store dimensions like ['30x20x10 cm', 'Custom Box']
-            uses_recycled_packaging BOOLEAN,
-            recycled_packaging_percentage TEXT[], -- if YES in Q57
-            user_id VARCHAR(255),
-            updated_by VARCHAR(255),
-            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-  );`,
-
-        `CREATE TABLE IF NOT EXISTS transportation_logistics_questions (
-            id VARCHAR(255) PRIMARY KEY,
-            sgiq_id VARCHAR(255),   
-            transport_modes_used TEXT[],  -- ['Truck', 'Rail', 'Ship', 'Air', 'Multimode']
-            enviguide_support BOOLEAN DEFAULT false,
-            uses_certified_logistics_provider BOOLEAN, 
-            logistics_provider_details TEXT[], -- if YES, details via Add Button
-            user_id VARCHAR(255),
-            mass_weight_of_component_transported_kg VARCHAR(255),
-            transport_modes_fuel_used TEXT[], ---[petrol disel],
-            designation_of_goods_transported TEXT,
-            distance_of_goods_transported VARCHAR(255),
-            updated_by VARCHAR(255),
-            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-  );`,
-
-        `CREATE TABLE IF NOT EXISTS waste_by_products_questions (
-            id VARCHAR(255) PRIMARY KEY,
+        //   Product Questions
+        `CREATE TABLE IF NOT EXISTS supplier_product_questions (
+            spq_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            waste_types_generated TEXT[], -- ['Scrap Metal', 'Plastic Scrap', 'Sludge', 'Solvents', 'Packaging Waste']
-            waste_treatment_methods TEXT[],  -- ['Landfill', 'Incineration', 'Recycling', 'Recovery']
-            recycling_percentage NUMERIC(5,2), -- % of total scrap/waste recycled
-            has_byproducts BOOLEAN DEFAULT false,
-            byproduct_types TEXT[], -- list if YES in Q65
-            byproduct_quantity TEXT, -- free text like "200 kg/month"
-            byproduct_price TEXT[], -- multiple prices or product-wise via Add Button   
-            user_id VARCHAR(255),
+            do_you_have_an_existing_pcf_report BOOLEAN DEFAULT false,
+            pcf_methodology_used TEXT[], -- ['ISO 14067', 'GHG Protocol', 'Catena-X PCF Guideline', etc.]
+            upload_pcf_report TEXT, -- document link or file reference
+            required_environmental_impact_methods TEXT[], -- ['Life Cycle Assessment (LCA)', 'Carbon Footprint', 'Water Footprint', etc.]
+            any_co_product_have_economic_value BOOLEAN DEFAULT false,
+            sup_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sgiq_id) REFERENCES supplier_general_info_questions (sgiq_id)
   );`,
 
-        `CREATE TABLE IF NOT EXISTS end_of_life_circularity_questions (
-            id VARCHAR(255) PRIMARY KEY,
-            sgiq_id VARCHAR(255),
-            product_designed_for_recycling BOOLEAN DEFAULT false,
-            product_recycling_details TEXT[], -- if YES in Q69 (Add Button inputs)
-            has_takeback_program BOOLEAN DEFAULT false,
-            takeback_program_details TEXT[], -- if YES in Q71, includes % recyclability
-            user_id VARCHAR(255),
-            updated_by VARCHAR(255),
+        `CREATE TABLE IF NOT EXISTS production_site_details_questions (
+            psd_id VARCHAR(255) PRIMARY KEY,
+            spq_id VARCHAR(255),   
+            product_name VARCHAR(255),
+            location TEXT,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(spq_id) REFERENCES supplier_product_questions (spq_id)
   );`,
 
-        `CREATE TABLE IF NOT EXISTS emission_factors_or_lca_data_questions (
-            id VARCHAR(255) PRIMARY KEY,
-            sgiq_id VARCHAR(255),
-            reports_product_carbon_footprint BOOLEAN DEFAULT false, -- Q73
-            pcf_methodologies_used TEXT[], -- if YES in Q73 (e.g., ['ISO 14067', 'GHG Protocol'])
-            has_scope_emission_data BOOLEAN DEFAULT false, -- Q75
-            emission_data_details TEXT[], -- if YES in Q75 (Add Button inputs)
-            required_environmental_impact_methods TEXT[], -- ['Product Carbon Footprint', 'Water Impact', 'Toxicity']
-            user_id VARCHAR(255),
-            updated_by VARCHAR(255),
+        `CREATE TABLE IF NOT EXISTS product_component_manufactured_questions (
+            pcm_id VARCHAR(255) PRIMARY KEY,
+            spq_id VARCHAR(255),   
+            product_name VARCHAR(255),
+            production_period VARCHAR(255),
+            weight_per_unit NUMERIC(10,2),
+            unit VARCHAR(50),
+            price NUMERIC(10,2),
+            quantity INTEGER,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(spq_id) REFERENCES supplier_product_questions (spq_id)
   );`,
 
-        `CREATE TABLE IF NOT EXISTS certification_and_standards_questions (
-            id VARCHAR(255) PRIMARY KEY,
-            sgiq_id VARCHAR(255),
-            certified_iso_environmental_or_energy BOOLEAN DEFAULT false, -- Q78: ISO 14001 or ISO 50001
-            follows_recognized_standards BOOLEAN DEFAULT false, -- Q79: ISO 14067, GHG Protocol, Catena-X PCF Guideline, etc.
-            reports_to_esg_frameworks BOOLEAN DEFAULT false, -- Q80: CDP, SBTi, or other ESG frameworks
-            previous_reports TEXT[], -- if YES in Q78/Q79/Q80 (Add Button inputs, file links, report names, etc.)
-            user_id VARCHAR(255),
-            updated_by VARCHAR(255),
+        `CREATE TABLE IF NOT EXISTS co_product_component_economic_value_questions (
+            cpcev_id VARCHAR(255) PRIMARY KEY,
+            spq_id VARCHAR(255), 
+            product_name VARCHAR(255),  
+            co_product_name VARCHAR(255),
+            weight NUMERIC(10,2),
+            price_per_product NUMERIC(10,2),
+            quantity INTEGER,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(spq_id) REFERENCES supplier_product_questions (spq_id)
+  );`,
+
+        //   Scope One Direct Emissions Questions
+        `CREATE TABLE IF NOT EXISTS scope_one_direct_emissions_questions (
+            sode_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            refrigerant_top_ups_performed BOOLEAN DEFAULT false,
+            industrial_process_emissions_present BOOLEAN DEFAULT false,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sgiq_id) REFERENCES supplier_general_info_questions (sgiq_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS stationary_combustion_on_site_energy_use_questions (
+            scoseu_id VARCHAR(255) PRIMARY KEY,
+            sode_id VARCHAR(255),
+            fuel_type VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sode_id) REFERENCES scope_one_direct_emissions_questions (sode_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS scoseu_sub_fuel_type_questions (
+            ssft_id VARCHAR(255) PRIMARY KEY,
+            scoseu_id VARCHAR(255),
+            sub_fuel_type VARCHAR(255)[],
+            consumption_quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(scoseu_id) REFERENCES stationary_combustion_on_site_energy_use_questions (scoseu_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS mobile_combustion_company_owned_vehicles_questions (
+            mccov_id VARCHAR(255) PRIMARY KEY,
+            sode_id VARCHAR(255),
+            fuel_type VARCHAR(255),
+            quantity INTEGER,
+            unit VARCHAR(50), 
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sode_id) REFERENCES scope_one_direct_emissions_questions (sode_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS refrigerants_questions (
+            refr_id VARCHAR(255) PRIMARY KEY,
+            sode_id VARCHAR(255),
+            refrigerant_type VARCHAR(255),
+            quantity INTEGER,
+            unit VARCHAR(50), 
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sode_id) REFERENCES scope_one_direct_emissions_questions (sode_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS process_emissions_sources_questions (
+            pes_id VARCHAR(255) PRIMARY KEY,
+            sode_id VARCHAR(255),
+            source VARCHAR(255),
+            gas_type VARCHAR(255),
+            quantity INTEGER,
+            unit VARCHAR(50), 
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sode_id) REFERENCES scope_one_direct_emissions_questions (sode_id)
   );`,
 
 
-        `CREATE TABLE IF NOT EXISTS additional_notes_questions (
-            id VARCHAR(255) PRIMARY KEY,
+        //Scope Two Indirect Emissions from Purchased Energy Questions
+
+        `CREATE TABLE IF NOT EXISTS scope_two_indirect_emissions_questions (
+            stide_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            carbon_reduction_measures TEXT, -- Q82: What measures are you taking to reduce carbon emissions? [DQR Required]
-            renewable_energy_or_recycling_programs TEXT, -- Q83: What renewable energy initiatives or recycling programs are in place? [DQR Required]
-            willing_to_provide_primary_data BOOLEAN DEFAULT false, -- Q84: Are you willing to provide primary data directly into PCF platforms?
-            primary_data_details TEXT[], -- if YES in Q84 (Add Button inputs with primary data or file links) [DQR Required]
-            user_id VARCHAR(255),
-            updated_by VARCHAR(255),
+            do_you_acquired_standardized_re_certificates BOOLEAN DEFAULT false,
+            methodology_to_allocate_factory_energy_to_product_level BOOLEAN DEFAULT false,
+            methodology_details_document_url TEXT[], -- array of document links or file references
+            energy_intensity_of_production_estimated_kwhor_mj BOOLEAN DEFAULT false,
+            process_specific_energy_usage BOOLEAN DEFAULT false,
+            do_you_use_any_abatement_systems BOOLEAN DEFAULT false,
+            water_consumption_and_treatment_details TEXT,
+            do_you_perform_destructive_testing BOOLEAN DEFAULT false,
+            it_system_use_for_production_control TEXT[], 
+            total_energy_consumption_of_it_hardware_production BOOLEAN DEFAULT false,
+            energy_con_included_total_energy_pur_sec_two_qfortythree BOOLEAN DEFAULT false, --Q43
+            do_you_use_cloud_based_system_for_production BOOLEAN DEFAULT false,
+            do_you_use_any_cooling_sysytem_for_server BOOLEAN DEFAULT false,
+            energy_con_included_total_energy_pur_sec_two_qfifty BOOLEAN DEFAULT false, --Q50
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sgiq_id) REFERENCES supplier_general_info_questions (sgiq_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS scope_two_indirect_emissions_from_purchased_energy_questions (
+            stidefpe_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            energy_source VARCHAR(255),
+            energy_type VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS scope_two_indirect_emissions_certificates_questions (
+            stidec_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            certificate_name VARCHAR(255),
+            mechanism VARCHAR(255),
+            serial_id VARCHAR(255),
+            generator_id VARCHAR(255),
+            generator_name VARCHAR(255),
+            generator_location TEXT,
+            date_of_generation TIMESTAMPTZ,
+            issuance_date TIMESTAMPTZ,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS energy_intensity_of_production_estimated_kwhor_mj_questions (
+            eiopekm_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            product_name VARCHAR(255),
+            energy_intensity NUMERIC(10,2),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS process_specific_energy_usage_questions (
+            pseu_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            process_specific_energy_type VARCHAR(255),
+            quantity_consumed NUMERIC(10,2),
+            unit VARCHAR(50),
+            support_from_enviguide BOOLEAN DEFAULT false,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS abatement_systems_used_questions (
+            asu_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            source VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q32
+        `CREATE TABLE IF NOT EXISTS type_of_quality_control_equipment_usage_questions (
+            toqceu_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            equipment_name VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            avg_operating_hours_per_month VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q33
+        `CREATE TABLE IF NOT EXISTS electricity_consumed_for_quality_control_questions (
+            ecfqc_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            energy_type VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            period VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q34
+        `CREATE TABLE IF NOT EXISTS quality_control_process_usage_questions (
+            qcpu_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            process_name VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            period VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q34
+        `CREATE TABLE IF NOT EXISTS quality_control_process_usage_pressure_or_flow_questions (
+            qcpupf_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            flow_name VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            period VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q35
+        `CREATE TABLE IF NOT EXISTS quality_control_use_any_consumables_questions (
+            qcuac_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            consumable_name VARCHAR(255),
+            mass_of_consumables NUMERIC(10,2),
+            unit VARCHAR(50),
+            period VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q37
+        `CREATE TABLE IF NOT EXISTS weight_of_samples_destroyed_questions (
+            wosd_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            component_name VARCHAR(255),
+            weight NUMERIC(10,2),
+            unit VARCHAR(50),
+            period VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q38
+        `CREATE TABLE IF NOT EXISTS defect_or_rejection_rate_identified_by_quality_control_questions (
+            dorriqc_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            component_name VARCHAR(255),
+            percentage VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q39
+        `CREATE TABLE IF NOT EXISTS rework_rate_due_to_quality_control_questions (
+            rrdqc_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            component_name VARCHAR(255),
+            processes_involved VARCHAR(255),
+            percentage VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q40
+        `CREATE TABLE IF NOT EXISTS weight_of_quality_control_waste_generated_questions (
+            woqcwg_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            waste_type VARCHAR(255),
+            waste_weight VARCHAR(255),
+            unit VARCHAR(50),
+            treatment_type VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q44
+        `CREATE TABLE IF NOT EXISTS energy_consumption_for_qfortyfour_questions (
+            ecfqff_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            energy_purchased VARCHAR(255),
+            energy_type VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q46
+        `CREATE TABLE IF NOT EXISTS cloud_provider_details_questions (
+            cpd_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            cloud_provider_name VARCHAR(255),
+            virtual_machines VARCHAR(255),
+            data_storage VARCHAR(255),
+            data_transfer VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q47
+        `CREATE TABLE IF NOT EXISTS dedicated_monitoring_sensor_usage_questions (
+            dmsu_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            type_of_sensor VARCHAR(255),
+            sensor_quantity VARCHAR(255),
+            energy_consumption VARCHAR(255),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q48
+        `CREATE TABLE IF NOT EXISTS annual_replacement_rate_of_sensor_questions (
+            arros_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            consumable_name VARCHAR(255),
+            quantity VARCHAR(255),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+        // Q51
+        `CREATE TABLE IF NOT EXISTS energy_consumption_for_qfiftyone_questions (
+            ecfqfo_id VARCHAR(255) PRIMARY KEY,
+            stide_id VARCHAR(255),
+            energy_purchased VARCHAR(255),
+            energy_type VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
+  );`,
+
+        //Scope Three Other Indirect Emissions
+
+        // Q52
+        `CREATE TABLE IF NOT EXISTS scope_three_other_indirect_emissions_questions (
+            stoie_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            raw_materials_contact_enviguide_support BOOLEAN DEFAULT false,
+            grade_of_metal_used VARCHAR(255),
+            msds_link_or_upload_document TEXT[], -- array of document links or file references Q54
+            use_of_recycled_secondary_materials BOOLEAN DEFAULT false, -- Q55
+            percentage_of_pre_post_consumer_material_used_in_product BOOLEAN DEFAULT false, -- Q57
+            do_you_use_recycle_mat_for_packaging BOOLEAN DEFAULT false, -- Q63
+            percentage_of_recycled_content_used_in_packaging BOOLEAN DEFAULT false, -- Q64
+            do_you_use_electricity_for_packaging BOOLEAN DEFAULT false, -- Q65
+            energy_con_included_total_energy_pur_sec_two_qsixtysix BOOLEAN DEFAULT false, --Q66
+            internal_or_external_waste_material_per_recycling BOOLEAN DEFAULT false, --Q69
+            any_by_product_generated BOOLEAN DEFAULT false, --Q70
+            do_you_track_emission_from_transport BOOLEAN DEFAULT false, -- Q72
+            mode_of_transport_used_for_transportation BOOLEAN DEFAULT false, -- Q74
+            iso_14001_or_iso_50001_certified BOOLEAN DEFAULT false, --Q76
+            standards_followed_iso_14067_GHG_catena_etc BOOLEAN DEFAULT false, --Q77
+            do_you_report_to_cdp_sbti_or_other BOOLEAN DEFAULT false, --Q78
+            measures_to_reduce_carbon_emissions_in_production TEXT, --Q79
+            renewable_energy_initiatives_or_recycling_programs TEXT, --Q80
+            your_company_info TEXT, --Q81
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sgiq_id) REFERENCES supplier_general_info_questions (sgiq_id)
+  );`,
+        // Q52
+        `CREATE TABLE IF NOT EXISTS raw_materials_used_in_component_manufacturing_questions (
+            rmuicm_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            material_name VARCHAR(255),
+            percentage VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+        // Q56
+        `CREATE TABLE IF NOT EXISTS recycled_materials_with_percentage_questions (
+            rmwp_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            material_name VARCHAR(255),
+            percentage VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+        // Q58
+        `CREATE TABLE IF NOT EXISTS pre_post_consumer_reutilization_percentage_questions (
+            ppcrp_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            material_type VARCHAR(255),
+            percentage VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q59
+        `CREATE TABLE IF NOT EXISTS pir_pcr_material_percentage_questions (
+            ppmp_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            material_type VARCHAR(255),
+            percentage VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q60
+        `CREATE TABLE IF NOT EXISTS type_of_pack_mat_used_for_delivering_questions (
+            topmudp_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            component_name VARCHAR(255),
+            packagin_type VARCHAR(255),
+            packaging_size VARCHAR(255),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q61
+        `CREATE TABLE IF NOT EXISTS weight_of_packaging_per_unit_product_questions (
+            woppup_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            component_name VARCHAR(255),
+            packagin_weight VARCHAR(255),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q67
+        `CREATE TABLE IF NOT EXISTS energy_consumption_for_qsixtyseven_questions (
+            ecfqss_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            energy_purchased VARCHAR(255),
+            energy_type VARCHAR(255),
+            quantity NUMERIC(10,2),
+            unit VARCHAR(50),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q68
+        `CREATE TABLE IF NOT EXISTS weight_of_pro_packaging_waste_questions (
+            woppw_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            waste_type VARCHAR(255),
+            waste_weight VARCHAR(255),
+            unit VARCHAR(50),
+            treatment_type VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q71
+        `CREATE TABLE IF NOT EXISTS type_of_by_product_questions (
+            topbp_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            component_name VARCHAR(255),
+            by_product VARCHAR(255),
+            price_per_product NUMERIC(10,2),
+            quantity INTEGER,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q73
+        `CREATE TABLE IF NOT EXISTS co_two_emission_of_raw_material_questions (
+            coteorm_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            raw_material_name VARCHAR(255),
+            transport_mode VARCHAR(255),
+            source_location VARCHAR(255),
+            destination_location VARCHAR(255),
+            co_two_emission VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q74
+        `CREATE TABLE IF NOT EXISTS mode_of_transport_used_for_transportation_questions (
+            motuft_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            mode_of_transport VARCHAR(255),
+            weight_transported VARCHAR(255),
+            source_point VARCHAR(255),
+            drop_point VARCHAR(255),
+            distance VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        // Q75
+        `CREATE TABLE IF NOT EXISTS destination_plant_component_transportation_questions (
+            dpct_id VARCHAR(255) PRIMARY KEY,
+            stoie_id VARCHAR(255),
+            country VARCHAR(255),
+            state VARCHAR(255),
+            city VARCHAR(255),
+            pincode VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
+  );`,
+
+        //Scope Four Avoided Emissions
+
+        // Q82
+        `CREATE TABLE IF NOT EXISTS scope_four_avoided_emissions_questions (
+            sfae_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            products_or_services_that_help_reduce_customer_emissions TEXT, --Q82
+            circular_economy_practices_reuse_take_back_epr_refurbishment TEXT, --Q83
+            renewable_energy_carbon_offset_projects_implemented TEXT, --Q84
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sgiq_id) REFERENCES supplier_general_info_questions (sgiq_id)
   );`,
 
         //  ==========>Supplier Organization Questionnaire Tables end<============
 
-        //===========> DQR Rating Tables total 41 tables
+
+        //===========> DQR Rating Tables total 50 tables
+
+        // Q9
+        `CREATE TABLE IF NOT EXISTS dqr_emission_data_rating_qnine (
+            edrqn_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            aosotte_id VARCHAR(255), -- FK to availability_of_scope_one_two_three_emissions
+            data TEXT,
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        // Q11
+        `CREATE TABLE IF NOT EXISTS dqr_supplier_product_questions_rating_qeleven (
+            spqrqe_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            spq_id VARCHAR(255), --foreign key to supplier_product_questions
+            data TEXT,
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        // Q12
+        `CREATE TABLE IF NOT EXISTS dqr_supplier_product_questions_rating_qtwelve (
+            spqrqt_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            spq_id VARCHAR(255), --foreign key to supplier_product_questions
+            data TEXT,
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
         // Q13
-        `CREATE TABLE IF NOT EXISTS dqr_raw_material_product_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        `CREATE TABLE IF NOT EXISTS dqr_production_site_detail_rating_qthirteen (
+            psdrqt_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            psd_id VARCHAR(255), --foreign key to production_site_details
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -726,13 +1213,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q15
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_material_content_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q15
+        `CREATE TABLE IF NOT EXISTS dqr_product_component_manufactured_rating_qfiften (
+            pcmrqf_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            pcm_id VARCHAR(255), --foreign key to product_component_manufactured
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -753,13 +1239,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q17
-        `CREATE TABLE IF NOT EXISTS dqr_pre_consumer_material_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q16
+        `CREATE TABLE IF NOT EXISTS dqr_stationary_combustion_on_site_energy_rating_qsixten (
+            scoserqs_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            scoseu_id VARCHAR(255), --foreign key to stationary_combustion_on_site_energy_use
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -780,13 +1265,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q18
-        `CREATE TABLE IF NOT EXISTS dqr_post_consumer_material_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q17
+        `CREATE TABLE IF NOT EXISTS dqr_mobile_combustion_company_owned_vehicles_rating_qseventen (
+            mccoqrqs_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            mccov_id VARCHAR(255), --foreign key to mobile_combustion_company_owned_vehicles
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -807,13 +1291,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q19
-        `CREATE TABLE IF NOT EXISTS dqr_reutilization_material_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q19
+        `CREATE TABLE IF NOT EXISTS dqr_refrigerants_rating_qnineten (
+            refrqn_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            refr_id VARCHAR(255), --foreign key to refrigerants
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -834,13 +1317,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q21
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_copper_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q21
+        `CREATE TABLE IF NOT EXISTS dqr_process_emissions_sources_qtwentyone (
+            pesqto_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            pes_id VARCHAR(255), --foreign key to process_emissions_sources
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -861,13 +1343,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q23
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_aluminum_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q22
+        `CREATE TABLE IF NOT EXISTS dqr_scope_two_indirect_emis_from_pur_energy_qtwentytwo (
+            stidefpeqtt_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stidefpe_id VARCHAR(255), --foreign key to scope_two_indirect_emissions_from_purchased_energy
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -888,13 +1369,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q25
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_steel_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q24
+        `CREATE TABLE IF NOT EXISTS dqr_scope_two_indirect_emissions_certificates_qtwentyfour (
+            stiecqtf_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stidec_id VARCHAR(255), --foreign key to scope_two_indirect_emissions_certificates
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -915,13 +1395,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q27
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_plastics_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q26
+        `CREATE TABLE IF NOT EXISTS dqr_scope_two_indirect_emissions_qtwentysix (
+            stieqts_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stide_id VARCHAR(255), --foreign key to scope_two_indirect_emissions
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -942,13 +1421,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q28
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_thermoplastics_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q27
+        `CREATE TABLE IF NOT EXISTS dqr_energy_intensity_of_pro_est_kwhor_mj_qtwentyseven (
+            eiopekmqts_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            eiopekm_id VARCHAR(255), --foreign key to energy_intensity_of_production_estimated_kwhor_mj
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -969,13 +1447,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q29
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_plastic_fillers_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q28
+        `CREATE TABLE IF NOT EXISTS dqr_process_specific_energy_usage_qtwentyeight (
+            pseuqte_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            pseu_id VARCHAR(255), --foreign key to process_specific_energy_usage
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -996,13 +1473,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q30
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_fiber_content_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q30
+        `CREATE TABLE IF NOT EXISTS dqr_abatement_systems_used_qthirty (
+            asuqt_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            asu_id VARCHAR(255), --foreign key to abatement_systems_used
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1023,13 +1499,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q33
-        `CREATE TABLE IF NOT EXISTS dqr_recycling_process_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q31
+        `CREATE TABLE IF NOT EXISTS dqr_scope_two_indirect_emissions_qthirtyone (
+            stideqto_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stide_id VARCHAR(255), --foreign key to scope_two_indirect_emissions
+            data TEXT,
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1050,13 +1525,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q34
-        `CREATE TABLE IF NOT EXISTS dqr_track_transport_emissions_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q32
+        `CREATE TABLE IF NOT EXISTS dqr_type_of_quality_control_equipment_usage_qthirtytwo (
+            toqceuqto_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            toqceu_id VARCHAR(255), --foreign key to type_of_quality_control_equipment_usage
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1077,13 +1551,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q37
-        `CREATE TABLE IF NOT EXISTS dqr_pcr_and_pir_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q33
+        `CREATE TABLE IF NOT EXISTS dqr_electricity_consumed_for_quality_control_qthirtythree (
+            ecfqcqtt_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            ecfqc_id VARCHAR(255), --foreign key to electricity_consumed_for_quality_control
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1104,13 +1577,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q39
-        `CREATE TABLE IF NOT EXISTS dqr_bio_based_or_renewable_materials_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q34
+        `CREATE TABLE IF NOT EXISTS dqr_quality_control_process_usage_qthirtyfour (
+            qcpuqtf_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            qcpu_id VARCHAR(255), --foreign key to quality_control_process_usage
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1131,13 +1603,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q41
-        `CREATE TABLE IF NOT EXISTS dqr_main_alloy_metals_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q34
+        `CREATE TABLE IF NOT EXISTS dqr_quality_control_process_usage_pressure_or_flow_qthirtyfour (
+            qcpupfqtf_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            qcpupf_id VARCHAR(255), --foreign key to quality_control_process_usage_pressure_or_flow
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1158,13 +1629,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q42
-        `CREATE TABLE IF NOT EXISTS dqr_metal_grade_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q35
+        `CREATE TABLE IF NOT EXISTS dqr_quality_control_use_any_consumables_qthirtyfive (
+            qcuacqtf_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            qcuac_id VARCHAR(255), --foreign key to quality_control_use_any_consumables
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1185,13 +1655,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q43
-        `CREATE TABLE IF NOT EXISTS dqr_energy_sources_used_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q37
+        `CREATE TABLE IF NOT EXISTS dqr_weight_of_samples_destroyed_qthirtyseven (
+            wosdqts_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            wosd_id VARCHAR(255), --foreign key to weight_of_samples_destroyed
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1212,13 +1681,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q44
-        `CREATE TABLE IF NOT EXISTS dqr_electricity_consumption_per_year_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q38
+        `CREATE TABLE IF NOT EXISTS dqr_defect_or_rej_rate_identified_by_quality_control_qthirtyeight (
+           dorriqcqte_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            dorriqc_id VARCHAR(255), --foreign key to defect_or_rejection_rate_identified_by_quality_control
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1239,13 +1707,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q46
-        `CREATE TABLE IF NOT EXISTS dqr_renewable_electricity_percentage_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q39
+        `CREATE TABLE IF NOT EXISTS dqr_rework_rate_due_to_quality_control_qthirtynine (
+            rrdqcqtn_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            rrdqc_id VARCHAR(255), --foreign key to rework_rate_due_to_quality_control
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1266,13 +1733,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q49
-        `CREATE TABLE IF NOT EXISTS dqr_energy_intensity_per_unit_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q40
+        `CREATE TABLE IF NOT EXISTS dqr_weight_of_quality_control_waste_generated_qforty (
+            woqcwgqf_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            woqcwg_id VARCHAR(255), --foreign key to weight_of_quality_control_waste_generated
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1293,13 +1759,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q50
-        `CREATE TABLE IF NOT EXISTS dqr_process_specific_energy_usage_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q41
+        `CREATE TABLE IF NOT EXISTS dqr_scope_two_indirect_emissions_qfortyone (
+            stideqfo_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stide_id VARCHAR(255), --foreign key to scope_two_indirect_emissions
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1320,13 +1785,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q52
-        `CREATE TABLE IF NOT EXISTS dqr_abatement_system_energy_consumption_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q44
+        `CREATE TABLE IF NOT EXISTS dqr_energy_consumption_for_qfortyfour_qfortyfour (
+            ecfqffqff_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            ecfqff_id VARCHAR(255), --foreign key to energy_consumption_for_qfortyfour
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1347,13 +1811,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q53
-        `CREATE TABLE IF NOT EXISTS dqr_water_consumption_and_treatment_details_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q46
+        `CREATE TABLE IF NOT EXISTS dqr_cloud_provider_details_qfortysix (
+            cpdqfs_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            cpd_id VARCHAR(255), --foreign key to cloud_provider_details
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1374,13 +1837,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q54
-        `CREATE TABLE IF NOT EXISTS dqr_packaging_materials_used_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q47
+        `CREATE TABLE IF NOT EXISTS dqr_dedicated_monitoring_sensor_usage_qfortyseven (
+            dmsuqfs_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            dmsu_id VARCHAR(255), --foreign key to dedicated_monitoring_sensor_usage
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1401,13 +1863,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q55
-        `CREATE TABLE IF NOT EXISTS dqr_packaging_weight_per_unit_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q48
+        `CREATE TABLE IF NOT EXISTS dqr_annual_replacement_rate_of_sensor_qfortyeight (
+            arrosqfe_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            arros_id VARCHAR(255), --foreign key to annual_replacement_rate_of_sensor
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1428,13 +1889,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q58
-        `CREATE TABLE IF NOT EXISTS dqr_recycled_packaging_percentage_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q51
+        `CREATE TABLE IF NOT EXISTS dqr_energy_consumption_for_qfiftyone_qfiftyone (
+            ecfqfoqfo_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            ecfqfo_id VARCHAR(255), --foreign key to energy_consumption_for_qfiftyone
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1455,13 +1915,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q59
-        `CREATE TABLE IF NOT EXISTS dqr_transport_modes_used_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q52
+        `CREATE TABLE IF NOT EXISTS dqr_raw_materials_used_in_component_manufacturing_qfiftytwo (
+            rmuicmqft_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            rmuicm_id VARCHAR(255), --foreign key to raw_materials_used_in_component_manufacturing
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1482,13 +1941,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q61
-        `CREATE TABLE IF NOT EXISTS dqr_logistics_provider_details_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q53
+        `CREATE TABLE IF NOT EXISTS dqr_scope_three_other_indirect_emissions_qfiftythree (
+            stoieqft_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stoie_id VARCHAR(255), --foreign key to scope_three_other_indirect_emissions
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1509,13 +1967,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q64
-        `CREATE TABLE IF NOT EXISTS dqr_recycling_percentage_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q54
+        `CREATE TABLE IF NOT EXISTS dqr_scope_three_other_indirect_emissions_qfiftyfour (
+            stoieqff_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stoie_id VARCHAR(255), --foreign key to scope_three_other_indirect_emissions
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1536,13 +1993,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q66
-        `CREATE TABLE IF NOT EXISTS dqr_byproduct_types_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q56
+        `CREATE TABLE IF NOT EXISTS dqr_recycled_materials_with_percentage_qfiftysix (
+            rmwpqfs_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            rmwp_id VARCHAR(255), --foreign key to recycled_materials_with_percentage
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1563,13 +2019,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q67
-        `CREATE TABLE IF NOT EXISTS dqr_byproduct_quantity_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q58
+        `CREATE TABLE IF NOT EXISTS dqr_pre_post_consumer_reutilization_percentage_qfiftyeight (
+            ppcrpqfe_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            ppcrp_id VARCHAR(255), --foreign key to pre_post_consumer_reutilization_percentage
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1590,13 +2045,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q70
-        `CREATE TABLE IF NOT EXISTS dqr_product_recycling_details_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q59
+        `CREATE TABLE IF NOT EXISTS dqr_pir_pcr_material_percentage_qfiftynine (
+            ppmpqfn_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            ppmp_id VARCHAR(255), --foreign key to pir_pcr_material_percentage
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1617,13 +2071,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q72
-        `CREATE TABLE IF NOT EXISTS dqr_takeback_program_details_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q60
+        `CREATE TABLE IF NOT EXISTS dqr_type_of_pack_mat_used_for_delivering_qsixty (
+            topmudpqs_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            topmudp_id VARCHAR(255), --foreign key to type_of_pack_mat_used_for_delivering
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1644,14 +2097,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-
-        //   Q74
-        `CREATE TABLE IF NOT EXISTS dqr_pcf_methodologies_used_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q61
+        `CREATE TABLE IF NOT EXISTS dqr_weight_of_packaging_per_unit_product_qsixtyone (
+            woppupqso_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            woppup_id VARCHAR(255), --foreign key to weight_of_packaging_per_unit_product
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1672,13 +2123,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q76
-        `CREATE TABLE IF NOT EXISTS dqr_emission_data_details_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q64
+        `CREATE TABLE IF NOT EXISTS dqr_scope_three_other_indirect_emissions_qsixtyfour (
+            stoieqsf_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stoie_id VARCHAR(255), --foreign key to scope_three_other_indirect_emissions
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1699,13 +2149,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q81
-        `CREATE TABLE IF NOT EXISTS dqr_previous_reports_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q67
+        `CREATE TABLE IF NOT EXISTS dqr_energy_consumption_for_qsixtyseven_qsixtyseven (
+            ecfqssqss_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            ecfqss_id VARCHAR(255), --foreign key to energy_consumption_for_qsixtyseven
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1726,13 +2175,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q82
-        `CREATE TABLE IF NOT EXISTS dqr_carbon_reduction_measures_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q68
+        `CREATE TABLE IF NOT EXISTS dqr_weight_of_pro_packaging_waste_qsixtyeight (
+            woppwqse_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            woppw_id VARCHAR(255), --foreign key to weight_of_pro_packaging_waste
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1753,13 +2201,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q83
-        `CREATE TABLE IF NOT EXISTS dqr_renewable_energy_or_recycling_programs_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q69
+        `CREATE TABLE IF NOT EXISTS dqr_scope_three_other_indirect_emissions_qsixtynine (
+            stoieqsn_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            stoie_id VARCHAR(255), --foreign key to scope_three_other_indirect_emissions
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1780,13 +2227,12 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        //   Q85
-        `CREATE TABLE IF NOT EXISTS dqr_primary_data_details_rating (
-            id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
+        // Q71
+        `CREATE TABLE IF NOT EXISTS dqr_type_of_by_product_qseventyone (
+            topbpqso_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),
-            data VARCHAR(255),
+            topbp_id VARCHAR(255), --foreign key to type_of_by_product
+            data TEXT, 
             ter_tag_type VARCHAR(255),
             ter_tag_value VARCHAR(255), 
             ter_data_point VARCHAR(255),   
@@ -1807,10 +2253,138 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
+        // Q73
+        `CREATE TABLE IF NOT EXISTS dqr_co_two_emission_of_raw_material_qseventythree (
+            coteormqst_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            coteorm_id VARCHAR(255), --foreign key to co_two_emission_of_raw_material
+            data TEXT, 
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        // Q74
+        `CREATE TABLE IF NOT EXISTS dqr_mode_of_transport_used_for_transportation_qseventyfour (
+            motuftqsf_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            motuft_id VARCHAR(255), --foreign key to mode_of_transport_used_for_transportation
+            data TEXT, 
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        // Q75
+        `CREATE TABLE IF NOT EXISTS dqr_destination_plant_component_transportation_qseventyfive (
+            dpctqsf_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            dpct_id VARCHAR(255), --foreign key to destination_plant_component_transportation
+            data TEXT, 
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        // Q79
+        `CREATE TABLE IF NOT EXISTS dqr_scope_three_other_indirect_emissions_qseventynine (
+            stoieqsn_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            stoie_id VARCHAR(255), --foreign key to scope_three_other_indirect_emissions
+            data TEXT, 
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+        // Q80
+        `CREATE TABLE IF NOT EXISTS dqr_scope_three_other_indirect_emissions_qeighty (
+            stoieqe_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            stoie_id VARCHAR(255), --foreign key to scope_three_other_indirect_emissions
+            data TEXT, 
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
 
         //   ========>DQR Rating Tables end<============
-
 
 
         //===========> PCF Request Stages Tables start<============
