@@ -616,7 +616,7 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS scoseu_sub_fuel_type_questions (
             ssft_id VARCHAR(255) PRIMARY KEY,
             scoseu_id VARCHAR(255),
-            sub_fuel_type VARCHAR(255)[],
+            sub_fuel_type VARCHAR(255),
             consumption_quantity NUMERIC(10,2),
             unit VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -921,13 +921,14 @@ export async function createTables() {
             use_of_recycled_secondary_materials BOOLEAN DEFAULT false, -- Q55
             percentage_of_pre_post_consumer_material_used_in_product BOOLEAN DEFAULT false, -- Q57
             do_you_use_recycle_mat_for_packaging BOOLEAN DEFAULT false, -- Q63
-            percentage_of_recycled_content_used_in_packaging BOOLEAN DEFAULT false, -- Q64
+            percentage_of_recycled_content_used_in_packaging TEXT, -- Q64
             do_you_use_electricity_for_packaging BOOLEAN DEFAULT false, -- Q65
             energy_con_included_total_energy_pur_sec_two_qsixtysix BOOLEAN DEFAULT false, --Q66
-            internal_or_external_waste_material_per_recycling BOOLEAN DEFAULT false, --Q69
+            internal_or_external_waste_material_per_recycling TEXT, --Q69
             any_by_product_generated BOOLEAN DEFAULT false, --Q70
             do_you_track_emission_from_transport BOOLEAN DEFAULT false, -- Q72
             mode_of_transport_used_for_transportation BOOLEAN DEFAULT false, -- Q74
+            mode_of_transport_enviguide_support BOOLEAN DEFAULT false, -- Q74
             iso_14001_or_iso_50001_certified BOOLEAN DEFAULT false, --Q76
             standards_followed_iso_14067_GHG_catena_etc BOOLEAN DEFAULT false, --Q77
             do_you_report_to_cdp_sbti_or_other BOOLEAN DEFAULT false, --Q78
@@ -1234,6 +1235,34 @@ export async function createTables() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+         // Q15.1
+        `CREATE TABLE IF NOT EXISTS dqr_co_product_component_manufactured_rating_qfiftenone (
+            pcmrqfo_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            cpcev_id VARCHAR(255), --foreign key to co_product_component_economic_value_questions
+            data TEXT,
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         // Q16
         `CREATE TABLE IF NOT EXISTS dqr_stationary_combustion_on_site_energy_rating_qsixten (
             scoserqs_id VARCHAR(255) PRIMARY KEY,
