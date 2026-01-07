@@ -81,7 +81,7 @@ export async function createDqrRating(req: any, res: any) {
         const code = "DQR-" + Date.now();
         const records = ratingData[type];
 
-        const inserted = await createDqrRatingService(type, records, created_by, code,bom_pcf_id);
+        const inserted = await createDqrRatingService(type, records, created_by, code, bom_pcf_id);
 
         return res
             .status(200)
@@ -94,106 +94,106 @@ export async function createDqrRating(req: any, res: any) {
     }
 }
 
-export async function getSupplierDqrDetailsById(req: any, res: any) {
-    try {
-        const { sgiq_id } = req.query;
+// export async function getSupplierDqrDetailsById(req: any, res: any) {
+//     try {
+//         const { sgiq_id } = req.query;
 
-        if (!sgiq_id) {
-            return res
-                .status(400)
-                .json(generateResponse(false, "sgiq_id is required", 400, null));
-        }
+//         if (!sgiq_id) {
+//             return res
+//                 .status(400)
+//                 .json(generateResponse(false, "sgiq_id is required", 400, null));
+//         }
 
-        const data = await getSupplierDqrDetailsService(sgiq_id);
+//         const data = await getSupplierDqrDetailsService(sgiq_id);
 
-        if (!data) {
-            return res
-                .status(404)
-                .json(generateResponse(false, "No data found for given sgiq_id", 404, null));
-        }
+//         if (!data) {
+//             return res
+//                 .status(404)
+//                 .json(generateResponse(false, "No data found for given sgiq_id", 404, null));
+//         }
 
-        return res
-            .status(200)
-            .json(generateResponse(true, "Fetched successfully", 200, data));
-    } catch (error: any) {
-        console.error("❌ Error in getSupplierDqrDetailsById:", error.message);
-        return res
-            .status(500)
-            .json(generateResponse(false, "Something went wrong", 500, error.message));
-    }
-}
+//         return res
+//             .status(200)
+//             .json(generateResponse(true, "Fetched successfully", 200, data));
+//     } catch (error: any) {
+//         console.error("❌ Error in getSupplierDqrDetailsById:", error.message);
+//         return res
+//             .status(500)
+//             .json(generateResponse(false, "Something went wrong", 500, error.message));
+//     }
+// }
 
-export async function getSupplierDetailsList(req: any, res: any) {
-    const { pageNumber, pageSize } = req.query;
+// export async function getSupplierDetailsList(req: any, res: any) {
+//     const { pageNumber, pageSize } = req.query;
 
-    const limit = parseInt(pageSize) || 20;
-    const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
-    const offset = (page - 1) * limit;
+//     const limit = parseInt(pageSize) || 20;
+//     const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
+//     const offset = (page - 1) * limit;
 
-    return withClient(async (client: any) => {
-        try {
+//     return withClient(async (client: any) => {
+//         try {
 
-            const query = `
-        SELECT 
-          gq.*,
-          u.user_name AS created_by_name
-        FROM supplier_general_info_questions gq
-        LEFT JOIN users_table u ON gq.user_id = u.user_id
-        ORDER BY gq.created_date DESC
-        LIMIT $1 OFFSET $2;
-      `;
+//             const query = `
+//         SELECT 
+//           gq.*,
+//           u.user_name AS created_by_name
+//         FROM supplier_general_info_questions gq
+//         LEFT JOIN users_table u ON gq.user_id = u.user_id
+//         ORDER BY gq.created_date DESC
+//         LIMIT $1 OFFSET $2;
+//       `;
 
-            const countQuery = `
-        SELECT COUNT(*) AS total_count
-        FROM supplier_general_info_questions;
-      `;
+//             const countQuery = `
+//         SELECT COUNT(*) AS total_count
+//         FROM supplier_general_info_questions;
+//       `;
 
-            const [result, countResult] = await Promise.all([
-                client.query(query, [limit, offset]),
-                client.query(countQuery)
-            ]);
+//             const [result, countResult] = await Promise.all([
+//                 client.query(query, [limit, offset]),
+//                 client.query(countQuery)
+//             ]);
 
-            const rows = result.rows;
+//             const rows = result.rows;
 
 
-            for (const supplier of rows) {
-                const sgiq_id = supplier.sgiq_id;
+//             for (const supplier of rows) {
+//                 const sgiq_id = supplier.sgiq_id;
 
-                const supplier_questions: any = {};
+//                 const supplier_questions: any = {};
 
-                // --- Supplier Question Tables ---
-                for (const table of QUESTION_TABLES) {
-                    const res = await client.query(
-                        `SELECT * FROM ${table} WHERE sgiq_id = $1`,
-                        [sgiq_id]
-                    );
-                    supplier_questions[table] = res.rows;
-                }
+//                 // --- Supplier Question Tables ---
+//                 for (const table of QUESTION_TABLES) {
+//                     const res = await client.query(
+//                         `SELECT * FROM ${table} WHERE sgiq_id = $1`,
+//                         [sgiq_id]
+//                     );
+//                     supplier_questions[table] = res.rows;
+//                 }
 
-                supplier.supplier_questions = supplier_questions;
-            }
+//                 supplier.supplier_questions = supplier_questions;
+//             }
 
-            // Pagination metadata
-            const totalCount = parseInt(countResult.rows[0]?.total_count ?? 0);
-            const totalPages = Math.ceil(totalCount / limit);
+//             // Pagination metadata
+//             const totalCount = parseInt(countResult.rows[0]?.total_count ?? 0);
+//             const totalPages = Math.ceil(totalCount / limit);
 
-            return res.status(200).json({
-                success: true,
-                message: "Supplier Question Details List fetched successfully",
-                data: rows,
-                current_page: page,
-                total_pages: totalPages,
-                total_count: totalCount
-            });
-        } catch (error: any) {
-            console.error("Error fetching Supplier Question Details List:", error);
-            return res.status(500).json({
-                success: false,
-                message: error.message || "Failed to fetch Supplier Question Details List"
-            });
-        }
-    });
-}
+//             return res.status(200).json({
+//                 success: true,
+//                 message: "Supplier Question Details List fetched successfully",
+//                 data: rows,
+//                 current_page: page,
+//                 total_pages: totalPages,
+//                 total_count: totalCount
+//             });
+//         } catch (error: any) {
+//             console.error("Error fetching Supplier Question Details List:", error);
+//             return res.status(500).json({
+//                 success: false,
+//                 message: error.message || "Failed to fetch Supplier Question Details List"
+//             });
+//         }
+//     });
+// }
 
 export async function updateDqrRating(req: any, res: any) {
     try {
@@ -229,3 +229,136 @@ export async function updateDqrRating(req: any, res: any) {
     }
 }
 
+// ============== NEW APIsssssss
+export async function getSupplierDetailsList(req: any, res: any) {
+    try {
+        const page = Number(req.query.pageNumber) || 1;
+        const limit = Number(req.query.pageSize) || 10;
+        const offset = (page - 1) * limit;
+
+        return withClient(async (client: any) => {
+            // Total count
+            const countResult = await client.query(
+                `SELECT COUNT(*) FROM supplier_general_info_questions`
+            );
+
+            const totalRecords = Number(countResult.rows[0].count);
+            const totalPages = Math.ceil(totalRecords / limit);
+
+            // Data query
+            const dataQuery = `
+            WITH base_data AS (
+                SELECT
+                    sgiq.*,
+
+                json_build_object(
+            'sup_id', sd.id,
+            'code', sd.code,
+            'supplier_name', sd.supplier_name,
+            'supplier_email', sd.supplier_email,
+            'supplier_phone_number', sd.supplier_phone_number
+        ) AS supplier_details,
+
+                          -- BOM Object
+        json_build_object(
+            'bom_id', b.id,
+            'material_number', b.material_number,
+            'component_name', b.component_name,
+            'production_location', b.production_location
+        ) AS bom,
+
+              -- BOM PCF Object
+        json_build_object(
+            'pcf_id', pcf.id,
+            'code', pcf.code,
+            'request_title', pcf.request_title,
+            'priority', pcf.priority,
+            'request_organization', pcf.request_organization,
+            'due_date', pcf.due_date,
+            'request_description', pcf.request_description
+        ) AS bom_pcf
+
+                FROM supplier_general_info_questions sgiq
+                LEFT JOIN supplier_details sd ON sd.id = sgiq.sup_id
+                LEFT JOIN bom b ON b.id = sgiq.bom_id
+                LEFT JOIN bom_pcf_request pcf ON pcf.id = sgiq.bom_pcf_id
+            )
+SELECT
+    bd.*,
+
+    -- Conditional Scope 1,2,3 Emissions
+    CASE
+        WHEN bd.availability_of_scope_one_two_three_emissions_data = true
+        THEN (
+            SELECT json_agg(
+                json_build_object(
+                    'aosotte_id', aos.aosotte_id,
+                    'country_iso_three', aos.country_iso_three,
+                    'scope_one', aos.scope_one,
+                    'scope_two', aos.scope_two,
+                    'scope_three', aos.scope_three
+                )
+            )
+            FROM availability_of_scope_one_two_three_emissions_questions aos
+            WHERE aos.sgiq_id = bd.sgiq_id
+        )
+        ELSE NULL
+    END AS scope_one_two_three_emissions
+
+FROM base_data bd
+ORDER BY bd.sgiq_id DESC
+LIMIT $1 OFFSET $2;
+        `;
+
+            const result = await client.query(dataQuery, [limit, offset]);
+
+            return res.status(200).json({
+                status: true,
+                message: "Success",
+                pagination: {
+                    page,
+                    limit,
+                    totalRecords,
+                    totalPages
+                },
+                data: result.rows
+            });
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: false,
+            message: "Internal server error"
+        });
+    }
+}
+
+export async function getSupplierDqrDetailsById(req: any, res: any) {
+    try {
+        const { sgiq_id } = req.query;
+
+        if (!sgiq_id) {
+            return res
+                .status(400)
+                .json(generateResponse(false, "sgiq_id is required", 400, null));
+        }
+
+        const data = await getSupplierDqrDetailsService(sgiq_id);
+
+        if (!data) {
+            return res
+                .status(404)
+                .json(generateResponse(false, "No data found for given sgiq_id", 404, null));
+        }
+
+        return res
+            .status(200)
+            .json(generateResponse(true, "Fetched successfully", 200, data));
+    } catch (error: any) {
+        console.error("❌ Error in getSupplierDqrDetailsById:", error.message);
+        return res
+            .status(500)
+            .json(generateResponse(false, "Something went wrong", 500, error.message));
+    }
+}
