@@ -195,39 +195,118 @@ export async function createDqrRating(req: any, res: any) {
 //     });
 // }
 
-export async function updateDqrRating(req: any, res: any) {
-    try {
-        const { type, ...ratingData } = req.body;
+// export async function updateDqrRating(req: any, res: any) {
+//     try {
+//         const { type, ...ratingData } = req.body;
 
-        // ✅ Validate type
-        if (!type || !ALLOWED_TYPES.includes(type)) {
-            return res.status(400).json(
-                generateResponse(false, "Invalid or missing rating type", 400, {
-                    allowed_types: ALLOWED_TYPES,
-                })
-            );
-        }
+//         // ✅ Validate type
+//         if (!type || !ALLOWED_TYPES.includes(type)) {
+//             return res.status(400).json(
+//                 generateResponse(false, "Invalid or missing rating type", 400, {
+//                     allowed_types: ALLOWED_TYPES,
+//                 })
+//             );
+//         }
 
-        const records = ratingData[type];
-        if (!records || !Array.isArray(records) || records.length === 0) {
-            return res
-                .status(400)
-                .json(generateResponse(false, `Missing or invalid data for ${type}`, 400, null));
-        }
+//         const records = ratingData[type];
+//         if (!records || !Array.isArray(records) || records.length === 0) {
+//             return res
+//                 .status(400)
+//                 .json(generateResponse(false, `Missing or invalid data for ${type}`, 400, null));
+//         }
 
-        const updated_by = req.user_id || "system";
-        const updated = await updateDqrRatingService(type, records, updated_by);
+//         const updated_by = req.user_id || "system";
+//         const updated = await updateDqrRatingService(type, records, updated_by);
 
-        return res
-            .status(200)
-            .json(generateResponse(true, `${type} updated successfully`, 200, updated));
-    } catch (error: any) {
-        console.error("❌ Error in updateDqrRating:", error.message);
-        return res
-            .status(500)
-            .json(generateResponse(false, "Something went wrong", 500, error.message));
-    }
-}
+//         return res
+//             .status(200)
+//             .json(generateResponse(true, `${type} updated successfully`, 200, updated));
+//     } catch (error: any) {
+//         console.error("❌ Error in updateDqrRating:", error.message);
+//         return res
+//             .status(500)
+//             .json(generateResponse(false, "Something went wrong", 500, error.message));
+//     }
+// }
+
+
+export const DQR_CONFIG: Record<string, { table: string; pk: string }> = {
+    // Q9 – Q13
+    q9: { table: 'dqr_emission_data_rating_qnine', pk: 'edrqn_id' },
+    q11: { table: 'dqr_supplier_product_questions_rating_qeleven', pk: 'spqrqe_id' },
+    q12: { table: 'dqr_supplier_product_questions_rating_qtwelve', pk: 'spqrqt_id' },
+    q13: { table: 'dqr_production_site_detail_rating_qthirteen', pk: 'psdrqt_id' },
+
+    // Q15 – Q17
+    q15: { table: 'dqr_product_component_manufactured_rating_qfiften', pk: 'pcmrqf_id' },
+    q151: { table: 'dqr_co_product_component_manufactured_rating_qfiftenone', pk: 'pcmrqfo_id' },
+    q16: { table: 'dqr_stationary_combustion_on_site_energy_rating_qsixten', pk: 'scoserqs_id' },
+    q17: { table: 'dqr_mobile_combustion_company_owned_vehicles_rating_qseventen', pk: 'mccoqrqs_id' },
+
+    // Q19 – Q22
+    q19: { table: 'dqr_refrigerants_rating_qnineten', pk: 'refrqn_id' },
+    dq21: { table: 'dqr_process_emissions_sources_qtwentyone', pk: 'pesqto_id' },
+    q22: { table: 'dqr_scope_two_indirect_emis_from_pur_energy_qtwentytwo', pk: 'stidefpeqtt_id' },
+
+    // Q24 – Q28
+  q24: { table: 'dqr_scope_two_indirect_emissions_certificates_qtwentyfour', pk: 'stiecqtf_id' },
+  q26: { table: 'dqr_scope_two_indirect_emissions_qtwentysix', pk: 'stieqts_id' },
+  q27: { table: 'dqr_energy_intensity_of_pro_est_kwhor_mj_qtwentyseven', pk: 'eiopekmqts_id' },
+  q28: { table: 'dqr_process_specific_energy_usage_qtwentyeight', pk: 'pseuqte_id' },
+
+    // Q30 – Q33
+  q30: { table: 'dqr_abatement_systems_used_qthirty', pk: 'asuqt_id' },
+  q31: { table: 'dqr_scope_two_indirect_emissions_qthirtyone', pk: 'stideqto_id' },
+  q32: { table: 'dqr_type_of_quality_control_equipment_usage_qthirtytwo', pk: 'toqceuqto_id' },
+  q33: { table: 'dqr_electricity_consumed_for_quality_control_qthirtythree', pk: 'ecfqcqtt_id' },
+
+    // Q34 – Q35
+  q34: { table: 'dqr_quality_control_process_usage_qthirtyfour', pk: 'qcpuqtf_id' },
+  q341: { table: 'dqr_quality_control_process_usage_pressure_or_flow_qthirtyfour', pk: 'qcpupfqtf_id' },
+  q35: { table: 'dqr_quality_control_use_any_consumables_qthirtyfive', pk: 'qcuacqtf_id' },
+
+    // Q37 – Q41
+  q37: { table: 'dqr_weight_of_samples_destroyed_qthirtyseven', pk: 'wosdqts_id' },
+  q38: { table: 'dqr_defect_or_rej_rate_identified_by_quality_control_qthirtyeight', pk: 'dorriqcqte_id' },
+  q39: { table: 'dqr_rework_rate_due_to_quality_control_qthirtynine', pk: 'rrdqcqtn_id' },
+  q40: { table: 'dqr_weight_of_quality_control_waste_generated_qforty', pk: 'woqcwgqf_id' },
+  q41: { table: 'dqr_scope_two_indirect_emissions_qfortyone', pk: 'stideqfo_id' },
+
+    // Q44 – Q48
+  q44: { table: 'dqr_energy_consumption_for_qfortyfour_qfortyfour', pk: 'ecfqffqff_id' },
+  q46: { table: 'dqr_cloud_provider_details_qfortysix', pk: 'cpdqfs_id' },
+  q47: { table: 'dqr_dedicated_monitoring_sensor_usage_qfortyseven', pk: 'dmsuqfs_id' },
+  q48: { table: 'dqr_annual_replacement_rate_of_sensor_qfortyeight', pk: 'arrosqfe_id' },
+
+    // Q51 – Q54
+  q51: { table: 'dqr_energy_consumption_for_qfiftyone_qfiftyone', pk: 'ecfqfoqfo_id' },
+  q52: { table: 'dqr_raw_materials_used_in_component_manufacturing_qfiftytwo', pk: 'rmuicmqft_id' },
+  q53: { table: 'dqr_scope_three_other_indirect_emissions_qfiftythree', pk: 'stoieqft_id' },
+  q54: { table: 'dqr_scope_three_other_indirect_emissions_qfiftyfour', pk: 'stoieqff_id' },
+
+    // Q56 – Q61
+  q56: { table: 'dqr_recycled_materials_with_percentage_qfiftysix', pk: 'rmwpqfs_id' },
+  q58: { table: 'dqr_pre_post_consumer_reutilization_percentage_qfiftyeight', pk: 'ppcrpqfe_id' },
+  q59: { table: 'dqr_pir_pcr_material_percentage_qfiftynine', pk: 'ppmpqfn_id' },
+  q60: { table: 'dqr_type_of_pack_mat_used_for_delivering_qsixty', pk: 'topmudpqs_id' },
+  q61: { table: 'dqr_weight_of_packaging_per_unit_product_qsixtyone', pk: 'woppupqso_id' },
+
+    // Q64 – Q69
+  q64: { table: 'dqr_scope_three_other_indirect_emissions_qsixtyfour', pk: 'stoieqsf_id' },
+  q67: { table: 'dqr_energy_consumption_for_qsixtyseven_qsixtyseven', pk: 'ecfqssqss_id' },
+  q68: { table: 'dqr_weight_of_pro_packaging_waste_qsixtyeight', pk: 'woppwqse_id' },
+  q69: { table: 'dqr_scope_three_other_indirect_emissions_qsixtynine', pk: 'stoieqsn_id' },
+
+    // Q71 – Q75
+  q71: { table: 'dqr_type_of_by_product_qseventyone', pk: 'topbpqso_id' },
+  q73: { table: 'dqr_co_two_emission_of_raw_material_qseventythree', pk: 'coteormqst_id' },
+  q74: { table: 'dqr_mode_of_transport_used_for_transportation_qseventyfour', pk: 'motuftqsf_id' },
+  q75: { table: 'dqr_destination_plant_component_transportation_qseventyfive', pk: 'dpctqsf_id' },
+
+    // Q79 – Q80
+  q79: { table: 'dqr_scope_three_other_indirect_emissions_qseventynine', pk: 'stoieqsn_id' },
+  q80: { table: 'dqr_scope_three_other_indirect_emissions_qeighty', pk: 'stoieqe_id' },
+};
 
 // ============== NEW APIsssssss
 export async function getSupplierDetailsList(req: any, res: any) {
@@ -360,5 +439,35 @@ export async function getSupplierDqrDetailsById(req: any, res: any) {
         return res
             .status(500)
             .json(generateResponse(false, "Something went wrong", 500, error.message));
+    }
+}
+
+export async function updateDqrRating(req: any, res: any) {
+    try {
+        const { type, records } = req.body;
+
+        if (!type || !DQR_CONFIG[type]) {
+            return res.status(400).json(
+                generateResponse(false, "Invalid DQR type", 400, Object.keys(DQR_CONFIG))
+            );
+        }
+
+        if (!Array.isArray(records) || records.length === 0) {
+            return res.status(400).json(
+                generateResponse(false, "Records array is required", 400, null)
+            );
+        }
+
+        const updated_by = req.user_id || "system";
+        const result = await updateDqrRatingService(type, records, updated_by);
+
+        return res.status(200).json(
+            generateResponse(true, "DQR rating updated successfully", 200, result)
+        );
+    } catch (error: any) {
+        console.error(error);
+        return res.status(500).json(
+            generateResponse(false, "Internal server error", 500, error.message)
+        );
     }
 }
