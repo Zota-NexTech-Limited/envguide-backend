@@ -4,7 +4,6 @@ import * as  authService from '../../middleware/authService'
 const Routes = Router();
 
 Routes.post('/api/create-supplier-input-questions', Controller.addSupplierSustainabilityData);
-Routes.get('/api/get-by-id-supplier-input-questions', authService.authenticate, Controller.getSupplierSustainabilityDataById);
 Routes.get('/api/supplier-input-questions-list', authService.authenticate, Controller.getSupplierDetailsList);
 Routes.get('/api/supplier-input-questions-get-by-id', authService.authenticate, Controller.getSupplierDetailsById);
 Routes.post('/api/update-supplier-input-questions', authService.authenticate, Controller.updateSupplierSustainabilityData);

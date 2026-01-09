@@ -1,6 +1,7 @@
 import { withClient } from '../util/database';
 import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes';
+import { updateSupplierSustainabilityService } from '../services/supplierInputQuetionService';
 
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -219,415 +220,415 @@ export async function getSupplierSustainabilityDataById(req: any, res: any) {
 //     });
 // }
 
-export async function updateSupplierSustainabilityData(req: any, res: any) {
-    return withClient(async (client: any) => {
-        await client.query("BEGIN");
+// export async function updateSupplierSustainabilityData(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         await client.query("BEGIN");
 
-        try {
-            const {
-                sgiq_id,
-                general_info,
-                material_composition,
-                energy_manufacturing,
-                packaging,
-                transportation_logistics,
-                waste_by_products,
-                end_of_life_circularity,
-                emission_factors,
-                certification_standards,
-                additional_notes
-            } = req.body;
+//         try {
+//             const {
+//                 sgiq_id,
+//                 general_info,
+//                 material_composition,
+//                 energy_manufacturing,
+//                 packaging,
+//                 transportation_logistics,
+//                 waste_by_products,
+//                 end_of_life_circularity,
+//                 emission_factors,
+//                 certification_standards,
+//                 additional_notes
+//             } = req.body;
 
-            if (!sgiq_id) {
-                throw new Error("sgiq_id is required");
-            }
+//             if (!sgiq_id) {
+//                 throw new Error("sgiq_id is required");
+//             }
 
-            const updated_by = req.user_id;
+//             const updated_by = req.user_id;
 
-            // --- UPDATE GENERAL INFO ---
-            if (general_info) {
-                const updateGeneral = `
-                    UPDATE supplier_general_info_questions
-                    SET 
-                        name_of_organization = $1,
-                        core_business_activities = $2,
-                        company_site_address = $3,
-                        designation = $4,
-                        email_address = $5,
-                        type_of_product_manufacture = $6,
-                        annul_or_monthly_product_volume_of_product = $7,
-                        weight_of_product = $8,
-                        where_production_site_product_manufactured = $9,
-                        price_of_product = $10,
-                        organization_annual_revenue = $11,
-                        organization_annual_reporting_period = $12,
-                        updated_by = $13,
-                        update_date = NOW()
-                    WHERE sgiq_id = $14
-                    RETURNING *;
-                `;
+//             // --- UPDATE GENERAL INFO ---
+//             if (general_info) {
+//                 const updateGeneral = `
+//                     UPDATE supplier_general_info_questions
+//                     SET 
+//                         name_of_organization = $1,
+//                         core_business_activities = $2,
+//                         company_site_address = $3,
+//                         designation = $4,
+//                         email_address = $5,
+//                         type_of_product_manufacture = $6,
+//                         annul_or_monthly_product_volume_of_product = $7,
+//                         weight_of_product = $8,
+//                         where_production_site_product_manufactured = $9,
+//                         price_of_product = $10,
+//                         organization_annual_revenue = $11,
+//                         organization_annual_reporting_period = $12,
+//                         updated_by = $13,
+//                         update_date = NOW()
+//                     WHERE sgiq_id = $14
+//                     RETURNING *;
+//                 `;
 
-                await client.query(updateGeneral, [
-                    general_info.name_of_organization,
-                    general_info.core_business_activities,
-                    general_info.company_site_address,
-                    general_info.designation,
-                    general_info.email_address,
-                    general_info.type_of_product_manufacture,
-                    general_info.annul_or_monthly_product_volume_of_product,
-                    general_info.weight_of_product,
-                    general_info.where_production_site_product_manufactured,
-                    general_info.price_of_product,
-                    general_info.organization_annual_revenue,
-                    general_info.organization_annual_reporting_period,
-                    updated_by,
-                    sgiq_id
-                ]);
-            }
+//                 await client.query(updateGeneral, [
+//                     general_info.name_of_organization,
+//                     general_info.core_business_activities,
+//                     general_info.company_site_address,
+//                     general_info.designation,
+//                     general_info.email_address,
+//                     general_info.type_of_product_manufacture,
+//                     general_info.annul_or_monthly_product_volume_of_product,
+//                     general_info.weight_of_product,
+//                     general_info.where_production_site_product_manufactured,
+//                     general_info.price_of_product,
+//                     general_info.organization_annual_revenue,
+//                     general_info.organization_annual_reporting_period,
+//                     updated_by,
+//                     sgiq_id
+//                 ]);
+//             }
 
-            // --- MATERIAL COMPOSITION ---
-            if (material_composition) {
+//             // --- MATERIAL COMPOSITION ---
+//             if (material_composition) {
 
-                await client.query(`
-    UPDATE material_composition_questions
-    SET
-        main_raw_materials_used = $1,
-        contact_enviguide_support = $2,
-        has_recycled_material_usage = $3,
-        percentage_recycled_material = $4,
-        knows_material_breakdown = $5,
-        percentage_pre_consumer = $6,
-        percentage_post_consumer = $7,
-        percentage_reutilization = $8,
-        has_recycled_copper = $9,
-        percentage_recycled_copper = $10,
-        has_recycled_aluminum = $11,
-        percentage_recycled_aluminum = $12,
-        has_recycled_steel = $13,
-        percentage_recycled_steel = $14,
-        has_recycled_plastics = $15,
-        percentage_total_recycled_plastics = $16,
-        percentage_recycled_thermoplastics = $17,
-        percentage_recycled_plastic_fillers = $18,
-        percentage_recycled_fibers = $19,
-        has_recycling_process = $20,
-        has_future_recycling_strategy = $21,
-        planned_recycling_year = $22,
-        track_transport_emissions = $23,
-        estimated_transport_emissions = $24,
-        need_support_for_emissions_calc = $25,
-        emission_calc_requirement = $26,
-        percentage_pcr = $27,
-        percentage_pir = $28,
-        use_bio_based_materials = $29,
-        bio_based_material_details = $30,
-        msds_or_composition_link = $31,
-        main_alloy_metals = $32,
-        metal_grade = $33,
-        updated_by = $34,
-        total_weight_of_all_component_at_factory = $36,
-        update_date = NOW()
-    WHERE sgiq_id = $35;
-`, [
-                    JSON.stringify(material_composition.main_raw_materials_used),  // FIX HERE
-                    material_composition.contact_enviguide_support,
-                    material_composition.has_recycled_material_usage,
-                    material_composition.percentage_recycled_material,
-                    material_composition.knows_material_breakdown,
-                    material_composition.percentage_pre_consumer,
-                    material_composition.percentage_post_consumer,
-                    material_composition.percentage_reutilization,
-                    material_composition.has_recycled_copper,
-                    material_composition.percentage_recycled_copper,
-                    material_composition.has_recycled_aluminum,
-                    material_composition.percentage_recycled_aluminum,
-                    material_composition.has_recycled_steel,
-                    material_composition.percentage_recycled_steel,
-                    material_composition.has_recycled_plastics,
-                    material_composition.percentage_total_recycled_plastics,
-                    material_composition.percentage_recycled_thermoplastics,
-                    material_composition.percentage_recycled_plastic_fillers,
-                    material_composition.percentage_recycled_fibers,
-                    material_composition.has_recycling_process,
-                    material_composition.has_future_recycling_strategy,
-                    material_composition.planned_recycling_year,
-                    material_composition.track_transport_emissions,
-                    material_composition.estimated_transport_emissions,
-                    material_composition.need_support_for_emissions_calc,
-                    material_composition.emission_calc_requirement,
-                    material_composition.percentage_pcr,
-                    material_composition.percentage_pir,
-                    material_composition.use_bio_based_materials,
-                    material_composition.bio_based_material_details,
-                    material_composition.msds_or_composition_link,
-                    material_composition.main_alloy_metals,
-                    material_composition.metal_grade,
-                    updated_by,
-                    sgiq_id,
-                    JSON.stringify(material_composition.total_weight_of_all_component_at_factory) // also jsonb
-                ]);
+//                 await client.query(`
+//     UPDATE material_composition_questions
+//     SET
+//         main_raw_materials_used = $1,
+//         contact_enviguide_support = $2,
+//         has_recycled_material_usage = $3,
+//         percentage_recycled_material = $4,
+//         knows_material_breakdown = $5,
+//         percentage_pre_consumer = $6,
+//         percentage_post_consumer = $7,
+//         percentage_reutilization = $8,
+//         has_recycled_copper = $9,
+//         percentage_recycled_copper = $10,
+//         has_recycled_aluminum = $11,
+//         percentage_recycled_aluminum = $12,
+//         has_recycled_steel = $13,
+//         percentage_recycled_steel = $14,
+//         has_recycled_plastics = $15,
+//         percentage_total_recycled_plastics = $16,
+//         percentage_recycled_thermoplastics = $17,
+//         percentage_recycled_plastic_fillers = $18,
+//         percentage_recycled_fibers = $19,
+//         has_recycling_process = $20,
+//         has_future_recycling_strategy = $21,
+//         planned_recycling_year = $22,
+//         track_transport_emissions = $23,
+//         estimated_transport_emissions = $24,
+//         need_support_for_emissions_calc = $25,
+//         emission_calc_requirement = $26,
+//         percentage_pcr = $27,
+//         percentage_pir = $28,
+//         use_bio_based_materials = $29,
+//         bio_based_material_details = $30,
+//         msds_or_composition_link = $31,
+//         main_alloy_metals = $32,
+//         metal_grade = $33,
+//         updated_by = $34,
+//         total_weight_of_all_component_at_factory = $36,
+//         update_date = NOW()
+//     WHERE sgiq_id = $35;
+// `, [
+//                     JSON.stringify(material_composition.main_raw_materials_used),  // FIX HERE
+//                     material_composition.contact_enviguide_support,
+//                     material_composition.has_recycled_material_usage,
+//                     material_composition.percentage_recycled_material,
+//                     material_composition.knows_material_breakdown,
+//                     material_composition.percentage_pre_consumer,
+//                     material_composition.percentage_post_consumer,
+//                     material_composition.percentage_reutilization,
+//                     material_composition.has_recycled_copper,
+//                     material_composition.percentage_recycled_copper,
+//                     material_composition.has_recycled_aluminum,
+//                     material_composition.percentage_recycled_aluminum,
+//                     material_composition.has_recycled_steel,
+//                     material_composition.percentage_recycled_steel,
+//                     material_composition.has_recycled_plastics,
+//                     material_composition.percentage_total_recycled_plastics,
+//                     material_composition.percentage_recycled_thermoplastics,
+//                     material_composition.percentage_recycled_plastic_fillers,
+//                     material_composition.percentage_recycled_fibers,
+//                     material_composition.has_recycling_process,
+//                     material_composition.has_future_recycling_strategy,
+//                     material_composition.planned_recycling_year,
+//                     material_composition.track_transport_emissions,
+//                     material_composition.estimated_transport_emissions,
+//                     material_composition.need_support_for_emissions_calc,
+//                     material_composition.emission_calc_requirement,
+//                     material_composition.percentage_pcr,
+//                     material_composition.percentage_pir,
+//                     material_composition.use_bio_based_materials,
+//                     material_composition.bio_based_material_details,
+//                     material_composition.msds_or_composition_link,
+//                     material_composition.main_alloy_metals,
+//                     material_composition.metal_grade,
+//                     updated_by,
+//                     sgiq_id,
+//                     JSON.stringify(material_composition.total_weight_of_all_component_at_factory) // also jsonb
+//                 ]);
 
-            }
+//             }
 
-            // if (material_composition) {
-            //     await client.query(`
-            //         UPDATE material_composition_questions
-            //         SET
-            //             main_raw_materials_used = $1,
-            //             contact_enviguide_support = $2,
-            //             has_recycled_material_usage = $3,
-            //             percentage_recycled_material = $4,
-            //             knows_material_breakdown = $5,
-            //             percentage_pre_consumer = $6,
-            //             percentage_post_consumer = $7,
-            //             percentage_reutilization = $8,
-            //             has_recycled_copper = $9,
-            //             percentage_recycled_copper = $10,
-            //             has_recycled_aluminum = $11,
-            //             percentage_recycled_aluminum = $12,
-            //             has_recycled_steel = $13,
-            //             percentage_recycled_steel = $14,
-            //             has_recycled_plastics = $15,
-            //             percentage_total_recycled_plastics = $16,
-            //             percentage_recycled_thermoplastics = $17,
-            //             percentage_recycled_plastic_fillers = $18,
-            //             percentage_recycled_fibers = $19,
-            //             has_recycling_process = $20,
-            //             has_future_recycling_strategy = $21,
-            //             planned_recycling_year = $22,
-            //             track_transport_emissions = $23,
-            //             estimated_transport_emissions = $24,
-            //             need_support_for_emissions_calc = $25,
-            //             emission_calc_requirement = $26,
-            //             percentage_pcr = $27,
-            //             percentage_pir = $28,
-            //             use_bio_based_materials = $29,
-            //             bio_based_material_details = $30,
-            //             msds_or_composition_link = $31,
-            //             main_alloy_metals = $32,
-            //             metal_grade = $33,
-            //             updated_by = $34,
-            //             total_weight_of_all_component_at_factory = $36,
-            //             update_date = NOW()
-            //         WHERE sgiq_id = $35;
-            //     `, [
-            //         ...Object.values(material_composition),
-            //         updated_by,
-            //         sgiq_id
-            //     ]);
-            // }
+//             // if (material_composition) {
+//             //     await client.query(`
+//             //         UPDATE material_composition_questions
+//             //         SET
+//             //             main_raw_materials_used = $1,
+//             //             contact_enviguide_support = $2,
+//             //             has_recycled_material_usage = $3,
+//             //             percentage_recycled_material = $4,
+//             //             knows_material_breakdown = $5,
+//             //             percentage_pre_consumer = $6,
+//             //             percentage_post_consumer = $7,
+//             //             percentage_reutilization = $8,
+//             //             has_recycled_copper = $9,
+//             //             percentage_recycled_copper = $10,
+//             //             has_recycled_aluminum = $11,
+//             //             percentage_recycled_aluminum = $12,
+//             //             has_recycled_steel = $13,
+//             //             percentage_recycled_steel = $14,
+//             //             has_recycled_plastics = $15,
+//             //             percentage_total_recycled_plastics = $16,
+//             //             percentage_recycled_thermoplastics = $17,
+//             //             percentage_recycled_plastic_fillers = $18,
+//             //             percentage_recycled_fibers = $19,
+//             //             has_recycling_process = $20,
+//             //             has_future_recycling_strategy = $21,
+//             //             planned_recycling_year = $22,
+//             //             track_transport_emissions = $23,
+//             //             estimated_transport_emissions = $24,
+//             //             need_support_for_emissions_calc = $25,
+//             //             emission_calc_requirement = $26,
+//             //             percentage_pcr = $27,
+//             //             percentage_pir = $28,
+//             //             use_bio_based_materials = $29,
+//             //             bio_based_material_details = $30,
+//             //             msds_or_composition_link = $31,
+//             //             main_alloy_metals = $32,
+//             //             metal_grade = $33,
+//             //             updated_by = $34,
+//             //             total_weight_of_all_component_at_factory = $36,
+//             //             update_date = NOW()
+//             //         WHERE sgiq_id = $35;
+//             //     `, [
+//             //         ...Object.values(material_composition),
+//             //         updated_by,
+//             //         sgiq_id
+//             //     ]);
+//             // }
 
-            // --- ENERGY MANUFACTURING ---
-            if (energy_manufacturing) {
-                await client.query(`
-                    UPDATE energy_manufacturing_questions
-                    SET
-                        energy_sources_used = $1,
-                        electricity_consumption_per_year = $2,
-                        purchases_renewable_electricity = $3,
-                        renewable_electricity_percentage = $4,
-                        has_energy_calculation_method = $5,
-                        energy_calculation_method_details = $6,
-                        energy_intensity_per_unit = $7,
-                        process_specific_energy_usage = $8,
-                        enviguide_support = $9,
-                        uses_abatement_systems = $10,
-                        abatement_system_energy_consumption = $11,
-                        water_consumption_and_treatment_details = $12,
-                        updated_by = $13,
-                        update_date = NOW()
-                    WHERE sgiq_id = $14;
-                `, [
-                    ...Object.values(energy_manufacturing),
-                    updated_by,
-                    sgiq_id
-                ]);
-            }
+//             // --- ENERGY MANUFACTURING ---
+//             if (energy_manufacturing) {
+//                 await client.query(`
+//                     UPDATE energy_manufacturing_questions
+//                     SET
+//                         energy_sources_used = $1,
+//                         electricity_consumption_per_year = $2,
+//                         purchases_renewable_electricity = $3,
+//                         renewable_electricity_percentage = $4,
+//                         has_energy_calculation_method = $5,
+//                         energy_calculation_method_details = $6,
+//                         energy_intensity_per_unit = $7,
+//                         process_specific_energy_usage = $8,
+//                         enviguide_support = $9,
+//                         uses_abatement_systems = $10,
+//                         abatement_system_energy_consumption = $11,
+//                         water_consumption_and_treatment_details = $12,
+//                         updated_by = $13,
+//                         update_date = NOW()
+//                     WHERE sgiq_id = $14;
+//                 `, [
+//                     ...Object.values(energy_manufacturing),
+//                     updated_by,
+//                     sgiq_id
+//                 ]);
+//             }
 
-            // --- PACKAGING ---
-            if (packaging) {
-                await client.query(`
-                    UPDATE packaging_questions
-                    SET
-                        packaging_materials_used = $1,
-                        enviguide_support = $2,
-                        packaging_weight_per_unit = $3,
-                        packaging_size = $4,
-                        uses_recycled_packaging = $5,
-                        recycled_packaging_percentage = $6,
-                        updated_by = $7,
-                        update_date = NOW()
-                    WHERE sgiq_id = $8;
-                `, [
-                    ...Object.values(packaging),
-                    updated_by,
-                    sgiq_id
-                ]);
-            }
+//             // --- PACKAGING ---
+//             if (packaging) {
+//                 await client.query(`
+//                     UPDATE packaging_questions
+//                     SET
+//                         packaging_materials_used = $1,
+//                         enviguide_support = $2,
+//                         packaging_weight_per_unit = $3,
+//                         packaging_size = $4,
+//                         uses_recycled_packaging = $5,
+//                         recycled_packaging_percentage = $6,
+//                         updated_by = $7,
+//                         update_date = NOW()
+//                     WHERE sgiq_id = $8;
+//                 `, [
+//                     ...Object.values(packaging),
+//                     updated_by,
+//                     sgiq_id
+//                 ]);
+//             }
 
-            // --- TRANSPORTATION ---
-            if (transportation_logistics) {
-                // await client.query(`
-                //     UPDATE transportation_logistics_questions
-                //     SET
-                //         transport_modes_used = $1,
-                //         enviguide_support = $2,
-                //         uses_certified_logistics_provider = $3,
-                //         logistics_provider_details = $4,
-                //         updated_by = $5,
-                //         mass_weight_of_component_transported_kg = $7,
-                //         transport_modes_fuel_used= $8,
-                //         designation_of_goods_transported= $9,
-                //         distance_of_goods_transported= $10,
-                //         update_date = NOW()
-                //     WHERE sgiq_id = $6;
-                // `, [
-                //     ...Object.values(transportation_logistics),
-                //     updated_by,
-                //     sgiq_id
-                // ]);
-                if (transportation_logistics) {
-                    await client.query(`
-        UPDATE transportation_logistics_questions
-        SET
-            transport_modes_used = $1,
-            enviguide_support = $2,
-            uses_certified_logistics_provider = $3,
-            logistics_provider_details = $4,
-            updated_by = $5,
-            mass_weight_of_component_transported_kg = $6,
-            transport_modes_fuel_used = $7,
-            designation_of_goods_transported = $8,
-            distance_of_goods_transported = $9,
-            update_date = NOW()
-        WHERE sgiq_id = $10;
-    `, [
-                        transportation_logistics.transport_modes_used,         // $1 (TEXT[])
-                        transportation_logistics.enviguide_support,            // $2
-                        transportation_logistics.uses_certified_logistics_provider, // $3
-                        transportation_logistics.logistics_provider_details,   // $4 (TEXT[])
-                        updated_by,                                            // $5
-                        transportation_logistics.mass_weight_of_component_transported_kg, // $6
-                        transportation_logistics.transport_modes_fuel_used,    // $7 (TEXT[])
-                        transportation_logistics.designation_of_goods_transported, // $8
-                        transportation_logistics.distance_of_goods_transported, // $9
-                        sgiq_id                                                // $10
-                    ]);
-                }
+//             // --- TRANSPORTATION ---
+//             if (transportation_logistics) {
+//                 // await client.query(`
+//                 //     UPDATE transportation_logistics_questions
+//                 //     SET
+//                 //         transport_modes_used = $1,
+//                 //         enviguide_support = $2,
+//                 //         uses_certified_logistics_provider = $3,
+//                 //         logistics_provider_details = $4,
+//                 //         updated_by = $5,
+//                 //         mass_weight_of_component_transported_kg = $7,
+//                 //         transport_modes_fuel_used= $8,
+//                 //         designation_of_goods_transported= $9,
+//                 //         distance_of_goods_transported= $10,
+//                 //         update_date = NOW()
+//                 //     WHERE sgiq_id = $6;
+//                 // `, [
+//                 //     ...Object.values(transportation_logistics),
+//                 //     updated_by,
+//                 //     sgiq_id
+//                 // ]);
+//                 if (transportation_logistics) {
+//                     await client.query(`
+//         UPDATE transportation_logistics_questions
+//         SET
+//             transport_modes_used = $1,
+//             enviguide_support = $2,
+//             uses_certified_logistics_provider = $3,
+//             logistics_provider_details = $4,
+//             updated_by = $5,
+//             mass_weight_of_component_transported_kg = $6,
+//             transport_modes_fuel_used = $7,
+//             designation_of_goods_transported = $8,
+//             distance_of_goods_transported = $9,
+//             update_date = NOW()
+//         WHERE sgiq_id = $10;
+//     `, [
+//                         transportation_logistics.transport_modes_used,         // $1 (TEXT[])
+//                         transportation_logistics.enviguide_support,            // $2
+//                         transportation_logistics.uses_certified_logistics_provider, // $3
+//                         transportation_logistics.logistics_provider_details,   // $4 (TEXT[])
+//                         updated_by,                                            // $5
+//                         transportation_logistics.mass_weight_of_component_transported_kg, // $6
+//                         transportation_logistics.transport_modes_fuel_used,    // $7 (TEXT[])
+//                         transportation_logistics.designation_of_goods_transported, // $8
+//                         transportation_logistics.distance_of_goods_transported, // $9
+//                         sgiq_id                                                // $10
+//                     ]);
+//                 }
 
-            }
+//             }
 
-            // --- WASTE BY PRODUCTS ---
-            if (waste_by_products) {
-                await client.query(`
-                    UPDATE waste_by_products_questions
-                    SET
-                        waste_types_generated = $1,
-                        waste_treatment_methods = $2,
-                        recycling_percentage = $3,
-                        has_byproducts = $4,
-                        byproduct_types = $5,
-                        byproduct_quantity = $6,
-                        byproduct_price = $7,
-                        updated_by = $8,
-                        update_date = NOW()
-                    WHERE sgiq_id = $9;
-                `, [
-                    ...Object.values(waste_by_products),
-                    updated_by,
-                    sgiq_id
-                ]);
-            }
+//             // --- WASTE BY PRODUCTS ---
+//             if (waste_by_products) {
+//                 await client.query(`
+//                     UPDATE waste_by_products_questions
+//                     SET
+//                         waste_types_generated = $1,
+//                         waste_treatment_methods = $2,
+//                         recycling_percentage = $3,
+//                         has_byproducts = $4,
+//                         byproduct_types = $5,
+//                         byproduct_quantity = $6,
+//                         byproduct_price = $7,
+//                         updated_by = $8,
+//                         update_date = NOW()
+//                     WHERE sgiq_id = $9;
+//                 `, [
+//                     ...Object.values(waste_by_products),
+//                     updated_by,
+//                     sgiq_id
+//                 ]);
+//             }
 
-            // --- END OF LIFE / CIRCULARITY ---
-            if (end_of_life_circularity) {
-                await client.query(`
-                    UPDATE end_of_life_circularity_questions
-                    SET
-                        product_designed_for_recycling = $1,
-                        product_recycling_details = $2,
-                        has_takeback_program = $3,
-                        takeback_program_details = $4,
-                        updated_by = $5,
-                        update_date = NOW()
-                    WHERE sgiq_id = $6;
-                `, [
-                    ...Object.values(end_of_life_circularity),
-                    updated_by,
-                    sgiq_id
-                ]);
-            }
+//             // --- END OF LIFE / CIRCULARITY ---
+//             if (end_of_life_circularity) {
+//                 await client.query(`
+//                     UPDATE end_of_life_circularity_questions
+//                     SET
+//                         product_designed_for_recycling = $1,
+//                         product_recycling_details = $2,
+//                         has_takeback_program = $3,
+//                         takeback_program_details = $4,
+//                         updated_by = $5,
+//                         update_date = NOW()
+//                     WHERE sgiq_id = $6;
+//                 `, [
+//                     ...Object.values(end_of_life_circularity),
+//                     updated_by,
+//                     sgiq_id
+//                 ]);
+//             }
 
-            // --- EMISSION FACTORS ---
-            if (emission_factors) {
-                await client.query(`
-                    UPDATE emission_factors_or_lca_data_questions
-                    SET
-                        reports_product_carbon_footprint = $1,
-                        pcf_methodologies_used = $2,
-                        has_scope_emission_data = $3,
-                        emission_data_details = $4,
-                        required_environmental_impact_methods = $5,
-                        updated_by = $6,
-                        update_date = NOW()
-                    WHERE sgiq_id = $7;
-                `, [
-                    ...Object.values(emission_factors),
-                    updated_by,
-                    sgiq_id
-                ]);
-            }
+//             // --- EMISSION FACTORS ---
+//             if (emission_factors) {
+//                 await client.query(`
+//                     UPDATE emission_factors_or_lca_data_questions
+//                     SET
+//                         reports_product_carbon_footprint = $1,
+//                         pcf_methodologies_used = $2,
+//                         has_scope_emission_data = $3,
+//                         emission_data_details = $4,
+//                         required_environmental_impact_methods = $5,
+//                         updated_by = $6,
+//                         update_date = NOW()
+//                     WHERE sgiq_id = $7;
+//                 `, [
+//                     ...Object.values(emission_factors),
+//                     updated_by,
+//                     sgiq_id
+//                 ]);
+//             }
 
-            // --- CERTIFICATION ---
-            if (certification_standards) {
-                await client.query(`
-                    UPDATE certification_and_standards_questions
-                    SET
-                        certified_iso_environmental_or_energy = $1,
-                        follows_recognized_standards = $2,
-                        reports_to_esg_frameworks = $3,
-                        previous_reports = $4,
-                        updated_by = $5,
-                        update_date = NOW()
-                    WHERE sgiq_id = $6;
-                `, [
-                    ...Object.values(certification_standards),
-                    updated_by,
-                    sgiq_id
-                ]);
-            }
+//             // --- CERTIFICATION ---
+//             if (certification_standards) {
+//                 await client.query(`
+//                     UPDATE certification_and_standards_questions
+//                     SET
+//                         certified_iso_environmental_or_energy = $1,
+//                         follows_recognized_standards = $2,
+//                         reports_to_esg_frameworks = $3,
+//                         previous_reports = $4,
+//                         updated_by = $5,
+//                         update_date = NOW()
+//                     WHERE sgiq_id = $6;
+//                 `, [
+//                     ...Object.values(certification_standards),
+//                     updated_by,
+//                     sgiq_id
+//                 ]);
+//             }
 
-            // --- ADDITIONAL NOTES ---
-            if (additional_notes) {
-                await client.query(`
-                    UPDATE additional_notes_questions
-                    SET
-                        carbon_reduction_measures = $1,
-                        renewable_energy_or_recycling_programs = $2,
-                        willing_to_provide_primary_data = $3,
-                        primary_data_details = $4,
-                        updated_by = $5,
-                        update_date = NOW()
-                    WHERE sgiq_id = $6;
-                `, [
-                    ...Object.values(additional_notes),
-                    updated_by,
-                    sgiq_id
-                ]);
-            }
+//             // --- ADDITIONAL NOTES ---
+//             if (additional_notes) {
+//                 await client.query(`
+//                     UPDATE additional_notes_questions
+//                     SET
+//                         carbon_reduction_measures = $1,
+//                         renewable_energy_or_recycling_programs = $2,
+//                         willing_to_provide_primary_data = $3,
+//                         primary_data_details = $4,
+//                         updated_by = $5,
+//                         update_date = NOW()
+//                     WHERE sgiq_id = $6;
+//                 `, [
+//                     ...Object.values(additional_notes),
+//                     updated_by,
+//                     sgiq_id
+//                 ]);
+//             }
 
-            await client.query("COMMIT");
+//             await client.query("COMMIT");
 
-            return res.send(
-                generateResponse(true, "Supplier sustainability data updated successfully", 200, { sgiq_id })
-            );
-        } catch (error: any) {
-            await client.query("ROLLBACK");
-            console.error("❌ Update Error:", error);
-            return res.send(generateResponse(false, error.message, 400, null));
-        }
-    });
-}
+//             return res.send(
+//                 generateResponse(true, "Supplier sustainability data updated successfully", 200, { sgiq_id })
+//             );
+//         } catch (error: any) {
+//             await client.query("ROLLBACK");
+//             console.error("❌ Update Error:", error);
+//             return res.send(generateResponse(false, error.message, 400, null));
+//         }
+//     });
+// }
 
 export async function getMaterialCompositionMetal(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -4003,7 +4004,10 @@ SELECT
                 (SELECT json_agg(to_jsonb(arros)) FROM annual_replacement_rate_of_sensor_questions arros WHERE arros.stide_id = stide.stide_id),
 
                 'energy_consumption_for_qfiftyone_questions',
-                (SELECT json_agg(to_jsonb(ec51)) FROM energy_consumption_for_qfiftyone_questions ec51 WHERE ec51.stide_id = stide.stide_id)
+                (SELECT json_agg(to_jsonb(ec51)) FROM energy_consumption_for_qfiftyone_questions ec51 WHERE ec51.stide_id = stide.stide_id),
+
+                'energy_consumption_for_qfortyfour_questions',
+                (SELECT json_agg(to_jsonb(ec44)) FROM energy_consumption_for_qfortyfour_questions ec44 WHERE ec44.stide_id = stide.stide_id)
 
             )
         )
@@ -4135,4 +4139,30 @@ FROM base_data bd;
             message: "Internal server error"
         });
     }
+}
+
+export async function updateSupplierSustainabilityData(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query('BEGIN');
+
+        try {
+            const body = req.body;
+
+            if (!body?.supplier_general_info_questions?.sgiq_id) {
+                throw new Error('sgiq_id is required');
+            }
+
+            await updateSupplierSustainabilityService(client, body);
+
+            await client.query('COMMIT');
+
+            return res.send(
+                generateResponse(true, 'Supplier sustainability data updated successfully', 200, 'Supplier sustainability data updated successfully')
+            );
+        } catch (error: any) {
+            await client.query('ROLLBACK');
+            console.error(error);
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
 }
