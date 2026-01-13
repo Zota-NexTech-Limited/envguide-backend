@@ -2,17 +2,17 @@ export const bomService = {
     insertPCFBOMRequest: async (client: any, data: any) => {
         const query = `
             INSERT INTO bom_pcf_request (
-                id, code, product_category_id, component_category_id, component_type_id,
-                product_code, manufacturer_id, model_version, created_by,request_title,
-                priority,request_organization,due_date,request_description
+                id, request_title, priority, request_organization,
+                due_date, request_description, product_category_id, component_category_id,
+                component_type_id, product_code,manufacturer_id,model_version,created_by,code
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'PCF' || LPAD(nextval('pcf_code_seq')::text, 5, '0')
             )
         `;
         const values = [
-            data.id, data.code, data.product_category_id, data.component_category_id, data.component_type_id,
-            data.product_code, data.manufacturer_id, data.model_version, data.created_by, data.request_title,
-            data.priority, data.request_organization, data.due_date, data.request_description
+            data.id, data.request_title, data.priority, data.request_organization,
+            data.due_date, data.request_description, data.product_category_id, data.component_category_id,
+            data.component_type_id, data.product_code, data.manufacturer_id, data.model_version, data.created_by
         ];
         await client.query(query, values);
     },
@@ -34,20 +34,19 @@ export const bomService = {
     insertBOM: async (client: any, data: any) => {
         const query = `
             INSERT INTO bom (
-                id, code, material_number, component_name, qunatity,
-                production_location, manufacturer_id, detail_description,
-                weight_gms, total_weight_gms, component_category_id,
-                price, total_price, economic_ratio, created_by ,bom_pcf_id,supplier_ids
+                id, material_number, component_name, qunatity,
+                production_location, manufacturer, detail_description,
+                weight_gms, total_weight_gms, component_category,
+                price, total_price, created_by ,bom_pcf_id,supplier_id ,code
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'BOM' || LPAD(nextval('bom_code_seq')::text, 5, '0')
             )
         `;
         const values = [
-            data.id, data.code, data.material_number, data.component_name, data.qunatity,
-            data.production_location, data.manufacturer_id, data.detail_description,
-            data.weight_gms, data.total_weight_gms, data.component_category_id,
-            data.price, data.total_price, data.economic_ratio,
-            data.created_by, data.bom_pcf_id, data.supplier_ids
+            data.id, data.material_number, data.component_name, data.qunatity,
+            data.production_location, data.manufacturer, data.detail_description,
+            data.weight_gms, data.total_weight_gms, data.component_category,
+            data.price, data.total_price, data.created_by, data.bom_pcf_id, data.supplier_id
         ];
         await client.query(query, values);
     },

@@ -308,23 +308,30 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
-        //   need to update these below BOM tables after updating screen
         `CREATE TABLE IF NOT EXISTS bom_pcf_request (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255),   
+            code VARCHAR(255) DEFAULT ('PCF' || LPAD(nextval('pcf_code_seq')::text, 5, '0')) UNIQUE, 
             request_title VARCHAR(255),
             priority VARCHAR(255),
             request_organization VARCHAR(255),
             due_date TIMESTAMPTZ,
-            request_description TEXT, 
+            request_description TEXT,
             product_category_id VARCHAR(255),
             component_category_id VARCHAR(255),
             component_type_id VARCHAR(255),
             product_code VARCHAR(255),
             manufacturer_id VARCHAR(255),
             model_version VARCHAR(255),
+            is_approved BOOLEAN DEFAULT false,
+            is_rejected BOOLEAN DEFAULT false,
+            is_draft BOOLEAN DEFAULT false,
+            technical_specification_file TEXT[],
+            product_images TEXT[],
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
+            status VARCHAR(255) DEFAULT 'Inprogress',
+            rejected_by VARCHAR(255),
+            reject_reason TEXT,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -341,22 +348,21 @@ export async function mirgation() {
 
         `CREATE TABLE IF NOT EXISTS bom (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255),
+            code VARCHAR(255) DEFAULT ('BOM' || LPAD(nextval('bom_code_seq')::text, 5, '0')) UNIQUE,
             bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),      
             component_name VARCHAR(255), 
-            qunatity DOUBLE PRECISION, 
-            production_location TEXT, 
-            manufacturer_id VARCHAR(255), 
-            detail_description text,
+            qunatity INTEGER, 
+            production_location VARCHAR(255), 
+            manufacturer VARCHAR(255),
+            detail_description TEXT,
             weight_gms DOUBLE PRECISION, 
             total_weight_gms DOUBLE PRECISION, 
-            component_category_id VARCHAR(255),
-            transport_mode_id VARCHAR(255),
+            component_category VARCHAR(255),
             price DOUBLE PRECISION, 
             total_price DOUBLE PRECISION,
             economic_ratio DOUBLE PRECISION,
-            supplier_ids VARCHAR(255)[],
+            supplier_id VARCHAR(255),
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             is_weight_gms BOOLEAN DEFAULT false,
@@ -472,7 +478,6 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
-
         `CREATE TABLE IF NOT EXISTS task_managment (
             id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255),      
@@ -496,13 +501,66 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        `CREATE TABLE IF NOT EXISTS pcf_bom_comments (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_pcf_id VARCHAR(255),  
+            user_id VARCHAR(255),
+            comment TEXT,  
+            commented_at TIMESTAMPTZ,   
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        //===========> PCF Request Stages Tables start<============
+
+        `CREATE TABLE IF NOT EXISTS pcf_request_stages (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_pcf_id VARCHAR(255),
+            is_pcf_request_created BOOLEAN DEFAULT FALSE,
+            is_pcf_request_submitted BOOLEAN DEFAULT FALSE,
+            is_bom_verified BOOLEAN DEFAULT FALSE,
+            is_data_collected BOOLEAN DEFAULT FALSE,
+            is_dqr_completed BOOLEAN DEFAULT FALSE,
+            is_pcf_calculated BOOLEAN DEFAULT FALSE,
+            is_result_validation_verified BOOLEAN DEFAULT FALSE,
+            is_result_submitted BOOLEAN DEFAULT FALSE,
+            pcf_request_created_by VARCHAR(255),
+            pcf_request_submitted_by VARCHAR(255),
+            bom_verified_by VARCHAR(255),
+            dqr_completed_by VARCHAR(255),
+            pcf_calculated_by VARCHAR(255) DEFAULT 'system',
+            result_validation_verified_by VARCHAR(255),
+            result_submitted_by VARCHAR(255),
+            pcf_request_created_date TIMESTAMPTZ,
+            pcf_request_submitted_date TIMESTAMPTZ,
+            bom_verified_date TIMESTAMPTZ,
+            dqr_completed_date TIMESTAMPTZ,
+            pcf_calculated_date TIMESTAMPTZ,
+            result_validation_verified_date TIMESTAMPTZ,
+            result_submitted_date TIMESTAMPTZ,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        //   this below table for more than supplier input quetions is right so data collection stage
+        `CREATE TABLE IF NOT EXISTS pcf_request_data_collection_stage (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_pcf_id VARCHAR(255),
+            data_collected_by VARCHAR(255),
+            completed_date TIMESTAMPTZ,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        //========>PCF Request Stages Tables end<============
+
         //   =======>Supplier Organization Questionnaire Tables<==========
 
         `CREATE TABLE IF NOT EXISTS supplier_details (
             sup_id VARCHAR(255) PRIMARY KEY,   
-            code VARCHAR(255),    
+            code VARCHAR(255) DEFAULT ('SUP' || LPAD(nextval('supplier_code_seq')::text, 5, '0')) UNIQUE,       
             supplier_name VARCHAR(255),
-            supplier_email VARCHAR(255),
+            supplier_email VARCHAR(255) UNIQUE NOT NULL,
             supplier_phone_number VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -621,7 +679,7 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS scoseu_sub_fuel_type_questions (
             ssft_id VARCHAR(255) PRIMARY KEY,
             scoseu_id VARCHAR(255),
-            sub_fuel_type VARCHAR(255)[],
+            sub_fuel_type VARCHAR(255),
             consumption_quantity NUMERIC(10,2),
             unit VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -926,13 +984,14 @@ export async function mirgation() {
             use_of_recycled_secondary_materials BOOLEAN DEFAULT false, -- Q55
             percentage_of_pre_post_consumer_material_used_in_product BOOLEAN DEFAULT false, -- Q57
             do_you_use_recycle_mat_for_packaging BOOLEAN DEFAULT false, -- Q63
-            percentage_of_recycled_content_used_in_packaging BOOLEAN DEFAULT false, -- Q64
+            percentage_of_recycled_content_used_in_packaging TEXT, -- Q64
             do_you_use_electricity_for_packaging BOOLEAN DEFAULT false, -- Q65
             energy_con_included_total_energy_pur_sec_two_qsixtysix BOOLEAN DEFAULT false, --Q66
-            internal_or_external_waste_material_per_recycling BOOLEAN DEFAULT false, --Q69
+            internal_or_external_waste_material_per_recycling TEXT, --Q69
             any_by_product_generated BOOLEAN DEFAULT false, --Q70
             do_you_track_emission_from_transport BOOLEAN DEFAULT false, -- Q72
             mode_of_transport_used_for_transportation BOOLEAN DEFAULT false, -- Q74
+            mode_of_transport_enviguide_support BOOLEAN DEFAULT false, -- Q74
             iso_14001_or_iso_50001_certified BOOLEAN DEFAULT false, --Q76
             standards_followed_iso_14067_GHG_catena_etc BOOLEAN DEFAULT false, --Q77
             do_you_report_to_cdp_sbti_or_other BOOLEAN DEFAULT false, --Q78
@@ -1239,6 +1298,34 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+        // Q15.1
+        `CREATE TABLE IF NOT EXISTS dqr_co_product_component_manufactured_rating_qfiftenone (
+            pcmrqfo_id VARCHAR(255) PRIMARY KEY,
+            sgiq_id VARCHAR(255),
+            cpcev_id VARCHAR(255), --foreign key to co_product_component_economic_value_questions
+            data TEXT,
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255), 
+            ter_data_point VARCHAR(255),   
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255), 
+            tir_data_point VARCHAR(255), 
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255), 
+            gr_data_point VARCHAR(255),   
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255), 
+            c_data_point VARCHAR(255), 
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255), 
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         // Q16
         `CREATE TABLE IF NOT EXISTS dqr_stationary_combustion_on_site_energy_rating_qsixten (
             scoserqs_id VARCHAR(255) PRIMARY KEY,
@@ -2385,50 +2472,6 @@ export async function mirgation() {
   );`,
 
         //   ========>DQR Rating Tables end<============
-
-
-        //===========> PCF Request Stages Tables start<============
-
-        `CREATE TABLE IF NOT EXISTS pcf_request_stages (
-            id VARCHAR(255) PRIMARY KEY,
-            bom_pcf_id VARCHAR(255),
-            is_pcf_request_created BOOLEAN DEFAULT FALSE,
-            is_pcf_request_submitted BOOLEAN DEFAULT FALSE,
-            is_bom_verified BOOLEAN DEFAULT FALSE,
-            is_data_collected BOOLEAN DEFAULT FALSE,
-            is_dqr_completed BOOLEAN DEFAULT FALSE,
-            is_pcf_calculated BOOLEAN DEFAULT FALSE,
-            is_result_validation_verified BOOLEAN DEFAULT FALSE,
-            is_result_submitted BOOLEAN DEFAULT FALSE,
-            pcf_request_created_by VARCHAR(255),
-            pcf_request_submitted_by VARCHAR(255),
-            bom_verified_by VARCHAR(255),
-            dqr_completed_by VARCHAR(255),
-            pcf_calculated_by VARCHAR(255) DEFAULT 'system',
-            result_validation_verified_by VARCHAR(255),
-            result_submitted_by VARCHAR(255),
-            pcf_request_created_date TIMESTAMPTZ,
-            pcf_request_submitted_date TIMESTAMPTZ,
-            bom_verified_date TIMESTAMPTZ,
-            dqr_completed_date TIMESTAMPTZ,
-            pcf_calculated_date TIMESTAMPTZ,
-            result_validation_verified_date TIMESTAMPTZ,
-            result_submitted_date TIMESTAMPTZ,
-            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-  );`,
-
-        //   this below table for more than supplier input quetions is right so data collection stage
-        `CREATE TABLE IF NOT EXISTS pcf_request_data_collection_stage (
-            id VARCHAR(255) PRIMARY KEY,
-            bom_pcf_id VARCHAR(255),
-            data_collected_by VARCHAR(255),
-            completed_date TIMESTAMPTZ,
-            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-  );`,
-
-        //========>PCF Request Stages Tables end<============
 
         //   ==========>Data Setup tables<============
         `CREATE TABLE IF NOT EXISTS calculation_method (
