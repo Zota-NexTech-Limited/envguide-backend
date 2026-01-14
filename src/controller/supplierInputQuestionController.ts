@@ -3756,7 +3756,7 @@ export async function getSupplierDetailsList(req: any, res: any) {
                     sgiq.*,
 
                 json_build_object(
-            'sup_id', sd.id,
+            'sup_id', sd.sup_id,
             'code', sd.code,
             'supplier_name', sd.supplier_name,
             'supplier_email', sd.supplier_email,
@@ -3783,7 +3783,7 @@ export async function getSupplierDetailsList(req: any, res: any) {
         ) AS bom_pcf
 
                 FROM supplier_general_info_questions sgiq
-                LEFT JOIN supplier_details sd ON sd.id = sgiq.sup_id
+                LEFT JOIN supplier_details sd ON sd.sup_id = sgiq.sup_id
                 LEFT JOIN bom b ON b.id = sgiq.bom_id
                 LEFT JOIN bom_pcf_request pcf ON pcf.id = sgiq.bom_pcf_id
             )
@@ -3854,7 +3854,7 @@ export async function getSupplierDetailsById(req: any, res: any) {
         to_jsonb(pcf) AS bom_pcf
 
     FROM supplier_general_info_questions sgiq
-    LEFT JOIN supplier_details sd ON sd.id = sgiq.sup_id
+    LEFT JOIN supplier_details sd ON sd.sup_id = sgiq.sup_id
     LEFT JOIN bom b ON b.id = sgiq.bom_id
     LEFT JOIN bom_pcf_request pcf ON pcf.id = sgiq.bom_pcf_id
     WHERE sgiq.sgiq_id = $1

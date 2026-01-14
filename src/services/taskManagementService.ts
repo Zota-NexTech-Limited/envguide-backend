@@ -204,7 +204,7 @@ export async function getTaskByIdService(id: string) {
                 FROM task_managment t
                 LEFT JOIN category c ON t.category_id = c.id
                 LEFT JOIN users_table u ON u.user_id = ANY(t.assign_to)
-                LEFT JOIN supplier_details s ON s.id = ANY(t.assign_to)
+                LEFT JOIN supplier_details s ON s.sup_id = ANY(t.assign_to)
                 LEFT JOIN bom b ON t.bom_id = b.id
                 LEFT JOIN bom_pcf_request bpcf ON b.bom_pcf_id = bpcf.id
                 LEFT JOIN users_table u1 ON t.created_by = u1.user_id
@@ -274,7 +274,7 @@ export async function getTaskListService(filters: any) {
                 FROM task_managment t
                 LEFT JOIN category c ON t.category_id = c.id
                 LEFT JOIN users_table u ON u.user_id = ANY(t.assign_to)
-                LEFT JOIN supplier_details s ON s.id = ANY(t.assign_to)
+                LEFT JOIN supplier_details s ON s.sup_id = ANY(t.assign_to)
                 LEFT JOIN users_table u1 ON t.created_by = u1.user_id
                 LEFT JOIN users_table u2 ON t.updated_by = u2.user_id
                 WHERE 1=1
@@ -285,7 +285,7 @@ export async function getTaskListService(filters: any) {
                 FROM task_managment t
                 LEFT JOIN category c ON t.category_id = c.id
                 LEFT JOIN users_table u ON u.user_id = ANY(t.assign_to)
-                LEFT JOIN supplier_details s ON s.id = ANY(t.assign_to)
+                LEFT JOIN supplier_details s ON s.sup_id = ANY(t.assign_to)
                 WHERE 1=1
             `;
 
