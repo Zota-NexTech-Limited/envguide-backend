@@ -1463,7 +1463,45 @@ SELECT
             'user_role', uvb.user_role,
             'user_name', uvb.user_name
         )
-    ) AS pcf_request_stages
+    ) AS pcf_request_stages,
+
+    /* ---------------- PCF DATA COLLECTION STAGE ---------------- */
+COALESCE(
+    (
+        SELECT jsonb_agg(
+            jsonb_build_object(
+                'id', dcs.id,
+                'bom_id', dcs.bom_id,
+
+                'supplier', jsonb_build_object(
+                    'sup_id', sd.sup_id,
+                    'code', sd.code,
+                    'supplier_name', sd.supplier_name,
+                    'supplier_email', sd.supplier_email,
+                    'supplier_phone_number', sd.supplier_phone_number
+                ),
+
+                'bom', jsonb_build_object(
+                    'id', b2.id,
+                    'code', b2.code,
+                    'material_number', b2.material_number,
+                    'component_name', b2.component_name
+                ),
+
+                'is_submitted', dcs.is_submitted,
+                'completed_date', dcs.completed_date,
+                'created_date', dcs.created_date,
+                'update_date', dcs.update_date
+            )
+        )
+        FROM pcf_request_data_collection_stage dcs
+        LEFT JOIN supplier_details sd ON sd.sup_id = dcs.sup_id
+        LEFT JOIN bom b2 ON b2.id = dcs.bom_id
+        WHERE dcs.bom_pcf_id = base_pcf.id
+    ),
+    '[]'
+) AS pcf_data_collection_stage
+
 
 FROM base_pcf
 LEFT JOIN product_category pc ON pc.id = base_pcf.product_category_id
