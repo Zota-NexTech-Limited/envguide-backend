@@ -7,5 +7,6 @@ Routes.post('/api/product/add', authService.authenticate, Controller.createProdu
 Routes.post('/api/product/update', authService.authenticate, Controller.updateProduct);
 Routes.get('/api/product/get-by-id', authService.authenticate, Controller.getProductById);
 Routes.get('/api/product/list', authService.authenticate, Controller.listProducts);
+Routes.get('/api/product/drop-down', authService.authenticate, Controller.productsDropDown);
 
 export default Routes;

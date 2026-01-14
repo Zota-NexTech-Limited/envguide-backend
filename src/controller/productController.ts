@@ -352,3 +352,26 @@ export async function listProducts(req: any, res: any) {
         }
     });
 }
+
+export async function productsDropDown(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `
+                SELECT 
+                p.id,
+                p.product_code,
+                p.product_name
+                FROM product p
+                ORDER BY p.update_date DESC
+            `;
+
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully", 200, result.rows));
+
+        } catch (err: any) {
+            console.error("❌ Error listing products:", err);
+            return res.send(generateResponse(false, err.message, 400, null));
+        }
+    });
+}
