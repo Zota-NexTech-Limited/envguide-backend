@@ -358,7 +358,7 @@ export async function getSupplierDetailsList(req: any, res: any) {
         ) AS bom_pcf
 
                 FROM supplier_general_info_questions sgiq
-                LEFT JOIN supplier_details sd ON sd.id = sgiq.sup_id
+                LEFT JOIN supplier_details sd ON sd.sup_id = sgiq.sup_id
                 LEFT JOIN bom b ON b.id = sgiq.bom_id
                 LEFT JOIN bom_pcf_request pcf ON pcf.id = sgiq.bom_pcf_id
             )
