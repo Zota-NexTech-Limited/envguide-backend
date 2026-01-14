@@ -1742,16 +1742,17 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             // ============================================
             // STEP 3: Update PCF stages
             // ============================================
-            await client.query(
-                `INSERT INTO pcf_request_data_collection_stage 
-                 (id, bom_pcf_id, data_collected_by, completed_date)
-                 VALUES ($1, $2, $3, $4);`,
-                [ulid(), bom_pcf_id, sup_id, new Date()]
-            );
+
+            // await client.query(
+            //     `UPDATE pcf_request_stages SET is_data_collected = true WHERE bom_pcf_id = $1;`,
+            //     [bom_pcf_id]
+            // );
 
             await client.query(
-                `UPDATE pcf_request_stages SET is_data_collected = true WHERE bom_pcf_id = $1;`,
-                [bom_pcf_id]
+                `UPDATE pcf_request_data_collection_stage SET is_submitted = true,completed_date=NOW()
+                 WHERE bom_pcf_id = $1
+                AND bom_id=$2 AND sup_id=$3;`,
+                [bom_pcf_id, bom_id, sup_id]
             );
 
             console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);

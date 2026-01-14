@@ -276,6 +276,19 @@ export async function createTask(req: any, res: any) {
 
             await client.query(insertPCFQuery, pcfValues);
 
+            const insertPCFDataRatingQuery = `
+                INSERT INTO pcf_request_data_rating_stage (
+                    id,
+                    bom_pcf_id,
+                    bom_id,
+                    sup_id
+                )
+                VALUES ${pcfPlaceholders.join(", ")}
+                ON CONFLICT DO NOTHING;
+            `;
+
+            await client.query(insertPCFDataRatingQuery, pcfValues);
+
             const updatePCFRequest = `
                     UPDATE bom_pcf_request
                     SET is_task_created = TRUE,

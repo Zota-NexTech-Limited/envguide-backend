@@ -549,6 +549,18 @@ export async function createTables() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        `CREATE TABLE IF NOT EXISTS pcf_request_data_rating_stage (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_pcf_id VARCHAR(255),
+            bom_id VARCHAR(255),
+            sup_id VARCHAR(255),
+            submitted_by VARCHAR(255),
+            is_submitted BOOLEAN DEFAULT FALSE,
+            completed_date TIMESTAMPTZ,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         //========>PCF Request Stages Tables end<============
 
         //   =======>Supplier Organization Questionnaire Tables<==========

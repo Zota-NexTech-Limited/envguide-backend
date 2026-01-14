@@ -456,11 +456,13 @@ export async function updateDqrRatingService(
 
         try {
             const results = [];
+            let sgiqId = null;
 
             for (const record of records) {
                 const { sgiq_id, ...rest } = record;
                 const pkValue = rest[pk];
 
+                sgiqId = sgiq_id;
                 if (!sgiq_id || !pkValue) {
                     throw new Error(`Missing ${pk} or sgiq_id`);
                 }
@@ -493,6 +495,33 @@ export async function updateDqrRatingService(
 
                 const { rows } = await client.query(query, values);
                 if (rows[0]) results.push(rows[0]);
+            }
+
+            // Update DQR Rating
+            if (type === "q80" && sgiqId) {
+                const fetchIdsQuery = `
+                        SELECT
+                             bom_pcf_id,
+                             bom_id,
+                             sup_id
+                        FROM supplier_general_info_questions
+                        WHERE sgiq_id = $1
+                        LIMIT 1;
+                `;
+
+                const idsResult = await client.query(fetchIdsQuery, [sgiqId]);
+
+                const { bom_pcf_id, bom_id, sup_id } = idsResult.rows[0];
+
+                const updatePCFDataRating = `
+                     UPDATE pcf_request_data_rating_stage
+                     SET is_submitted = TRUE,
+                        completed_date = NOW(),
+                        submitted_by = $4
+                     WHERE bom_pcf_id = $1 AND bom_id =$2 AND sup_id=$3;
+                    `;
+
+                await client.query(updatePCFDataRating, [bom_pcf_id, bom_id, sup_id, updated_by]);
             }
 
             await client.query("COMMIT");
