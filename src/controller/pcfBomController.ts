@@ -1747,7 +1747,9 @@ export async function updatePcfRequestWithBOMDetails(req: any, res: any) {
                     manufacturer_id = $10,
                     model_version = $11,
                     updated_by = $12,
-                    update_date = CURRENT_TIMESTAMP
+                    update_date = CURRENT_TIMESTAMP,
+                    technical_specification_file =$14,
+                    product_images=$15
                 WHERE id = $13
             `;
 
@@ -1764,7 +1766,9 @@ export async function updatePcfRequestWithBOMDetails(req: any, res: any) {
                 bom_pcf_request.manufacturer_id,
                 bom_pcf_request.model_version,
                 updated_by,
-                bomPcfId
+                bomPcfId,
+                bom_pcf_request.technical_specification_file,
+                bom_pcf_request.product_images
             ]);
 
             /* --------------------------------------------------
