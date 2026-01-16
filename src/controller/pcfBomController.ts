@@ -2140,3 +2140,69 @@ export async function getPcfBomCommentsByBomId(req: any, res: any) {
         }
     });
 }
+
+export async function pcfCalculate(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id } = req.body;
+
+            // Validate input
+            if (!bom_pcf_id) {
+                return res.send(
+                    generateResponse(false, "bom_pcf_id is required", 400, null)
+                );
+            }
+
+            // Check PCF request stage
+            const checkQuery = `
+                SELECT is_pcf_calculated
+                FROM pcf_request_stages
+                WHERE bom_pcf_id = $1;
+            `;
+
+            const result = await client.query(checkQuery, [bom_pcf_id]);
+
+            if (result.rowCount === 0) {
+                return res.send(
+                    generateResponse(false, "No PCF request found for given bom_pcf_id", 404, null)
+                );
+            }
+
+            if (result.rows[0].is_pcf_calculated === true) {
+                return res.send(
+                    generateResponse(false, "PCF is already calculated for this BOM", 400, null)
+                );
+            }
+
+            const fetchAllBOM = `
+                SELECT id,bom_pcf_id,material_number,
+                component_name,qunatity,production_location,
+                weight_gms,total_weight_gms,price,total_price
+                FROM bom
+                WHERE bom_pcf_id = $1;
+            `;
+
+            const allBOMResult = await client.query(fetchAllBOM, [bom_pcf_id]);
+
+
+            const fetchQ52 = `
+                SELECT rmuicm_id,stoie_id,bom_id,
+                material_number,material_name,percentage
+                FROM raw_materials_used_in_component_manufacturing_questions
+                WHERE bom_id = $1;
+            `;
+
+            const fetchQ52SupResult = await client.query(fetchQ52, [allBOMResult.rows[0].id]);
+
+            return res.send(
+                generateResponse(true, "PCF calculation can be initiated", 200, fetchQ52SupResult.rows)
+            );
+
+        } catch (error: any) {
+            console.error("❌ Error in PCF calculation:", error);
+            return res.send(
+                generateResponse(false, error.message || "PCF calculation failed", 500, null)
+            );
+        }
+    });
+}
