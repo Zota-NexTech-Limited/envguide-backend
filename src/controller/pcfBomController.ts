@@ -1465,14 +1465,15 @@ SELECT
         )
     ) AS pcf_request_stages,
 
-    /* ---------------- PCF DATA COLLECTION STAGE ---------------- */
+/* ---------------- PCF DATA COLLECTION STAGE ---------------- */
 COALESCE(
     (
         SELECT jsonb_agg(
             jsonb_build_object(
                 'id', dcs.id,
-                'bom_id', dcs.bom_id,
+               /*  'bom_id', dcs.bom_id,*/
 
+                /* ---------- Supplier ---------- */
                 'supplier', jsonb_build_object(
                     'sup_id', sd.sup_id,
                     'code', sd.code,
@@ -1481,12 +1482,25 @@ COALESCE(
                     'supplier_phone_number', sd.supplier_phone_number
                 ),
 
-                'bom', jsonb_build_object(
-                    'id', b2.id,
-                    'code', b2.code,
-                    'material_number', b2.material_number,
-                    'component_name', b2.component_name
-                ),
+                /* ---------- BOM ARRAY (via bom_pcf_id + supplier) ---------- 
+                'bom',
+                COALESCE(
+                    (
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'id', b2.id,
+                                'code', b2.code,
+                                'material_number', b2.material_number,
+                                'component_name', b2.component_name
+                            )
+                            ORDER BY b2.created_date DESC
+                        )
+                        FROM bom b2
+                        WHERE b2.bom_pcf_id = dcs.bom_pcf_id
+                          AND b2.supplier_id = dcs.sup_id
+                    ),
+                    '[]'::jsonb
+                ),*/
 
                 'is_submitted', dcs.is_submitted,
                 'completed_date', dcs.completed_date,
@@ -1496,19 +1510,19 @@ COALESCE(
         )
         FROM pcf_request_data_collection_stage dcs
         LEFT JOIN supplier_details sd ON sd.sup_id = dcs.sup_id
-        LEFT JOIN bom b2 ON b2.id = dcs.bom_id
         WHERE dcs.bom_pcf_id = base_pcf.id
     ),
-    '[]'
+    '[]'::jsonb
 ) AS pcf_data_collection_stage,
 
-/* ---------------- PCF DATA COLLECTION STAGE ---------------- */
+
+/* ---------------- PCF DQR DATA COLLECTION STAGE ---------------- */
 COALESCE(
     (
         SELECT jsonb_agg(
             jsonb_build_object(
                 'id', dcsr.id,
-                'bom_id', dcsr.bom_id,
+               /*  'bom_id', dcsr.bom_id,*/
                 'submitted_by', dcsr.submitted_by,
 
                 'supplier', jsonb_build_object(
@@ -1519,12 +1533,12 @@ COALESCE(
                     'supplier_phone_number', sd.supplier_phone_number
                 ),
 
-                'bom', jsonb_build_object(
+              /*  'bom', jsonb_build_object(
                     'id', b2.id,
                     'code', b2.code,
                     'material_number', b2.material_number,
                     'component_name', b2.component_name
-                ),
+                ),*/
 
                 'submittedBy', jsonb_build_object(
                     'user_id', usmb.user_id,

@@ -9,7 +9,6 @@ export async function sendSupplierTaskEmail(payload: {
     const link =
         `https://enviguide.nextechltd.in/supplier-questionnaire/new` +
         `?bom_pcf_id=${payload.bom_pcf_id}` +
-        `&bom_id=${payload.bom_id}` +
         `&supplier_id=${payload.supplier_id}`;
 
     const mailOptions = {

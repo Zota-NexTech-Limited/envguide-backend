@@ -578,7 +578,6 @@ export async function createTables() {
         //   Gneral Info Questions
         `CREATE TABLE IF NOT EXISTS supplier_general_info_questions (
             sgiq_id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255),   
             bom_pcf_id VARCHAR(255), 
             ere_acknowledge BOOLEAN DEFAULT false,
             repm_acknowledge BOOLEAN DEFAULT false,
@@ -630,7 +629,9 @@ export async function createTables() {
 
         `CREATE TABLE IF NOT EXISTS production_site_details_questions (
             psd_id VARCHAR(255) PRIMARY KEY,
-            spq_id VARCHAR(255),   
+            spq_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),   
             product_name VARCHAR(255),
             location TEXT,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -641,6 +642,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS product_component_manufactured_questions (
             pcm_id VARCHAR(255) PRIMARY KEY,
             spq_id VARCHAR(255),   
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             product_name VARCHAR(255),
             production_period VARCHAR(255),
             weight_per_unit NUMERIC(10,2),
@@ -655,6 +658,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS co_product_component_economic_value_questions (
             cpcev_id VARCHAR(255) PRIMARY KEY,
             spq_id VARCHAR(255), 
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             product_name VARCHAR(255),  
             co_product_name VARCHAR(255),
             weight NUMERIC(10,2),
@@ -786,6 +791,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS energy_intensity_of_production_estimated_kwhor_mj_questions (
             eiopekm_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             product_name VARCHAR(255),
             energy_intensity NUMERIC(10,2),
             unit VARCHAR(50),
@@ -880,6 +887,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS weight_of_samples_destroyed_questions (
             wosd_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             weight NUMERIC(10,2),
             unit VARCHAR(50),
@@ -892,6 +901,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS defect_or_rejection_rate_identified_by_quality_control_questions (
             dorriqc_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             percentage VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -902,6 +913,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS rework_rate_due_to_quality_control_questions (
             rrdqc_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             processes_involved VARCHAR(255),
             percentage VARCHAR(50),
@@ -1015,6 +1028,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS raw_materials_used_in_component_manufacturing_questions (
             rmuicm_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             material_name VARCHAR(255),
             percentage VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -1025,6 +1040,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS recycled_materials_with_percentage_questions (
             rmwp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             material_name VARCHAR(255),
             percentage VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -1057,6 +1074,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS type_of_pack_mat_used_for_delivering_questions (
             topmudp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             packagin_type VARCHAR(255),
             packaging_size VARCHAR(255),
@@ -1070,6 +1089,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS weight_of_packaging_per_unit_product_questions (
             woppup_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             packagin_weight VARCHAR(255),
             unit VARCHAR(50),
@@ -1108,6 +1129,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS type_of_by_product_questions (
             topbp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             by_product VARCHAR(255),
             price_per_product NUMERIC(10,2),
