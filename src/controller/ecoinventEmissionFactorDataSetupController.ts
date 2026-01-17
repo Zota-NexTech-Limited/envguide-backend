@@ -37,7 +37,7 @@ export async function addMaterialsEmissionFactor(req: any, res: any) {
         try {
 
 
-            const { element_name, ef_eu_region, ef_india_region, ef_global_region, source, time, location } = req.body;
+            const { element_name, ef_eu_region, ef_india_region, ef_global_region, source, time, location, year, unit, iso_country_code } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -57,17 +57,6 @@ export async function addMaterialsEmissionFactor(req: any, res: any) {
                 throw new Error("Ef global region is required");
             }
 
-            if (!source) {
-                throw new Error("source is required");
-            }
-
-            if (!time) {
-                throw new Error("time is required");
-            }
-
-            if (!location) {
-                throw new Error("location is required");
-            }
 
             const checkName = await client.query(
                 `SELECT 1 FROM materials_emission_factor WHERE element_name ILIKE $1`,
@@ -88,12 +77,12 @@ export async function addMaterialsEmissionFactor(req: any, res: any) {
             const code = formatCode('MEF', nextNumber);
 
             const query = `
-                INSERT INTO materials_emission_factor (mef_id,element_name,ef_eu_region,ef_india_region,ef_global_region,source,time,location, code, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8 ,$9, $10)
+                INSERT INTO materials_emission_factor (mef_id,element_name,ef_eu_region,ef_india_region,ef_global_region,source,time,location, code, created_by,year,iso_country_code,unit)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8 ,$9, $10,$11,$12,13)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, element_name, ef_eu_region, ef_india_region, ef_global_region, source, time, location, code, req.user_id]);
+            const result = await client.query(query, [id, element_name, ef_eu_region, ef_india_region, ef_global_region, source, time, location, code, req.user_id, year, iso_country_code, unit]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -130,17 +119,6 @@ export async function updateMaterialsEmissionFactor(req: any, res: any) {
                     throw new Error("Ef global region is required");
                 }
 
-                if (!item.source) {
-                    throw new Error("source is required");
-                }
-
-                if (!item.time) {
-                    throw new Error("time is required");
-                }
-
-                if (!item.location) {
-                    throw new Error("location is required");
-                }
 
                 const checkName = await client.query(
                     `SELECT 1 
@@ -165,13 +143,16 @@ export async function updateMaterialsEmissionFactor(req: any, res: any) {
                     source              = $6,
                      time                = $7,
                      location            = $8,
-                     updated_by          = $9
+                     updated_by          = $9,
+                     year= $10,
+                     iso_country_code= $11,
+                     unit = $12
                      WHERE mef_id = $1
                      RETURNING *;
 
                 `;
 
-                const result = await client.query(query, [item.mef_id, item.element_name, item.ef_eu_region, item.ef_india_region, item.ef_global_region, item.source, item.time, item.location, req.user_id]);
+                const result = await client.query(query, [item.mef_id, item.element_name, item.ef_eu_region, item.ef_india_region, item.ef_global_region, item.source, item.time, item.location, req.user_id, item.year, item.iso_country_code, item.unit]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -281,6 +262,9 @@ export async function materialsEmissionFactorDataSetup(req: any, res: any) {
                     source: item.source,
                     time: item.time,
                     location: item.location,
+                    year: item.year,
+                    iso_country_code: item.iso_country_code,
+                    unit: item.unit,
                     created_by: req.user_id
                 });
             }
@@ -358,7 +342,7 @@ export async function addElectricityEmissionFactor(req: any, res: any) {
         try {
 
 
-            const { type_of_energy, ef_eu_region, ef_india_region, ef_global_region } = req.body;
+            const { type_of_energy, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -399,12 +383,12 @@ export async function addElectricityEmissionFactor(req: any, res: any) {
             const code = formatCode('FEF', nextNumber);
 
             const query = `
-                INSERT INTO electricity_emission_factor (eef_id,type_of_energy,ef_eu_region,ef_india_region,ef_global_region,code, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO electricity_emission_factor (eef_id,type_of_energy,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year,unit,iso_country_code)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, type_of_energy, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id]);
+            const result = await client.query(query, [id, type_of_energy, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -461,13 +445,16 @@ export async function updateElectricityEmissionFactor(req: any, res: any) {
                     ef_eu_region        = $3,
                     ef_india_region     = $4,
                     ef_global_region    = $5,
-                     updated_by          = $6
+                     updated_by          = $6,
+                     year =$7,
+                     unit=$8,
+                     iso_country_code=$9
                      WHERE eef_id = $1
                      RETURNING *;
 
                 `;
 
-                const result = await client.query(query, [item.eef_id, item.type_of_energy, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id]);
+                const result = await client.query(query, [item.eef_id, item.type_of_energy, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -574,7 +561,10 @@ export async function electricityEmissionFactorDataSetup(req: any, res: any) {
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    year: item.year,
+                    iso_country_code: item.iso_country_code,
+                    unit: item.unit
                 });
             }
 
@@ -651,7 +641,7 @@ export async function addFuelEmissionFactor(req: any, res: any) {
         try {
 
 
-            const { fuel_type, ef_eu_region, ef_india_region, ef_global_region } = req.body;
+            const { fuel_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -692,12 +682,12 @@ export async function addFuelEmissionFactor(req: any, res: any) {
             const code = formatCode('FEF', nextNumber);
 
             const query = `
-                INSERT INTO fuel_emission_factor (fef_id,fuel_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO fuel_emission_factor (fef_id,fuel_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year, unit, iso_country_code)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, fuel_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id]);
+            const result = await client.query(query, [id, fuel_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -754,13 +744,16 @@ export async function updateFuelEmissionFactor(req: any, res: any) {
                     ef_eu_region        = $3,
                     ef_india_region     = $4,
                     ef_global_region    = $5,
-                     updated_by          = $6
+                    updated_by          = $6,
+                    year=$7,
+                    unit=$8,
+                    iso_country_code=$9
                      WHERE fef_id = $1
                      RETURNING *;
 
                 `;
 
-                const result = await client.query(query, [item.fef_id, item.fuel_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id]);
+                const result = await client.query(query, [item.fef_id, item.fuel_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -867,7 +860,10 @@ export async function fuelEmissionFactorDataSetup(req: any, res: any) {
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    year: item.year,
+                    iso_country_code: item.iso_country_code,
+                    unit: item.unit
                 });
             }
 
@@ -944,7 +940,7 @@ export async function addPackagingEmissionFactor(req: any, res: any) {
         try {
 
 
-            const { material_type, ef_eu_region, ef_india_region, ef_global_region } = req.body;
+            const { material_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -985,12 +981,12 @@ export async function addPackagingEmissionFactor(req: any, res: any) {
             const code = formatCode('PEF', nextNumber);
 
             const query = `
-                INSERT INTO packaging_emission_factor (pef_id,material_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO packaging_emission_factor (pef_id,material_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year, unit, iso_country_code)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, material_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id]);
+            const result = await client.query(query, [id, material_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -1047,13 +1043,16 @@ export async function updatePackagingEmissionFactor(req: any, res: any) {
                     ef_eu_region        = $3,
                     ef_india_region     = $4,
                     ef_global_region    = $5,
-                     updated_by          = $6
+                     updated_by          = $6,
+                     year=$7,
+                    unit=$8,
+                    iso_country_code=$9
                      WHERE pef_id = $1
                      RETURNING *;
 
                 `;
 
-                const result = await client.query(query, [item.pef_id, item.material_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id]);
+                const result = await client.query(query, [item.pef_id, item.material_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -1160,7 +1159,10 @@ export async function packagingEmissionFactorDataSetup(req: any, res: any) {
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    year: item.year,
+                    iso_country_code: item.iso_country_code,
+                    unit: item.unit
                 });
             }
 
@@ -1238,7 +1240,7 @@ export async function addWasteTreatmentTypeEmissionFactor(req: any, res: any) {
         try {
 
 
-            const { treatment_type, ef_eu_region, ef_india_region, ef_global_region } = req.body;
+            const { treatment_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -1279,12 +1281,12 @@ export async function addWasteTreatmentTypeEmissionFactor(req: any, res: any) {
             const code = formatCode('WTTEF', nextNumber);
 
             const query = `
-                INSERT INTO waste_treatment_type_emission_factor (wttef_id,treatment_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO waste_treatment_type_emission_factor (wttef_id,treatment_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by, year, unit, iso_country_code)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, treatment_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id]);
+            const result = await client.query(query, [id, treatment_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -1341,13 +1343,16 @@ export async function updateWasteTreatmentTypeEmissionFactor(req: any, res: any)
                     ef_eu_region        = $3,
                     ef_india_region     = $4,
                     ef_global_region    = $5,
-                     updated_by          = $6
+                     updated_by          = $6,
+                      year=$7,
+                    unit=$8,
+                    iso_country_code=$9
                      WHERE wttef_id = $1
                      RETURNING *;
 
                 `;
 
-                const result = await client.query(query, [item.wttef_id, item.treatment_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id]);
+                const result = await client.query(query, [item.wttef_id, item.treatment_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -1454,7 +1459,10 @@ export async function wasteTreatmentTypeEmissionFactorDataSetup(req: any, res: a
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    year: item.year,
+                    iso_country_code: item.iso_country_code,
+                    unit: item.unit
                 });
             }
 
@@ -1531,7 +1539,7 @@ export async function addWasteMaterialTypeEmissionFactor(req: any, res: any) {
         try {
 
 
-            const { waste_type, ef_eu_region, ef_india_region, ef_global_region } = req.body;
+            const { waste_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -1572,12 +1580,12 @@ export async function addWasteMaterialTypeEmissionFactor(req: any, res: any) {
             const code = formatCode('WMTEF', nextNumber);
 
             const query = `
-                INSERT INTO waste_material_type_emission_factor (wmtef_id,waste_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO waste_material_type_emission_factor (wmtef_id,waste_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year, unit, iso_country_code)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, waste_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id]);
+            const result = await client.query(query, [id, waste_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -1634,13 +1642,16 @@ export async function updateWasteMaterialTypeEmissionFactor(req: any, res: any) 
                     ef_eu_region        = $3,
                     ef_india_region     = $4,
                     ef_global_region    = $5,
-                     updated_by          = $6
+                     updated_by          = $6,
+                     year=$7,
+                    unit=$8,
+                    iso_country_code=$9
                      WHERE wmtef_id = $1
                      RETURNING *;
 
                 `;
 
-                const result = await client.query(query, [item.wmtef_id, item.waste_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id]);
+                const result = await client.query(query, [item.wmtef_id, item.waste_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -1747,7 +1758,10 @@ export async function wasteMaterialTypeEmissionFactorDataSetup(req: any, res: an
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    year: item.year,
+                    iso_country_code: item.iso_country_code,
+                    unit: item.unit
                 });
             }
 
@@ -1824,7 +1838,7 @@ export async function addVehicleTypeEmissionFactor(req: any, res: any) {
         try {
 
 
-            const { vehicle_type, ef_eu_region, ef_india_region, ef_global_region } = req.body;
+            const { vehicle_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -1865,12 +1879,12 @@ export async function addVehicleTypeEmissionFactor(req: any, res: any) {
             const code = formatCode('VTEF', nextNumber);
 
             const query = `
-                INSERT INTO vehicle_type_emission_factor (wtef_id,vehicle_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO vehicle_type_emission_factor (wtef_id,vehicle_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year, unit, iso_country_code)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, vehicle_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id]);
+            const result = await client.query(query, [id, vehicle_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -1927,13 +1941,16 @@ export async function updateVehicleTypeEmissionFactor(req: any, res: any) {
                     ef_eu_region        = $3,
                     ef_india_region     = $4,
                     ef_global_region    = $5,
-                     updated_by          = $6
+                     updated_by          = $6,
+                     year=$7,
+                    unit=$8,
+                    iso_country_code=$9
                      WHERE wtef_id = $1
                      RETURNING *;
 
                 `;
 
-                const result = await client.query(query, [item.wtef_id, item.vehicle_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id]);
+                const result = await client.query(query, [item.wtef_id, item.vehicle_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -2040,7 +2057,10 @@ export async function vehicleTypeEmissionFactorDataSetup(req: any, res: any) {
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    year: item.year,
+                    iso_country_code: item.iso_country_code,
+                    unit: item.unit
                 });
             }
 

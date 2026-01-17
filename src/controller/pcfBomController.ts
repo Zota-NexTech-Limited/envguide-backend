@@ -2174,6 +2174,7 @@ export async function pcfCalculate(req: any, res: any) {
                 );
             }
 
+            // To fetch ALL BOM for particular PCF 
             const fetchAllBOM = `
                 SELECT id,bom_pcf_id,material_number,
                 component_name,qunatity,production_location,
@@ -2184,18 +2185,537 @@ export async function pcfCalculate(req: any, res: any) {
 
             const allBOMResult = await client.query(fetchAllBOM, [bom_pcf_id]);
 
+            for (let BomData of allBOMResult.rows) {
+                //========> Phase one start
+                let Raw_Material_emissions = 0;
 
-            const fetchQ52 = `
+                // FEtching materials For Particular BOM
+                const fetchQ52 = `
                 SELECT rmuicm_id,stoie_id,bom_id,
                 material_number,material_name,percentage
                 FROM raw_materials_used_in_component_manufacturing_questions
                 WHERE bom_id = $1;
             `;
 
-            const fetchQ52SupResult = await client.query(fetchQ52, [allBOMResult.rows[0].id]);
+                const fetchQ52SupResult = await client.query(fetchQ52, [BomData.id]);
+
+                for (let ProductData of fetchQ52SupResult.rows) {
+                    const fetchQ13 = `
+                SELECT bom_id,
+                material_number,product_name,location
+                FROM production_site_details_questions
+                WHERE bom_id = $1;
+            `;
+
+                    const fetchQ13SupResult = await client.query(fetchQ13, [BomData.id]);
+
+
+                    const fetchEmissionMaterialFactor = `
+                SELECT element_name,
+                ef_eu_region,ef_india_region,ef_global_region
+                FROM materials_emission_factor;
+            `;
+
+                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor);
+
+                    let FetchEmiassionValue = 0;
+                    if (fetchEmissionMaterialFactorSupResult.rows) {
+                        for (let data of fetchEmissionMaterialFactorSupResult.rows) {
+
+                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "india") {
+                                if (data.element_name.toLowerCase() === fetchQ52SupResult.rows[0].material_name.toLowerCase()) {
+                                    FetchEmiassionValue = data.ef_india_region
+                                }
+                            }
+                        }
+                    }
+
+
+                    console.log("Material composition (%):", ProductData.percentage);
+                    console.log("Component Weight (kg):", BomData.weight_gms);
+                    console.log("Material composition Weight in (Kg):", (BomData.weight_gms / 100) * ProductData.percentage);
+                    console.log("Material Emission Factor (kg CO₂e/kg):", FetchEmiassionValue);
+                    console.log("Material emissions (kg CO₂e):", ((BomData.weight_gms / 100) * ProductData.percentage) * FetchEmiassionValue);
+                    let Material_emissions_kg_CO_e = ((((BomData.weight_gms / 100) * ProductData.percentage) * FetchEmiassionValue));
+                    Raw_Material_emissions += Material_emissions_kg_CO_e;
+
+                }
+                console.log("Raw Material emissions (kg CO₂e):", Raw_Material_emissions);
+                //========> Phase One END
+
+                //========> Second Phase start
+                const fetchQ15 = `
+                SELECT pcm_id,spq_id,bom_id,
+                material_number,product_name,price
+                FROM product_component_manufactured_questions
+                WHERE bom_id = $1;
+            `;
+
+                const fetchQ15SupResult = await client.query(fetchQ15, [BomData.id]);
+
+                const Q15Result = fetchQ15SupResult.rows[0];
+
+                const fetchQ15PointOne = `
+                SELECT bom_id,
+                material_number,product_name,price_per_product
+                FROM co_product_component_economic_value_questions
+                WHERE bom_id = $1;
+            `;
+
+                const fetchQ15PointOneSupResult = await client.query(fetchQ15PointOne, [BomData.id]);
+
+                const Q15PointOneResult = fetchQ15PointOneSupResult.rows[0];
+
+                const Economic_Ratio_ER = (Q15Result.price / Q15PointOneResult.price_per_product);
+                console.log("Economic Ratio (ER):", Economic_Ratio_ER);
+
+                const Allocation_Method = Economic_Ratio_ER > 5 ? "Economic Allocation Method" : "Physical Mass Balance allocation Method";
+                console.log("Allocation Method:", Allocation_Method);
+
+                // ========>Second Phase End
+
+                // ========>Third Phase Start
+
+                const fetchSGIQID = `
+                SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
+                FROM supplier_general_info_questions
+                WHERE bom_pcf_id = $1;
+            `;
+
+                const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id]);
+
+                const fetchSTIDEID = `
+                SELECT sgiq_id,stide_id
+                FROM scope_two_indirect_emissions_questions
+                WHERE sgiq_id = $1;
+            `;
+
+                const fetchSTIDEIDSupResult = await client.query(fetchSTIDEID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
+
+
+                for (let fetchStideId of fetchSTIDEIDSupResult.rows) {
+                    const fetchQ22 = `
+                SELECT stidefpe_id,stide_id,sup_id,
+                energy_source,energy_type,quantity,unit
+                FROM scope_two_indirect_emissions_from_purchased_energy_questions
+                WHERE stide_id = $1 AND sup_id=$2;
+            `;
+
+
+                    const fetchEnegryResult = await client.query(fetchQ22, [fetchStideId.stide_id, fetchSGIQIDSupResult.rows[0].sup_id]);
+
+                    let Total_Electrical_Energy_consumed_at_Factory_level_kWh = 0;
+                    let Total_Heating_Energy_consumed_at_Factory_level_kWh = 0;
+                    let Total_Cooling_Energy_consumed_at_Factory_level_kWh = 0;
+                    let Total_Steam_Energy_consumed_at_Factory_level_kWh = 0;
+                    let Total_Energy_consumed_at_Factory_level_kWh = 0;
+
+                    //                  const fetchQ13 = `
+                    //     SELECT bom_id,
+                    //     material_number,product_name,location
+                    //     FROM production_site_details_questions
+                    //     WHERE bom_id = $1;
+                    // `;
+
+                    //     const fetchQ13SupResult = await client.query(fetchQ13, [BomData.id]);
+                    // for (let Energy of fetchEnegryResult.rows) {
+
+                    //     if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
+                    //         let EnergySource = "Electricity";
+                    //         let EnergyType = Energy.energy_type;
+                    //         const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                    //         console.log(EnergyResponse, "EnergyResponseEnergyResponse");
+
+                    //         const fetchQ22 = `
+                    //             SELECT type_of_energy,ef_eu_region,ef_india_region,
+                    //             ef_global_region
+                    //             FROM electricity_emission_factor
+                    //             WHERE type_of_energy = $1;
+                    //          `;
+
+
+                    //         const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse]);
+
+
+                    //         let FetchElectricityEmiassionValue = 0;
+                    //         if (fetchEnegryResult.rows) {
+
+                    //             if (fetchQ13SupResult.rows[0].location.toLowerCase() === "india") {
+                    //                 FetchElectricityEmiassionValue = fetchEnegryResult.rows[0].ef_india_region
+
+                    //                 Total_Electrical_Energy_consumed_at_Factory_level_kWh = Energy.quantity;
+
+                    //             }
+
+                    //         }
+                    //         console.log(FetchElectricityEmiassionValue, "FetchElectricityEmiassionValue");
+
+                    //     }
+
+                    // }
+
+                    for (let Energy of fetchEnegryResult.rows) {
+                        console.log(Energy, "EnergyEnergy");
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
+                            Total_Electrical_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                        }
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "heating") {
+                            Total_Heating_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                        }
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "cooling") {
+                            Total_Cooling_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                        }
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "steam") {
+                            Total_Steam_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                        }
+                    }
+                    console.log(Total_Electrical_Energy_consumed_at_Factory_level_kWh, "Total_Electrical_Energy_consumed_at_Factory_level_kWh");
+                    console.log(Total_Heating_Energy_consumed_at_Factory_level_kWh, "Total_Heating_Energy_consumed_at_Factory_level_kWh");
+                    console.log(Total_Cooling_Energy_consumed_at_Factory_level_kWh, "Total_Cooling_Energy_consumed_at_Factory_level_kWh");
+                    console.log(Total_Steam_Energy_consumed_at_Factory_level_kWh, "Total_Steam_Energy_consumed_at_Factory_level_kWh");
+
+                    Total_Energy_consumed_at_Factory_level_kWh = Total_Electrical_Energy_consumed_at_Factory_level_kWh + Total_Heating_Energy_consumed_at_Factory_level_kWh +
+                        Total_Cooling_Energy_consumed_at_Factory_level_kWh + Total_Steam_Energy_consumed_at_Factory_level_kWh;
+                    console.log(Total_Energy_consumed_at_Factory_level_kWh, "Total_Energy_consumed_at_Factory_level_kWh");
+
+
+                    const fetcSPQID = `
+                SELECT spq_id,sgiq_id
+                FROM supplier_product_questions
+                WHERE sgiq_id = $1;
+            `;
+
+                    const fetcSPQIDSupResult = await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
+
+
+                    const someOfAllProductQues = `
+                SELECT spq_id, bom_id,material_number,weight_per_unit,price,quantity
+                FROM product_component_manufactured_questions
+                WHERE spq_id = $1;
+            `;
+
+                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [fetcSPQIDSupResult.rows[0].spq_id]);
+
+                    let Total_weight_produced_at_Factory_level_kg = 0;
+                    if (someOfAllProductQuesSupResult.rows) {
+                        for (let fetchwieghtAndQuanty of someOfAllProductQuesSupResult.rows) {
+                            Total_weight_produced_at_Factory_level_kg += parseFloat(fetchwieghtAndQuanty.weight_per_unit) * parseInt(fetchwieghtAndQuanty.quantity);
+                        }
+
+                        console.log(Total_weight_produced_at_Factory_level_kg, "Total_weight_produced_at_Factory_level_kg");
+
+                    }
+
+                    let No_of_products_current_copomnent_produced = 0;
+
+                    const partcularProductQuanty = `
+                SELECT spq_id,bom_id,material_number,quantity
+                FROM product_component_manufactured_questions
+                WHERE bom_id = $1;
+            `;
+
+                    const partcularProductQuantySupResult = await client.query(partcularProductQuanty, [BomData.id]);
+
+                    if (partcularProductQuantySupResult.rows[0]) {
+                        No_of_products_current_copomnent_produced = partcularProductQuantySupResult.rows[0].quantity
+                    }
+                    console.log("No_of_products_current_copomnent_produced:", No_of_products_current_copomnent_produced);
+
+                    let Total_weight_of_current_component_produced_Kg = 0;
+                    if (partcularProductQuantySupResult.rows[0].bom_id === BomData.id) {
+                        Total_weight_of_current_component_produced_Kg = No_of_products_current_copomnent_produced * BomData.weight_gms
+                    }
+                    console.log("Total_weight_of_current_component_produced_Kg:", Total_weight_of_current_component_produced_Kg);
+
+                    let Total_electricity_utilised_for_production_all_current_components_kWh = 0;
+                    console.log(Total_weight_of_current_component_produced_Kg, Total_weight_produced_at_Factory_level_kg, Total_Electrical_Energy_consumed_at_Factory_level_kWh);
+                    Total_electricity_utilised_for_production_all_current_components_kWh = ((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Electrical_Energy_consumed_at_Factory_level_kWh)
+                    console.log("Total_electricity_utilised_for_production_all_current_components_kWh :", Total_electricity_utilised_for_production_all_current_components_kWh);
+
+                    let Production_electricity_energy_use_per_unit_kWh = 0;
+
+                    Production_electricity_energy_use_per_unit_kWh =
+                        (Total_electricity_utilised_for_production_all_current_components_kWh / No_of_products_current_copomnent_produced);
+                    console.log("Production_electricity_energy_use_per_unit_kWh:", Production_electricity_energy_use_per_unit_kWh);
+
+                    let Production_Heating_energy_use_per_unit_kWh = 0;
+                    Production_Heating_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Heating_Energy_consumed_at_Factory_level_kWh) / No_of_products_current_copomnent_produced)
+                    console.log("Production_Heating_energy_use_per_unit_kWh :", Production_Heating_energy_use_per_unit_kWh);
+
+                    let Production_Cooling_energy_use_per_unit_kWh = 0;
+                    Production_Cooling_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Cooling_Energy_consumed_at_Factory_level_kWh) / No_of_products_current_copomnent_produced)
+                    console.log("Production_Cooling_energy_use_per_unit_kWh :", Production_Cooling_energy_use_per_unit_kWh);
+
+                    let Production_Steam_energy_use_per_unit_kWh = 0;
+                    Production_Steam_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Steam_Energy_consumed_at_Factory_level_kWh) / No_of_products_current_copomnent_produced)
+                    console.log("Production_Steam_energy_use_per_unit_kWh :", Production_Steam_energy_use_per_unit_kWh);
+
+
+                    const fetchQ13Location = `
+                        SELECT bom_id,
+                        material_number,product_name,location
+                        FROM production_site_details_questions
+                        WHERE bom_id = $1;
+                     `;
+
+                    const fetchQ13LocationSupResult = await client.query(fetchQ13Location, [BomData.id]);
+
+
+                    let FetchElectricityTypeEmiassionValue = 0;
+                    let FetchHeatingTypeEmiassionValue = 0;
+                    let FetchSteamTypeEmiassionValue = 0;
+                    let FetchCoolingTypeEmiassionValue = 0;
+                    for (let Energy of fetchEnegryResult.rows) {
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
+                            let EnergySource = "Electricity";
+                            let EnergyType = Energy.energy_type;
+                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                            console.log(EnergyResponse, "EnergyResponseEnergyResponse", fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit);
+
+                            const fetchQ22 = `
+                                SELECT type_of_energy,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM electricity_emission_factor
+                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+
+
+                            if (fetchEnegryResult.rows[0]) {
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
+                                }
+
+                            }
+                            console.log(FetchElectricityTypeEmiassionValue, "FetchElectricityTypeEmiassionValue");
+
+                        }
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "heating") {
+                            let EnergySource = "Heating";
+                            let EnergyType = Energy.energy_type;
+                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
+
+                            const fetchQ22 = `
+                                SELECT type_of_energy,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM electricity_emission_factor
+                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+
+
+                            if (fetchEnegryResult.rows[0]) {
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
+                                }
+
+                            }
+                            console.log(FetchHeatingTypeEmiassionValue, "FetchHeatingTypeEmiassionValue");
+
+                        }
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "steam") {
+                            let EnergySource = "Steam";
+                            let EnergyType = Energy.energy_type;
+                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
+
+                            const fetchQ22 = `
+                                SELECT type_of_energy,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM electricity_emission_factor
+                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+
+
+                            if (fetchEnegryResult.rows[0]) {
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
+                                }
+
+                            }
+                            console.log(FetchSteamTypeEmiassionValue, "FetchSteamTypeEmiassionValue");
+
+                        }
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "cooling") {
+                            let EnergySource = "Cooling";
+                            let EnergyType = Energy.energy_type;
+                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
+
+                            const fetchQ22 = `
+                                SELECT type_of_energy,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM electricity_emission_factor
+                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+
+
+                            if (fetchEnegryResult.rows[0]) {
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
+                                }
+
+                            }
+                            console.log(FetchCoolingTypeEmiassionValue, "FetchCoolingTypeEmiassionValue");
+
+                        }
+                    }
+
+
+                    console.log("FetchElectricityTypeEmiassionValue:", FetchElectricityTypeEmiassionValue);
+                    console.log("FetchHeatingTypeEmiassionValue:", FetchHeatingTypeEmiassionValue);
+                    console.log("FetchSteamTypeEmiassionValue:", FetchSteamTypeEmiassionValue);
+                    console.log("FetchCoolingTypeEmiassionValue:", FetchCoolingTypeEmiassionValue);
+
+                    let Manufacturing_Emissions_kg_CO2e = 0;
+
+                    Manufacturing_Emissions_kg_CO2e =
+                        ((Production_electricity_energy_use_per_unit_kWh * FetchElectricityTypeEmiassionValue) +
+                            (Production_Heating_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue) +
+                            (Production_Cooling_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue) +
+                            (Production_Steam_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue))
+
+                    console.log("Manufacturing_Emissions_kg_CO2e:", Manufacturing_Emissions_kg_CO2e);
+
+                    // Third Phase END
+
+
+                    // Fourth Phase Start
+
+                    let packaginType = "";
+                    let packaginSize = "";
+                    let packaginWeight = 0;
+                    let Emission_Factor_Box_kg_CO2E_kg = 0;
+                    let Packaging_Carbon_Emissions_kg_CO2e_or_box = 0;
+
+                    const fetchQ61PcakingTypeProduct = `
+                        SELECT bom_id,
+                        material_number,packagin_type,unit
+                        FROM type_of_pack_mat_used_for_delivering_questions
+                        WHERE bom_id = $1;
+                     `;
+
+                    const fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.id]);
+
+                    if (Q15Result.bom_id === fetchQ61PcakingTypeProductResult.rows[0].bom_id) {
+                        packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type
+                    }
+
+                    const fetchQ61PcakingWeight = `
+                        SELECT bom_id,
+                        material_number,packagin_weight,unit
+                        FROM weight_of_packaging_per_unit_product_questions
+                        WHERE bom_id = $1;
+                     `;
+
+                    const fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.id]);
+
+
+                    if (Q15Result.bom_id === fetchQ61PcakingWeightResult.rows[0].bom_id) {
+                        packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
+                    }
+
+                    const fetchPAckaginEmissionFactor = `
+                                SELECT material_type,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM packaging_emission_factor
+                                WHERE material_type = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResult.rows[0].unit]);
+
+
+                    if (fetchPackagingEmisResult.rows[0]) {
+
+                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                        }
+
+                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
+                        }
+
+                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
+                        }
+
+                    }
+
+                    Packaging_Carbon_Emissions_kg_CO2e_or_box = (packaginWeight * Emission_Factor_Box_kg_CO2E_kg);
+                    console.log("packaginType:", packaginType);
+                    console.log("packaginWeight:", packaginWeight);
+                    console.log("Emission_Factor_Box_kg_CO2E_kg:", Emission_Factor_Box_kg_CO2E_kg);
+                    console.log("Packaging_Carbon_Emissions_kg_CO2e_or_box:", Packaging_Carbon_Emissions_kg_CO2e_or_box);
+
+
+                    // Fourth Phase END
+
+                }
+
+
+
+
+
+
+            }
+
+
 
             return res.send(
-                generateResponse(true, "PCF calculation can be initiated", 200, fetchQ52SupResult.rows)
+                generateResponse(true, "PCF calculation can be initiated", 200, null)
             );
 
         } catch (error: any) {

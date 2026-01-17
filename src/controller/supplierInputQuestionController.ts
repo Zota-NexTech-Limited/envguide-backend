@@ -727,6 +727,8 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const sgiq_id = ulid();
             const allDQRConfigs: any[] = [];
 
+            scope_two_indirect_emissions_questions.sup_id = sup_id;
+
             // ============================================
             // STEP 1: Insert General Info (REQUIRED FIRST)
             // ============================================
@@ -1501,17 +1503,18 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                     energy_source: e.energy_source,
                     energy_type: e.energy_type,
                     quantity: e.quantity,
-                    unit: e.unit
+                    unit: e.unit,
+                    sup_id: e.sup_id
                 }
             });
 
-            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit];
+            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.sup_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'scope_two_indirect_emissions_from_purchased_energy_questions',
-            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit'],
+            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'sup_id'],
             rows
         ));
 
@@ -3309,7 +3312,7 @@ export async function updateSupplierSustainabilityData(req: any, res: any) {
 }
 
 export async function getPCFBOMListToAutoPop(req: any, res: any) {
-    const { bom_pcf_id } = req.query;
+    const { bom_pcf_id, sup_id } = req.query;
 
     return withClient(async (client: any) => {
         try {
@@ -3321,11 +3324,11 @@ export async function getPCFBOMListToAutoPop(req: any, res: any) {
                     b.component_name,
                     b.supplier_id
                 FROM bom b
-                WHERE b.bom_pcf_id = $1
+                WHERE b.bom_pcf_id = $1 AND b.supplier_id=$2
                 ORDER BY b.created_date DESC;
             `;
 
-            const result = await client.query(query, [bom_pcf_id]);
+            const result = await client.query(query, [bom_pcf_id, sup_id]);
 
             if (result.rows.length === 0) {
                 return res

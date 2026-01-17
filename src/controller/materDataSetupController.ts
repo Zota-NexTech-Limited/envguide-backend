@@ -4268,18 +4268,75 @@ export async function getEnergySourceDropDownList(req: any, res: any) {
 }
 
 // ===>
+async function getEnergySourceId(client: any, energy_source_name: string) {
+    const result = await client.query(
+        `SELECT es_id FROM energy_source WHERE name ILIKE $1`,
+        [energy_source_name]
+    );
+
+    if (result.rowCount === 0) {
+        throw new Error(`Energy source '${energy_source_name}' not found`);
+    }
+
+    return result.rows[0].es_id;
+}
+
+// export async function addEnergyType(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const { name, energy_source_id } = req.body;
+
+//             if (!name) {
+//                 throw new Error("Name is required");
+//             }
+
+//             const checkName = await client.query(
+//                 `SELECT 1 FROM energy_type WHERE name ILIKE $1`,
+//                 [name]
+//             );
+
+//             if (checkName.rowCount > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Name already exists", 400, null));
+//             }
+
+//             const et_id = ulid();
+//             const nextNumber = await generateDynamicCode(client, 'ET', 'energy_type');
+//             const code = formatCode('ET', nextNumber);
+
+//             const query = `
+//                 INSERT INTO energy_type (et_id, code, name, created_by)
+//                 VALUES ($1, $2, $3, $4)
+//                 RETURNING *;
+//             `;
+
+//             const result = await client.query(query, [
+//                 et_id,
+//                 code,
+//                 name,
+//                 req.user_id
+//             ]);
+
+//             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+//         } catch (error: any) {
+//             return res.send(generateResponse(false, error.message, 400, null));
+//         }
+//     });
+// }
+
 export async function addEnergyType(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { name } = req.body;
+            const { name, es_id } = req.body;
 
-            if (!name) {
-                throw new Error("Name is required");
+            if (!name || !es_id) {
+                throw new Error("Name and es_id are required");
             }
 
             const checkName = await client.query(
-                `SELECT 1 FROM energy_type WHERE name ILIKE $1`,
-                [name]
+                `SELECT 1 FROM energy_type WHERE name ILIKE $1 AND es_id = $2`,
+                [name, es_id]
             );
 
             if (checkName.rowCount > 0) {
@@ -4293,13 +4350,14 @@ export async function addEnergyType(req: any, res: any) {
             const code = formatCode('ET', nextNumber);
 
             const query = `
-                INSERT INTO energy_type (et_id, code, name, created_by)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO energy_type (et_id, es_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING *;
             `;
 
             const result = await client.query(query, [
                 et_id,
+                es_id,
                 code,
                 name,
                 req.user_id
@@ -4340,7 +4398,8 @@ export async function updateEnergyType(req: any, res: any) {
                     UPDATE energy_type
                     SET name = $1,
                         updated_by = $2,
-                        update_date = NOW()
+                        update_date = NOW(),
+                        es_id = $4
                     WHERE et_id = $3
                     RETURNING *;
                 `;
@@ -4348,7 +4407,8 @@ export async function updateEnergyType(req: any, res: any) {
                 const result = await client.query(query, [
                     item.name,
                     req.user_id,
-                    item.et_id
+                    item.et_id,
+                    item.es_id
                 ]);
 
                 if (result.rows.length > 0) {
@@ -4376,8 +4436,9 @@ export async function getEnergyTypeListSearch(req: any, res: any) {
             }
 
             const listQuery = `
-                SELECT i.*
+                SELECT i.*, es.name AS energy_source_name
                 FROM energy_type i
+                LEFT JOIN energy_source es ON es.es_id = i.es_id
                 WHERE 1=1 ${whereClause}
                 ORDER BY i.created_date ASC;
             `;
@@ -4401,6 +4462,83 @@ export async function getEnergyTypeListSearch(req: any, res: any) {
     });
 }
 
+// export async function EnergyTypeDataSetup(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const data = req.body;
+
+//             if (!Array.isArray(data) || data.length === 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Invalid input array", 400, null));
+//             }
+
+//             const names = data.map(d => d.name.toLowerCase());
+//             const duplicatePayloadNames = names.filter(
+//                 (n, i) => names.indexOf(n) !== i
+//             );
+
+//             if (duplicatePayloadNames.length > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Duplicate names in payload", 400, null));
+//             }
+
+//             const existing = await client.query(
+//                 `SELECT name FROM energy_type WHERE name ILIKE ANY($1)`,
+//                 [names]
+//             );
+
+//             if (existing.rowCount > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "One or more names already exist", 400, null));
+//             }
+
+//             let nextNumber = await generateDynamicCode(client, 'ET', 'energy_type');
+//             const rows: any[] = [];
+
+//             for (const item of data) {
+//                 if (!item.name) {
+//                     throw new Error("Name is required");
+//                 }
+
+//                 rows.push({
+//                     et_id: ulid(),
+//                     code: formatCode('ET', nextNumber++),
+//                     name: item.name,
+//                     created_by: req.user_id
+//                 });
+//             }
+
+//             const columns = Object.keys(rows[0]);
+//             const values: any[] = [];
+//             const placeholders: string[] = [];
+
+//             rows.forEach((row, rowIndex) => {
+//                 const rowValues = Object.values(row);
+//                 values.push(...rowValues);
+//                 placeholders.push(
+//                     `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+//                 );
+//             });
+
+//             const insertQuery = `
+//                 INSERT INTO energy_type (${columns.join(', ')})
+//                 VALUES ${placeholders.join(', ')}
+//                 RETURNING *;
+//             `;
+
+//             const result = await client.query(insertQuery, values);
+
+//             return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+//         } catch (error: any) {
+//             return res
+//                 .status(500)
+//                 .send(generateResponse(false, error.message, 500, null));
+//         }
+//     });
+// }
 export async function EnergyTypeDataSetup(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
@@ -4438,12 +4576,15 @@ export async function EnergyTypeDataSetup(req: any, res: any) {
             const rows: any[] = [];
 
             for (const item of data) {
-                if (!item.name) {
-                    throw new Error("Name is required");
+                if (!item.name || !item.energy_source_name) {
+                    throw new Error("Name and energy_source_name are required");
                 }
+
+                const es_id = await getEnergySourceId(client, item.energy_source_name);
 
                 rows.push({
                     et_id: ulid(),
+                    es_id,
                     code: formatCode('ET', nextNumber++),
                     name: item.name,
                     created_by: req.user_id
@@ -4497,15 +4638,16 @@ export async function deleteEnergyType(req: any, res: any) {
 }
 
 export async function getEnergyTypeDropDownList(req: any, res: any) {
+    const { es_id } = req.query
     return withClient(async (client: any) => {
         try {
             const listQuery = `
                 SELECT *
                 FROM energy_type
-                ORDER BY created_date ASC;
+                WHERE energy_type.es_id =$1;
             `;
 
-            const listResult = await client.query(listQuery);
+            const listResult = await client.query(listQuery, [es_id]);
 
             return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
         } catch (error: any) {
