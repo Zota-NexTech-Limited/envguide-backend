@@ -549,6 +549,18 @@ export async function createTables() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        `CREATE TABLE IF NOT EXISTS pcf_request_data_rating_stage (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_pcf_id VARCHAR(255),
+            bom_id VARCHAR(255),
+            sup_id VARCHAR(255),
+            submitted_by VARCHAR(255),
+            is_submitted BOOLEAN DEFAULT FALSE,
+            completed_date TIMESTAMPTZ,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         //========>PCF Request Stages Tables end<============
 
         //   =======>Supplier Organization Questionnaire Tables<==========
@@ -566,7 +578,6 @@ export async function createTables() {
         //   Gneral Info Questions
         `CREATE TABLE IF NOT EXISTS supplier_general_info_questions (
             sgiq_id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255),   
             bom_pcf_id VARCHAR(255), 
             ere_acknowledge BOOLEAN DEFAULT false,
             repm_acknowledge BOOLEAN DEFAULT false,
@@ -618,7 +629,9 @@ export async function createTables() {
 
         `CREATE TABLE IF NOT EXISTS production_site_details_questions (
             psd_id VARCHAR(255) PRIMARY KEY,
-            spq_id VARCHAR(255),   
+            spq_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),   
             product_name VARCHAR(255),
             location TEXT,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -629,6 +642,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS product_component_manufactured_questions (
             pcm_id VARCHAR(255) PRIMARY KEY,
             spq_id VARCHAR(255),   
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             product_name VARCHAR(255),
             production_period VARCHAR(255),
             weight_per_unit NUMERIC(10,2),
@@ -643,6 +658,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS co_product_component_economic_value_questions (
             cpcev_id VARCHAR(255) PRIMARY KEY,
             spq_id VARCHAR(255), 
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             product_name VARCHAR(255),  
             co_product_name VARCHAR(255),
             weight NUMERIC(10,2),
@@ -750,6 +767,7 @@ export async function createTables() {
             energy_type VARCHAR(255),
             quantity NUMERIC(10,2),
             unit VARCHAR(50),
+            sup_id VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
@@ -774,6 +792,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS energy_intensity_of_production_estimated_kwhor_mj_questions (
             eiopekm_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             product_name VARCHAR(255),
             energy_intensity NUMERIC(10,2),
             unit VARCHAR(50),
@@ -868,6 +888,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS weight_of_samples_destroyed_questions (
             wosd_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             weight NUMERIC(10,2),
             unit VARCHAR(50),
@@ -880,6 +902,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS defect_or_rejection_rate_identified_by_quality_control_questions (
             dorriqc_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             percentage VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -890,6 +914,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS rework_rate_due_to_quality_control_questions (
             rrdqc_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             processes_involved VARCHAR(255),
             percentage VARCHAR(50),
@@ -1003,6 +1029,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS raw_materials_used_in_component_manufacturing_questions (
             rmuicm_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             material_name VARCHAR(255),
             percentage VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -1013,6 +1041,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS recycled_materials_with_percentage_questions (
             rmwp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             material_name VARCHAR(255),
             percentage VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -1045,6 +1075,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS type_of_pack_mat_used_for_delivering_questions (
             topmudp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             packagin_type VARCHAR(255),
             packaging_size VARCHAR(255),
@@ -1058,6 +1090,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS weight_of_packaging_per_unit_product_questions (
             woppup_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             packagin_weight VARCHAR(255),
             unit VARCHAR(50),
@@ -1096,6 +1130,8 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS type_of_by_product_questions (
             topbp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
             component_name VARCHAR(255),
             by_product VARCHAR(255),
             price_per_product NUMERIC(10,2),
@@ -1112,7 +1148,11 @@ export async function createTables() {
             raw_material_name VARCHAR(255),
             transport_mode VARCHAR(255),
             source_location VARCHAR(255),
+            source_lat VARCHAR(255),
+            source_long VARCHAR(255),
             destination_location VARCHAR(255),
+            destination_lat VARCHAR(255),
+            destination_long VARCHAR(255),
             co_two_emission VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -2984,6 +3024,7 @@ export async function createTables() {
 
         `CREATE TABLE IF NOT EXISTS energy_type (
             et_id VARCHAR(255) PRIMARY KEY,
+            es_id VARCHAR(255),
             code VARCHAR(255) NOT NULL, 
             name VARCHAR(255) NOT NULL,  
             created_by VARCHAR(255),
@@ -3153,6 +3194,128 @@ export async function createTables() {
   );`,
 
         // ===========> Master Data Setup tables end<============
+
+        // ==============> ECOinvent Emission Factor DataSetup <================
+        `CREATE TABLE IF NOT EXISTS materials_emission_factor (
+    mef_id VARCHAR(255) PRIMARY KEY,
+    element_name VARCHAR(255) NOT NULL, 
+    ef_eu_region VARCHAR(255) NOT NULL,  
+    ef_india_region VARCHAR(255) NOT NULL,
+    ef_global_region VARCHAR(255) NOT NULL,
+    source VARCHAR(255) NOT NULL,
+    time VARCHAR(255) NOT NULL,
+    location VARCHAR(255) NOT NULL,
+    year VARCHAR(255),
+    unit VARCHAR(255),
+    iso_country_code VARCHAR(255),
+    code VARCHAR(255) NOT NULL,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+
+
+        `CREATE TABLE IF NOT EXISTS electricity_emission_factor (
+    eef_id VARCHAR(255) PRIMARY KEY,
+    type_of_energy VARCHAR(255) NOT NULL, 
+    ef_eu_region VARCHAR(255) NOT NULL,  
+    ef_india_region VARCHAR(255) NOT NULL,
+    ef_global_region VARCHAR(255) NOT NULL,
+    year VARCHAR(255),
+    unit VARCHAR(255),
+    iso_country_code VARCHAR(255),
+    code VARCHAR(255) NOT NULL,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+
+        `CREATE TABLE IF NOT EXISTS fuel_emission_factor (
+    fef_id VARCHAR(255) PRIMARY KEY,
+    fuel_type VARCHAR(255) NOT NULL, 
+    ef_eu_region VARCHAR(255) NOT NULL,  
+    ef_india_region VARCHAR(255) NOT NULL,
+    ef_global_region VARCHAR(255) NOT NULL,
+    year VARCHAR(255),
+    unit VARCHAR(255),
+    iso_country_code VARCHAR(255),
+    code VARCHAR(255) NOT NULL,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+
+
+        `CREATE TABLE IF NOT EXISTS packaging_emission_factor (
+    pef_id VARCHAR(255) PRIMARY KEY,
+    material_type VARCHAR(255) NOT NULL, 
+    ef_eu_region VARCHAR(255) NOT NULL,  
+    ef_india_region VARCHAR(255) NOT NULL,
+    ef_global_region VARCHAR(255) NOT NULL,
+    year VARCHAR(255),
+    unit VARCHAR(255),
+    iso_country_code VARCHAR(255),
+    code VARCHAR(255) NOT NULL,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+
+
+        `CREATE TABLE IF NOT EXISTS waste_treatment_type_emission_factor (
+    wttef_id VARCHAR(255) PRIMARY KEY,
+    treatment_type VARCHAR(255) NOT NULL, 
+    ef_eu_region VARCHAR(255) NOT NULL,  
+    ef_india_region VARCHAR(255) NOT NULL,
+    ef_global_region VARCHAR(255) NOT NULL,
+    year VARCHAR(255),
+    unit VARCHAR(255),
+    iso_country_code VARCHAR(255),
+    code VARCHAR(255) NOT NULL,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+
+
+        `CREATE TABLE IF NOT EXISTS waste_material_type_emission_factor (
+    wmtef_id VARCHAR(255) PRIMARY KEY,
+    waste_type VARCHAR(255) NOT NULL, 
+    ef_eu_region VARCHAR(255) NOT NULL,  
+    ef_india_region VARCHAR(255) NOT NULL,
+    ef_global_region VARCHAR(255) NOT NULL,
+    year VARCHAR(255) NOT NULL,
+    unit VARCHAR(255) NOT NULL,
+    iso_country_code VARCHAR(255) NOT NULL,
+    code VARCHAR(255) NOT NULL,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+
+
+        `CREATE TABLE IF NOT EXISTS vehicle_type_emission_factor (
+    wtef_id VARCHAR(255) PRIMARY KEY,
+    vehicle_type VARCHAR(255) NOT NULL, 
+    ef_eu_region VARCHAR(255) NOT NULL,  
+    ef_india_region VARCHAR(255) NOT NULL,
+    ef_global_region VARCHAR(255) NOT NULL,
+    year VARCHAR(255) NOT NULL,
+    unit VARCHAR(255) NOT NULL,
+    iso_country_code VARCHAR(255) NOT NULL,
+    code VARCHAR(255) NOT NULL,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+        // <=======================END<================
 
     ]
 

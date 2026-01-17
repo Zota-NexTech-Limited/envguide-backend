@@ -117,136 +117,6 @@ export async function createDqrRatingService(type: string, records: any[], creat
     });
 }
 
-const QUESTION_TABLES = [
-    "supplier_general_info_questions",
-    "material_composition_questions",
-    "energy_manufacturing_questions",
-    "packaging_questions",
-    "transportation_logistics_questions",
-    "waste_by_products_questions",
-    "end_of_life_circularity_questions",
-    "emission_factors_or_lca_data_questions",
-    "certification_and_standards_questions",
-    "additional_notes_questions"
-];
-
-const DQR_TABLES = [
-    "dqr_raw_material_product_rating",
-    "dqr_recycled_material_content_rating",
-    "dqr_pre_consumer_material_rating",
-    "dqr_post_consumer_material_rating",
-    "dqr_reutilization_material_rating",
-    "dqr_recycled_copper_rating",
-    "dqr_recycled_aluminum_rating",
-    "dqr_recycled_steel_rating",
-    "dqr_recycled_plastics_rating",
-    "dqr_recycled_thermoplastics_rating",
-    "dqr_recycled_plastic_fillers_rating",
-    "dqr_recycled_fiber_content_rating",
-    "dqr_recycling_process_rating",
-    "dqr_track_transport_emissions_rating",
-    "dqr_pcr_and_pir_rating",
-    "dqr_bio_based_or_renewable_materials_rating",
-    "dqr_main_alloy_metals_rating",
-    "dqr_metal_grade_rating",
-    "dqr_energy_sources_used_rating",
-    "dqr_electricity_consumption_per_year_rating",
-    "dqr_renewable_electricity_percentage_rating",
-    "dqr_energy_intensity_per_unit_rating",
-    "dqr_process_specific_energy_usage_rating",
-    "dqr_abatement_system_energy_consumption_rating",
-    "dqr_water_consumption_and_treatment_details_rating",
-    "dqr_packaging_materials_used_rating",
-    "dqr_packaging_weight_per_unit_rating",
-    "dqr_recycled_packaging_percentage_rating",
-    "dqr_transport_modes_used_rating",
-    "dqr_logistics_provider_details_rating",
-    "dqr_recycling_percentage_rating",
-    "dqr_byproduct_types_rating",
-    "dqr_byproduct_quantity_rating",
-    "dqr_product_recycling_details_rating",
-    "dqr_takeback_program_details_rating",
-    "dqr_pcf_methodologies_used_rating",
-    "dqr_emission_data_details_rating",
-    "dqr_previous_reports_rating",
-    "dqr_carbon_reduction_measures_rating",
-    "dqr_renewable_energy_or_recycling_programs_rating",
-    "dqr_primary_data_details_rating"
-];
-
-// export async function getSupplierDqrDetailsService(sgiq_id: string) {
-//     return withClient(async (client: any) => {
-//         try {
-//             const result: any = {};
-
-//             // ✅ Step 1: Fetch main supplier general info
-//             const generalInfo = await client.query(
-//                 `SELECT * FROM supplier_general_info_questions WHERE sgiq_id = $1`,
-//                 [sgiq_id]
-//             );
-//             if (!generalInfo.rows.length) return null;
-//             result.general_info = generalInfo.rows[0];
-
-//             // ✅ Step 2: Fetch all related question tables
-//             for (const table of QUESTION_TABLES.slice(1)) {
-//                 const res = await client.query(`SELECT * FROM ${table} WHERE sgiq_id = $1`, [sgiq_id]);
-//                 result[table] = res.rows;
-//             }
-
-//             // ✅ Step 3: Fetch all DQR rating tables
-//             for (const table of DQR_TABLES) {
-//                 const res = await client.query(`SELECT * FROM ${table} WHERE sgiq_id = $1`, [sgiq_id]);
-//                 result[table] = res.rows;
-//             }
-
-//             return result;
-//         } catch (error: any) {
-//             console.error("Error in getSupplierDqrDetailsService:", error.message);
-//             throw new Error(error.message);
-//         }
-//     });
-// }
-
-// export async function getSupplierDqrDetailsService(sgiq_id: string) {
-//     return withClient(async (client: any) => {
-//         try {
-//             const result: any = {
-//                 supplier_questions: {},
-//                 dqr_ratings: {}
-//             };
-
-//             // Fetch main supplier_general_info_questions + user_name
-//             const generalInfoQuery = `
-//         SELECT gq.*, u.user_name
-//         FROM supplier_general_info_questions gq
-//         LEFT JOIN users_table u ON gq.user_id = u.user_id
-//         WHERE gq.sgiq_id = $1
-//       `;
-//             const generalInfo = await client.query(generalInfoQuery, [sgiq_id]);
-
-//             if (!generalInfo.rows.length) return null;
-//             result.supplier_questions["supplier_general_info_questions"] = generalInfo.rows[0];
-
-//             // Fetch all related supplier question tables
-//             for (const table of QUESTION_TABLES.slice(1)) {
-//                 const res = await client.query(`SELECT * FROM ${table} WHERE sgiq_id = $1`, [sgiq_id]);
-//                 result.supplier_questions[table] = res.rows;
-//             }
-
-//             // Fetch all DQR rating tables
-//             for (const table of DQR_TABLES) {
-//                 const res = await client.query(`SELECT * FROM ${table} WHERE sgiq_id = $1`, [sgiq_id]);
-//                 result.dqr_ratings[table] = res.rows;
-//             }
-
-//             return result;
-//         } catch (error: any) {
-//             console.error("Error in getSupplierDqrDetailsService:", error.message);
-//             throw new Error(error.message);
-//         }
-//     });
-// }
-
 export async function getSupplierDqrDetailsService(sgiq_id: string) {
     return withClient(async (client: any) => {
 
@@ -279,6 +149,7 @@ export async function getSupplierDqrDetailsService(sgiq_id: string) {
             (SELECT json_agg(to_jsonb(t)) FROM dqr_energy_intensity_of_pro_est_kwhor_mj_qtwentyseven t WHERE t.sgiq_id = $1) AS q27,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_process_specific_energy_usage_qtwentyeight t WHERE t.sgiq_id = $1) AS q28,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_abatement_systems_used_qthirty t WHERE t.sgiq_id = $1) AS q30,
+            (SELECT json_agg(to_jsonb(t)) FROM dqr_scope_two_indirect_emissions_qthirtyone t WHERE t.sgiq_id = $1) AS q31,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_type_of_quality_control_equipment_usage_qthirtytwo t WHERE t.sgiq_id = $1) AS q32,
 
             (SELECT json_agg(to_jsonb(t)) FROM dqr_electricity_consumed_for_quality_control_qthirtythree t WHERE t.sgiq_id = $1) AS q33,
@@ -289,6 +160,8 @@ export async function getSupplierDqrDetailsService(sgiq_id: string) {
             (SELECT json_agg(to_jsonb(t)) FROM dqr_defect_or_rej_rate_identified_by_quality_control_qthirtyeight t WHERE t.sgiq_id = $1) AS q38,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_rework_rate_due_to_quality_control_qthirtynine t WHERE t.sgiq_id = $1) AS q39,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_weight_of_quality_control_waste_generated_qforty t WHERE t.sgiq_id = $1) AS q40,
+            (SELECT json_agg(to_jsonb(t)) FROM dqr_scope_two_indirect_emissions_qfortyone t WHERE t.sgiq_id = $1) AS q41,
+            (SELECT json_agg(to_jsonb(t)) FROM dqr_energy_consumption_for_qfortyfour_qfortyfour t WHERE t.sgiq_id = $1) AS q44,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_cloud_provider_details_qfortysix t WHERE t.sgiq_id = $1) AS q46,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_dedicated_monitoring_sensor_usage_qfortyseven t WHERE t.sgiq_id = $1) AS q47,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_annual_replacement_rate_of_sensor_qfortyeight t WHERE t.sgiq_id = $1) AS q48,
@@ -303,8 +176,10 @@ export async function getSupplierDqrDetailsService(sgiq_id: string) {
             (SELECT json_agg(to_jsonb(t)) FROM dqr_pir_pcr_material_percentage_qfiftynine t WHERE t.sgiq_id = $1) AS q59,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_type_of_pack_mat_used_for_delivering_qsixty t WHERE t.sgiq_id = $1) AS q60,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_weight_of_packaging_per_unit_product_qsixtyone t WHERE t.sgiq_id = $1) AS q61,
+            (SELECT json_agg(to_jsonb(t)) FROM dqr_scope_three_other_indirect_emissions_qsixtyfour t WHERE t.sgiq_id = $1) AS q64,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_energy_consumption_for_qsixtyseven_qsixtyseven t WHERE t.sgiq_id = $1) AS q67,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_weight_of_pro_packaging_waste_qsixtyeight t WHERE t.sgiq_id = $1) AS q68,
+            (SELECT json_agg(to_jsonb(t)) FROM dqr_scope_three_other_indirect_emissions_qsixtynine t WHERE t.sgiq_id = $1) AS q69,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_type_of_by_product_qseventyone t WHERE t.sgiq_id = $1) AS q71,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_co_two_emission_of_raw_material_qseventythree t WHERE t.sgiq_id = $1) AS q73,
             (SELECT json_agg(to_jsonb(t)) FROM dqr_mode_of_transport_used_for_transportation_qseventyfour t WHERE t.sgiq_id = $1) AS q74,
@@ -317,53 +192,6 @@ export async function getSupplierDqrDetailsService(sgiq_id: string) {
         return rows[0];
     });
 }
-
-
-// export async function updateDqrRatingService(type: string, records: any[], updated_by: string) {
-//     return withClient(async (client: any) => {
-//         await client.query("BEGIN");
-
-//         try {
-//             const updatePromises = records.map(async (record: any) => {
-//                 const { id, sgiq_id, ...updateFields } = record;
-
-//                 if (!id || !sgiq_id) {
-//                     throw new Error("Each record must include id and sgiq_id");
-//                 }
-
-//                 const fields = Object.keys(updateFields);
-//                 const values = Object.values(updateFields);
-
-//                 if (fields.length === 0) return null;
-
-//                 // Build dynamic SET clause
-//                 const setClauses = fields.map((field, index) => `${field} = $${index + 1}`);
-//                 setClauses.push(`updated_by = $${fields.length + 1}`);
-//                 setClauses.push(`update_date = NOW()`);
-
-//                 const query = `
-//           UPDATE ${type}
-//           SET ${setClauses.join(", ")}
-//           WHERE id = $${fields.length + 2} AND sgiq_id = $${fields.length + 3}
-//           RETURNING *;
-//         `;
-
-//                 const params = [...values, updated_by, id, sgiq_id];
-//                 const result = await client.query(query, params);
-//                 return result.rows[0] || null;
-//             });
-
-//             const updatedRows = await Promise.all(updatePromises);
-
-//             await client.query("COMMIT");
-//             return updatedRows.filter(Boolean);
-//         } catch (error: any) {
-//             await client.query("ROLLBACK");
-//             console.error(`❌ Error updating ${type}:`, error.message);
-//             throw new Error(error.message);
-//         }
-//     });
-// }
 
 export const DQR_CONFIG: Record<string, { table: string; pk: string }> = {
     // Q9 – Q13
@@ -456,11 +284,13 @@ export async function updateDqrRatingService(
 
         try {
             const results = [];
+            let sgiqId = null;
 
             for (const record of records) {
                 const { sgiq_id, ...rest } = record;
                 const pkValue = rest[pk];
 
+                sgiqId = sgiq_id;
                 if (!sgiq_id || !pkValue) {
                     throw new Error(`Missing ${pk} or sgiq_id`);
                 }
@@ -493,6 +323,33 @@ export async function updateDqrRatingService(
 
                 const { rows } = await client.query(query, values);
                 if (rows[0]) results.push(rows[0]);
+            }
+
+            // Update DQR Rating
+            if (type === "q80" && sgiqId) {
+                const fetchIdsQuery = `
+                        SELECT
+                             bom_pcf_id,
+                             bom_id,
+                             sup_id
+                        FROM supplier_general_info_questions
+                        WHERE sgiq_id = $1
+                        LIMIT 1;
+                `;
+
+                const idsResult = await client.query(fetchIdsQuery, [sgiqId]);
+
+                const { bom_pcf_id, bom_id, sup_id } = idsResult.rows[0];
+
+                const updatePCFDataRating = `
+                     UPDATE pcf_request_data_rating_stage
+                     SET is_submitted = TRUE,
+                        completed_date = NOW(),
+                        submitted_by = $4
+                     WHERE bom_pcf_id = $1 AND bom_id =$2 AND sup_id=$3;
+                    `;
+
+                await client.query(updatePCFDataRating, [bom_pcf_id, bom_id, sup_id, updated_by]);
             }
 
             await client.query("COMMIT");

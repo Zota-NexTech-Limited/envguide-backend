@@ -100,7 +100,7 @@ export async function getPCFBOMSupplierListDropDown(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `
-                  SELECT 
+                  SELECT DISTINCT ON (b.supplier_id)
                     b.code AS bom_code,
                     b.bom_pcf_id,
                     b.supplier_id,
@@ -111,7 +111,7 @@ export async function getPCFBOMSupplierListDropDown(req: any, res: any) {
                 JOIN supplier_details s 
                     ON s.sup_id = b.supplier_id
                 WHERE b.bom_pcf_id = $1
-                ORDER BY b.created_date DESC;
+                ORDER BY b.supplier_id, b.created_date DESC;
             `;
 
             const result = await client.query(query, [bom_pcf_id]);
@@ -221,9 +221,11 @@ export async function createTask(req: any, res: any) {
 
             /* FETCH BOM DATA USING bom_pcf_id */
             const bomQuery = `
-                SELECT id, supplier_id
+                SELECT DISTINCT ON (supplier_id)
+                id,supplier_id
                 FROM bom
-                WHERE bom_pcf_id = $1;
+                WHERE bom_pcf_id = $1
+                ORDER BY supplier_id;
             `;
 
             const bomResult = await client.query(bomQuery, [bom_pcf_id]);
@@ -275,6 +277,19 @@ export async function createTask(req: any, res: any) {
             `;
 
             await client.query(insertPCFQuery, pcfValues);
+
+            const insertPCFDataRatingQuery = `
+                INSERT INTO pcf_request_data_rating_stage (
+                    id,
+                    bom_pcf_id,
+                    bom_id,
+                    sup_id
+                )
+                VALUES ${pcfPlaceholders.join(", ")}
+                ON CONFLICT DO NOTHING;
+            `;
+
+            await client.query(insertPCFDataRatingQuery, pcfValues);
 
             const updatePCFRequest = `
                     UPDATE bom_pcf_request

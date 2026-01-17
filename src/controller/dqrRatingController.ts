@@ -94,141 +94,6 @@ export async function createDqrRating(req: any, res: any) {
     }
 }
 
-// export async function getSupplierDqrDetailsById(req: any, res: any) {
-//     try {
-//         const { sgiq_id } = req.query;
-
-//         if (!sgiq_id) {
-//             return res
-//                 .status(400)
-//                 .json(generateResponse(false, "sgiq_id is required", 400, null));
-//         }
-
-//         const data = await getSupplierDqrDetailsService(sgiq_id);
-
-//         if (!data) {
-//             return res
-//                 .status(404)
-//                 .json(generateResponse(false, "No data found for given sgiq_id", 404, null));
-//         }
-
-//         return res
-//             .status(200)
-//             .json(generateResponse(true, "Fetched successfully", 200, data));
-//     } catch (error: any) {
-//         console.error("❌ Error in getSupplierDqrDetailsById:", error.message);
-//         return res
-//             .status(500)
-//             .json(generateResponse(false, "Something went wrong", 500, error.message));
-//     }
-// }
-
-// export async function getSupplierDetailsList(req: any, res: any) {
-//     const { pageNumber, pageSize } = req.query;
-
-//     const limit = parseInt(pageSize) || 20;
-//     const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
-//     const offset = (page - 1) * limit;
-
-//     return withClient(async (client: any) => {
-//         try {
-
-//             const query = `
-//         SELECT 
-//           gq.*,
-//           u.user_name AS created_by_name
-//         FROM supplier_general_info_questions gq
-//         LEFT JOIN users_table u ON gq.user_id = u.user_id
-//         ORDER BY gq.created_date DESC
-//         LIMIT $1 OFFSET $2;
-//       `;
-
-//             const countQuery = `
-//         SELECT COUNT(*) AS total_count
-//         FROM supplier_general_info_questions;
-//       `;
-
-//             const [result, countResult] = await Promise.all([
-//                 client.query(query, [limit, offset]),
-//                 client.query(countQuery)
-//             ]);
-
-//             const rows = result.rows;
-
-
-//             for (const supplier of rows) {
-//                 const sgiq_id = supplier.sgiq_id;
-
-//                 const supplier_questions: any = {};
-
-//                 // --- Supplier Question Tables ---
-//                 for (const table of QUESTION_TABLES) {
-//                     const res = await client.query(
-//                         `SELECT * FROM ${table} WHERE sgiq_id = $1`,
-//                         [sgiq_id]
-//                     );
-//                     supplier_questions[table] = res.rows;
-//                 }
-
-//                 supplier.supplier_questions = supplier_questions;
-//             }
-
-//             // Pagination metadata
-//             const totalCount = parseInt(countResult.rows[0]?.total_count ?? 0);
-//             const totalPages = Math.ceil(totalCount / limit);
-
-//             return res.status(200).json({
-//                 success: true,
-//                 message: "Supplier Question Details List fetched successfully",
-//                 data: rows,
-//                 current_page: page,
-//                 total_pages: totalPages,
-//                 total_count: totalCount
-//             });
-//         } catch (error: any) {
-//             console.error("Error fetching Supplier Question Details List:", error);
-//             return res.status(500).json({
-//                 success: false,
-//                 message: error.message || "Failed to fetch Supplier Question Details List"
-//             });
-//         }
-//     });
-// }
-
-// export async function updateDqrRating(req: any, res: any) {
-//     try {
-//         const { type, ...ratingData } = req.body;
-
-//         // ✅ Validate type
-//         if (!type || !ALLOWED_TYPES.includes(type)) {
-//             return res.status(400).json(
-//                 generateResponse(false, "Invalid or missing rating type", 400, {
-//                     allowed_types: ALLOWED_TYPES,
-//                 })
-//             );
-//         }
-
-//         const records = ratingData[type];
-//         if (!records || !Array.isArray(records) || records.length === 0) {
-//             return res
-//                 .status(400)
-//                 .json(generateResponse(false, `Missing or invalid data for ${type}`, 400, null));
-//         }
-
-//         const updated_by = req.user_id || "system";
-//         const updated = await updateDqrRatingService(type, records, updated_by);
-
-//         return res
-//             .status(200)
-//             .json(generateResponse(true, `${type} updated successfully`, 200, updated));
-//     } catch (error: any) {
-//         console.error("❌ Error in updateDqrRating:", error.message);
-//         return res
-//             .status(500)
-//             .json(generateResponse(false, "Something went wrong", 500, error.message));
-//     }
-// }
-
 
 export const DQR_CONFIG: Record<string, { table: string; pk: string }> = {
     // Q9 – Q13
@@ -249,63 +114,63 @@ export const DQR_CONFIG: Record<string, { table: string; pk: string }> = {
     q22: { table: 'dqr_scope_two_indirect_emis_from_pur_energy_qtwentytwo', pk: 'stidefpeqtt_id' },
 
     // Q24 – Q28
-  q24: { table: 'dqr_scope_two_indirect_emissions_certificates_qtwentyfour', pk: 'stiecqtf_id' },
-  q26: { table: 'dqr_scope_two_indirect_emissions_qtwentysix', pk: 'stieqts_id' },
-  q27: { table: 'dqr_energy_intensity_of_pro_est_kwhor_mj_qtwentyseven', pk: 'eiopekmqts_id' },
-  q28: { table: 'dqr_process_specific_energy_usage_qtwentyeight', pk: 'pseuqte_id' },
+    q24: { table: 'dqr_scope_two_indirect_emissions_certificates_qtwentyfour', pk: 'stiecqtf_id' },
+    q26: { table: 'dqr_scope_two_indirect_emissions_qtwentysix', pk: 'stieqts_id' },
+    q27: { table: 'dqr_energy_intensity_of_pro_est_kwhor_mj_qtwentyseven', pk: 'eiopekmqts_id' },
+    q28: { table: 'dqr_process_specific_energy_usage_qtwentyeight', pk: 'pseuqte_id' },
 
     // Q30 – Q33
-  q30: { table: 'dqr_abatement_systems_used_qthirty', pk: 'asuqt_id' },
-  q31: { table: 'dqr_scope_two_indirect_emissions_qthirtyone', pk: 'stideqto_id' },
-  q32: { table: 'dqr_type_of_quality_control_equipment_usage_qthirtytwo', pk: 'toqceuqto_id' },
-  q33: { table: 'dqr_electricity_consumed_for_quality_control_qthirtythree', pk: 'ecfqcqtt_id' },
+    q30: { table: 'dqr_abatement_systems_used_qthirty', pk: 'asuqt_id' },
+    q31: { table: 'dqr_scope_two_indirect_emissions_qthirtyone', pk: 'stideqto_id' },
+    q32: { table: 'dqr_type_of_quality_control_equipment_usage_qthirtytwo', pk: 'toqceuqto_id' },
+    q33: { table: 'dqr_electricity_consumed_for_quality_control_qthirtythree', pk: 'ecfqcqtt_id' },
 
     // Q34 – Q35
-  q34: { table: 'dqr_quality_control_process_usage_qthirtyfour', pk: 'qcpuqtf_id' },
-  q341: { table: 'dqr_quality_control_process_usage_pressure_or_flow_qthirtyfour', pk: 'qcpupfqtf_id' },
-  q35: { table: 'dqr_quality_control_use_any_consumables_qthirtyfive', pk: 'qcuacqtf_id' },
+    q34: { table: 'dqr_quality_control_process_usage_qthirtyfour', pk: 'qcpuqtf_id' },
+    q341: { table: 'dqr_quality_control_process_usage_pressure_or_flow_qthirtyfour', pk: 'qcpupfqtf_id' },
+    q35: { table: 'dqr_quality_control_use_any_consumables_qthirtyfive', pk: 'qcuacqtf_id' },
 
     // Q37 – Q41
-  q37: { table: 'dqr_weight_of_samples_destroyed_qthirtyseven', pk: 'wosdqts_id' },
-  q38: { table: 'dqr_defect_or_rej_rate_identified_by_quality_control_qthirtyeight', pk: 'dorriqcqte_id' },
-  q39: { table: 'dqr_rework_rate_due_to_quality_control_qthirtynine', pk: 'rrdqcqtn_id' },
-  q40: { table: 'dqr_weight_of_quality_control_waste_generated_qforty', pk: 'woqcwgqf_id' },
-  q41: { table: 'dqr_scope_two_indirect_emissions_qfortyone', pk: 'stideqfo_id' },
+    q37: { table: 'dqr_weight_of_samples_destroyed_qthirtyseven', pk: 'wosdqts_id' },
+    q38: { table: 'dqr_defect_or_rej_rate_identified_by_quality_control_qthirtyeight', pk: 'dorriqcqte_id' },
+    q39: { table: 'dqr_rework_rate_due_to_quality_control_qthirtynine', pk: 'rrdqcqtn_id' },
+    q40: { table: 'dqr_weight_of_quality_control_waste_generated_qforty', pk: 'woqcwgqf_id' },
+    q41: { table: 'dqr_scope_two_indirect_emissions_qfortyone', pk: 'stideqfo_id' },
 
     // Q44 – Q48
-  q44: { table: 'dqr_energy_consumption_for_qfortyfour_qfortyfour', pk: 'ecfqffqff_id' },
-  q46: { table: 'dqr_cloud_provider_details_qfortysix', pk: 'cpdqfs_id' },
-  q47: { table: 'dqr_dedicated_monitoring_sensor_usage_qfortyseven', pk: 'dmsuqfs_id' },
-  q48: { table: 'dqr_annual_replacement_rate_of_sensor_qfortyeight', pk: 'arrosqfe_id' },
+    q44: { table: 'dqr_energy_consumption_for_qfortyfour_qfortyfour', pk: 'ecfqffqff_id' },
+    q46: { table: 'dqr_cloud_provider_details_qfortysix', pk: 'cpdqfs_id' },
+    q47: { table: 'dqr_dedicated_monitoring_sensor_usage_qfortyseven', pk: 'dmsuqfs_id' },
+    q48: { table: 'dqr_annual_replacement_rate_of_sensor_qfortyeight', pk: 'arrosqfe_id' },
 
     // Q51 – Q54
-  q51: { table: 'dqr_energy_consumption_for_qfiftyone_qfiftyone', pk: 'ecfqfoqfo_id' },
-  q52: { table: 'dqr_raw_materials_used_in_component_manufacturing_qfiftytwo', pk: 'rmuicmqft_id' },
-  q53: { table: 'dqr_scope_three_other_indirect_emissions_qfiftythree', pk: 'stoieqft_id' },
-  q54: { table: 'dqr_scope_three_other_indirect_emissions_qfiftyfour', pk: 'stoieqff_id' },
+    q51: { table: 'dqr_energy_consumption_for_qfiftyone_qfiftyone', pk: 'ecfqfoqfo_id' },
+    q52: { table: 'dqr_raw_materials_used_in_component_manufacturing_qfiftytwo', pk: 'rmuicmqft_id' },
+    q53: { table: 'dqr_scope_three_other_indirect_emissions_qfiftythree', pk: 'stoieqft_id' },
+    q54: { table: 'dqr_scope_three_other_indirect_emissions_qfiftyfour', pk: 'stoieqff_id' },
 
     // Q56 – Q61
-  q56: { table: 'dqr_recycled_materials_with_percentage_qfiftysix', pk: 'rmwpqfs_id' },
-  q58: { table: 'dqr_pre_post_consumer_reutilization_percentage_qfiftyeight', pk: 'ppcrpqfe_id' },
-  q59: { table: 'dqr_pir_pcr_material_percentage_qfiftynine', pk: 'ppmpqfn_id' },
-  q60: { table: 'dqr_type_of_pack_mat_used_for_delivering_qsixty', pk: 'topmudpqs_id' },
-  q61: { table: 'dqr_weight_of_packaging_per_unit_product_qsixtyone', pk: 'woppupqso_id' },
+    q56: { table: 'dqr_recycled_materials_with_percentage_qfiftysix', pk: 'rmwpqfs_id' },
+    q58: { table: 'dqr_pre_post_consumer_reutilization_percentage_qfiftyeight', pk: 'ppcrpqfe_id' },
+    q59: { table: 'dqr_pir_pcr_material_percentage_qfiftynine', pk: 'ppmpqfn_id' },
+    q60: { table: 'dqr_type_of_pack_mat_used_for_delivering_qsixty', pk: 'topmudpqs_id' },
+    q61: { table: 'dqr_weight_of_packaging_per_unit_product_qsixtyone', pk: 'woppupqso_id' },
 
     // Q64 – Q69
-  q64: { table: 'dqr_scope_three_other_indirect_emissions_qsixtyfour', pk: 'stoieqsf_id' },
-  q67: { table: 'dqr_energy_consumption_for_qsixtyseven_qsixtyseven', pk: 'ecfqssqss_id' },
-  q68: { table: 'dqr_weight_of_pro_packaging_waste_qsixtyeight', pk: 'woppwqse_id' },
-  q69: { table: 'dqr_scope_three_other_indirect_emissions_qsixtynine', pk: 'stoieqsn_id' },
+    q64: { table: 'dqr_scope_three_other_indirect_emissions_qsixtyfour', pk: 'stoieqsf_id' },
+    q67: { table: 'dqr_energy_consumption_for_qsixtyseven_qsixtyseven', pk: 'ecfqssqss_id' },
+    q68: { table: 'dqr_weight_of_pro_packaging_waste_qsixtyeight', pk: 'woppwqse_id' },
+    q69: { table: 'dqr_scope_three_other_indirect_emissions_qsixtynine', pk: 'stoieqsn_id' },
 
     // Q71 – Q75
-  q71: { table: 'dqr_type_of_by_product_qseventyone', pk: 'topbpqso_id' },
-  q73: { table: 'dqr_co_two_emission_of_raw_material_qseventythree', pk: 'coteormqst_id' },
-  q74: { table: 'dqr_mode_of_transport_used_for_transportation_qseventyfour', pk: 'motuftqsf_id' },
-  q75: { table: 'dqr_destination_plant_component_transportation_qseventyfive', pk: 'dpctqsf_id' },
+    q71: { table: 'dqr_type_of_by_product_qseventyone', pk: 'topbpqso_id' },
+    q73: { table: 'dqr_co_two_emission_of_raw_material_qseventythree', pk: 'coteormqst_id' },
+    q74: { table: 'dqr_mode_of_transport_used_for_transportation_qseventyfour', pk: 'motuftqsf_id' },
+    q75: { table: 'dqr_destination_plant_component_transportation_qseventyfive', pk: 'dpctqsf_id' },
 
     // Q79 – Q80
-  q79: { table: 'dqr_scope_three_other_indirect_emissions_qseventynine', pk: 'stoieqsn_id' },
-  q80: { table: 'dqr_scope_three_other_indirect_emissions_qeighty', pk: 'stoieqe_id' },
+    q79: { table: 'dqr_scope_three_other_indirect_emissions_qseventynine', pk: 'stoieqsn_id' },
+    q80: { table: 'dqr_scope_three_other_indirect_emissions_qeighty', pk: 'stoieqe_id' },
 };
 
 // ============== NEW APIsssssss
@@ -327,26 +192,38 @@ export async function getSupplierDetailsList(req: any, res: any) {
             // Data query
             const dataQuery = `
             WITH base_data AS (
-                SELECT
-                    sgiq.*,
+    SELECT
+        sgiq.*,
 
-                json_build_object(
-            'sup_id', sd.id,
+        -- Supplier Object
+        json_build_object(
+            'sup_id', sd.sup_id,
             'code', sd.code,
             'supplier_name', sd.supplier_name,
             'supplier_email', sd.supplier_email,
             'supplier_phone_number', sd.supplier_phone_number
         ) AS supplier_details,
 
-                          -- BOM Object
-        json_build_object(
-            'bom_id', b.id,
-            'material_number', b.material_number,
-            'component_name', b.component_name,
-            'production_location', b.production_location
+        -- BOM ARRAY (IMPORTANT CHANGE)
+        (
+            SELECT COALESCE(
+                json_agg(
+                    json_build_object(
+                        'bom_id', b.id,
+                        'material_number', b.material_number,
+                        'component_name', b.component_name,
+                        'production_location', b.production_location
+                    )
+                    ORDER BY b.created_date DESC
+                ),
+                '[]'::json
+            )
+            FROM bom b
+            WHERE b.bom_pcf_id = sgiq.bom_pcf_id
+              AND b.supplier_id = sgiq.sup_id
         ) AS bom,
 
-              -- BOM PCF Object
+        -- BOM PCF Object
         json_build_object(
             'pcf_id', pcf.id,
             'code', pcf.code,
@@ -357,11 +234,13 @@ export async function getSupplierDetailsList(req: any, res: any) {
             'request_description', pcf.request_description
         ) AS bom_pcf
 
-                FROM supplier_general_info_questions sgiq
-                LEFT JOIN supplier_details sd ON sd.sup_id = sgiq.sup_id
-                LEFT JOIN bom b ON b.id = sgiq.bom_id
-                LEFT JOIN bom_pcf_request pcf ON pcf.id = sgiq.bom_pcf_id
-            )
+    FROM supplier_general_info_questions sgiq
+    LEFT JOIN supplier_details sd 
+        ON sd.sup_id = sgiq.sup_id
+    LEFT JOIN bom_pcf_request pcf 
+        ON pcf.id = sgiq.bom_pcf_id
+)
+
 SELECT
     bd.*,
 
@@ -385,8 +264,9 @@ SELECT
     END AS scope_one_two_three_emissions
 
 FROM base_data bd
-ORDER BY bd.sgiq_id DESC
+ORDER BY bd.created_date DESC
 LIMIT $1 OFFSET $2;
+
         `;
 
             const result = await client.query(dataQuery, [limit, offset]);

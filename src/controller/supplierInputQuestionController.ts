@@ -677,908 +677,6 @@ export async function getMaterialCompositionMetalType(req: any, res: any) {
 
 // FRom here start for creation of supplier input and dqr rating
 // ========== New apis========
-// export async function addSupplierSustainabilityDataaa(req: any, res: any) {
-//     return withClient(async (client: any) => {
-//         await client.query("BEGIN"); // start transaction
-
-//         try {
-//             const {
-//                 supplier_general_info_questions,
-//                 supplier_product_questions,
-//                 scope_one_direct_emissions_questions,
-//                 scope_two_indirect_emissions_questions,
-//                 scope_three_other_indirect_emissions_questions,
-//                 scope_four_avoided_emissions_questions
-//             } = req.body;
-
-//             if (!supplier_general_info_questions?.bom_pcf_id ||
-//                 !supplier_general_info_questions?.bom_id ||
-//                 !supplier_general_info_questions?.sup_id) {
-//                 return res.send(generateResponse(false, "bom_pcf_id, bom_id and sup_id are required", 400, null));
-//             }
-
-//             let sup_id = supplier_general_info_questions.sup_id;
-//             let bom_pcf_id = supplier_general_info_questions.bom_pcf_id;
-//             let bom_id = supplier_general_info_questions.bom_id;
-//             let sgiq_id = ulid();
-
-//             // Insert into supplier_general_info_questions
-//             const generalInsert = `
-//                 INSERT INTO supplier_general_info_questions (
-//                     sgiq_id, bom_id, bom_pcf_id, ere_acknowledge, repm_acknowledge, dc_acknowledge,
-//                     organization_name, core_business_activitiy, specify_other_activity, designation,
-//                     email_address, no_of_employees, specify_other_no_of_employees, annual_revenue,
-//                     specify_other_annual_revenue, annual_reporting_period, 
-//                     availability_of_scope_one_two_three_emissions_data, sup_id
-//                 )
-//                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-//                 RETURNING *;
-//             `;
-
-//             const generalResult = await client.query(generalInsert, [
-//                 sgiq_id, bom_id, bom_pcf_id,
-//                 supplier_general_info_questions.ere_acknowledge ?? false,
-//                 supplier_general_info_questions.repm_acknowledge ?? false,
-//                 supplier_general_info_questions.dc_acknowledge ?? false,
-//                 supplier_general_info_questions.organization_name,
-//                 supplier_general_info_questions.core_business_activitiy,
-//                 supplier_general_info_questions.specify_other_activity,
-//                 supplier_general_info_questions.designation,
-//                 supplier_general_info_questions.email_address,
-//                 supplier_general_info_questions.no_of_employees,
-//                 supplier_general_info_questions.specify_other_no_of_employees,
-//                 supplier_general_info_questions.annual_revenue,
-//                 supplier_general_info_questions.specify_other_annual_revenue,
-//                 supplier_general_info_questions.annual_reporting_period,
-//                 supplier_general_info_questions.availability_of_scope_one_two_three_emissions_data ?? false,
-//                 sup_id
-//             ]);
-
-//             // Handle scope emissions questions
-//             const scopeGeneralQuestions = supplier_general_info_questions.availability_of_scope_one_two_three_emissions_questions;
-//             if (generalResult.rowCount > 0 && Array.isArray(scopeGeneralQuestions) && scopeGeneralQuestions.length > 0) {
-//                 const values: any[] = [];
-//                 const placeholders: string[] = [];
-//                 let index = 1;
-
-//                 for (const scope of scopeGeneralQuestions) {
-//                     placeholders.push(`($${index++}, $${index++}, $${index++}, $${index++}, $${index++}, $${index++})`);
-//                     values.push(
-//                         ulid(),
-//                         sgiq_id,
-//                         scope.country_iso_three,
-//                         scope.scope_one,
-//                         scope.scope_two,
-//                         scope.scope_three
-//                     );
-//                 }
-
-//                 const bulkInsertQuery = `
-//                     INSERT INTO availability_of_scope_one_two_three_emissions_questions (
-//                         aosotte_id, sgiq_id, country_iso_three, scope_one, scope_two, scope_three
-//                     )
-//                     VALUES ${placeholders.join(",")}
-//                     RETURNING *;
-//                 `;
-
-//                 await client.query(bulkInsertQuery, values);
-//             }
-
-//             if (supplier_product_questions) {
-//                 let spq_id = ulid();
-
-//                 const productInsert = `
-//                 INSERT INTO supplier_product_questions (
-//                     spq_id, sgiq_id, do_you_have_an_existing_pcf_report, pcf_methodology_used,
-//                     upload_pcf_report,required_environmental_impact_methods,any_co_product_have_economic_value
-//                 )
-//                 VALUES ($1,$2,$3,$4,$5,$6,$7)
-//                 RETURNING *;
-//             `;
-
-//                 const productResult = await client.query(productInsert, [
-//                     spq_id, sgiq_id, supplier_product_questions.do_you_have_an_existing_pcf_report,
-//                     supplier_product_questions.pcf_methodology_used,
-//                     supplier_product_questions.upload_pcf_report,
-//                     supplier_product_questions.required_environmental_impact_methods,
-//                     supplier_product_questions.any_co_product_have_economic_value
-//                 ]);
-
-//                 //  Handle production_site_details_questions
-//                 const productSiteQuestions = supplier_product_questions.production_site_details_questions;
-//                 if (productResult.rowCount > 0 && Array.isArray(productSiteQuestions) && productSiteQuestions.length > 0) {
-//                     const values: any[] = [];
-//                     const placeholders: string[] = [];
-//                     let index = 1;
-
-//                     for (const scope of productSiteQuestions) {
-//                         placeholders.push(`($${index++}, $${index++}, $${index++}, $${index++}, $${index++}, $${index++})`);
-//                         values.push(
-//                             ulid(),
-//                             spq_id,
-//                             scope.product_name,
-//                             scope.location
-//                         );
-//                     }
-
-//                     const bulkInsertQuery = `
-//                     INSERT INTO production_site_details_questions (
-//                         psd_id, spq_id, product_name, location
-//                     )
-//                     VALUES ${placeholders.join(",")}
-//                     RETURNING *;
-//                 `;
-
-//                     await client.query(bulkInsertQuery, values);
-//                 }
-
-//                 //  Handle product_component_manufactured_questions
-//                 const productComponentQuestions = supplier_product_questions.product_component_manufactured_questions;
-//                 if (productResult.rowCount > 0 && Array.isArray(productComponentQuestions) && productComponentQuestions.length > 0) {
-//                     const values: any[] = [];
-//                     const placeholders: string[] = [];
-//                     let index = 1;
-
-//                     for (const scope of productComponentQuestions) {
-//                         placeholders.push(`($${index++}, $${index++}, $${index++}, $${index++}, $${index++}, $${index++})`);
-//                         values.push(
-//                             ulid(),
-//                             spq_id,
-//                             scope.product_name,
-//                             scope.production_period,
-//                             scope.weight_per_unit,
-//                             scope.unit,
-//                             scope.price,
-//                             scope.quantity
-//                         );
-//                     }
-
-//                     const bulkInsertQuery = `
-//                     INSERT INTO product_component_manufactured_questions (
-//                         pcm_id, spq_id, product_name, production_period,weight_per_unit,
-//                         unit,price,quantity
-//                     )
-//                     VALUES ${placeholders.join(",")}
-//                     RETURNING *;
-//                 `;
-
-//                     await client.query(bulkInsertQuery, values);
-//                 }
-//                 //  Handle co_product_component_economic_value_questions
-//                 const coProductComponentQuestions = supplier_product_questions.co_product_component_economic_value_questions;
-//                 if (productResult.rowCount > 0 && Array.isArray(coProductComponentQuestions) && coProductComponentQuestions.length > 0) {
-//                     const values: any[] = [];
-//                     const placeholders: string[] = [];
-//                     let index = 1;
-
-//                     for (const scope of coProductComponentQuestions) {
-//                         placeholders.push(`($${index++}, $${index++}, $${index++}, $${index++}, $${index++}, $${index++})`);
-//                         values.push(
-//                             ulid(),
-//                             spq_id,
-//                             scope.product_name,
-//                             scope.co_product_name,
-//                             scope.weight,
-//                             scope.price_per_product,
-//                             scope.quantity
-//                         );
-//                     }
-
-//                     const bulkInsertQuery = `
-//                     INSERT INTO co_product_component_economic_value_questions (
-//                         cpcev_id, spq_id, product_name, co_product_name,weight,
-//                         price_per_product,quantity
-//                     )
-//                     VALUES ${placeholders.join(",")}
-//                     RETURNING *;
-//                 `;
-
-//                     await client.query(bulkInsertQuery, values);
-//                 }
-//             }
-
-//             if (scope_one_direct_emissions_questions) {
-//                 let sode_id = ulid();
-
-//                 // Insert parent record
-//                 const scopeOneInsert = `
-//         INSERT INTO scope_one_direct_emissions_questions (
-//             sode_id, sgiq_id, refrigerant_top_ups_performed,
-//             industrial_process_emissions_present
-//         )
-//         VALUES ($1, $2, $3, $4)
-//         RETURNING *;
-//     `;
-
-//                 const scopeOneResult = await client.query(scopeOneInsert, [
-//                     sode_id,
-//                     sgiq_id,
-//                     scope_one_direct_emissions_questions.refrigerant_top_ups_performed ?? false,
-//                     scope_one_direct_emissions_questions.industrial_process_emissions_present ?? false
-//                 ]);
-
-//                 // 1. Handle stationary_combustion_on_site_energy_use_questions
-//                 const stationaryCombustionQuestions = scope_one_direct_emissions_questions.stationary_combustion_on_site_energy_use_questions;
-//                 if (scopeOneResult.rowCount > 0 && Array.isArray(stationaryCombustionQuestions) && stationaryCombustionQuestions.length > 0) {
-//                     for (const item of stationaryCombustionQuestions) {
-//                         const scoseu_id = ulid();
-
-//                         // Insert fuel type record
-//                         await client.query(
-//                             `INSERT INTO stationary_combustion_on_site_energy_use_questions 
-//                  (scoseu_id, sode_id, fuel_type)
-//                  VALUES ($1, $2, $3)`,
-//                             [scoseu_id, sode_id, item.fuel_type]
-//                         );
-
-//                         // Insert sub fuel type records
-//                         const subFuelTypeQuestions = item.scoseu_sub_fuel_type_questions;
-//                         if (Array.isArray(subFuelTypeQuestions) && subFuelTypeQuestions.length > 0) {
-//                             for (const subFuel of subFuelTypeQuestions) {
-//                                 await client.query(
-//                                     `INSERT INTO scoseu_sub_fuel_type_questions 
-//                          (ssft_id, scoseu_id, sub_fuel_type, consumption_quantity, unit)
-//                          VALUES ($1, $2, $3, $4, $5)`,
-//                                     [
-//                                         ulid(),
-//                                         scoseu_id,
-//                                         subFuel.sub_fuel_type,
-//                                         subFuel.consumption_quantity,
-//                                         subFuel.unit
-//                                     ]
-//                                 );
-//                             }
-//                         }
-//                     }
-//                 }
-
-//                 // 2. Handle mobile_combustion_company_owned_vehicles_questions
-//                 const mobileCombustionQuestions = scope_one_direct_emissions_questions.mobile_combustion_company_owned_vehicles_questions;
-//                 if (scopeOneResult.rowCount > 0 && Array.isArray(mobileCombustionQuestions) && mobileCombustionQuestions.length > 0) {
-//                     for (const vehicle of mobileCombustionQuestions) {
-//                         await client.query(
-//                             `INSERT INTO mobile_combustion_company_owned_vehicles_questions 
-//                  (mccov_id, sode_id, fuel_type, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5)`,
-//                             [
-//                                 ulid(),
-//                                 sode_id,
-//                                 vehicle.fuel_type,
-//                                 vehicle.quantity,
-//                                 vehicle.unit
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 3. Handle refrigerants_questions
-//                 const refrigerantsQuestions = scope_one_direct_emissions_questions.refrigerants_questions;
-//                 if (scopeOneResult.rowCount > 0 && Array.isArray(refrigerantsQuestions) && refrigerantsQuestions.length > 0) {
-//                     for (const refrigerant of refrigerantsQuestions) {
-//                         await client.query(
-//                             `INSERT INTO refrigerants_questions 
-//                  (refr_id, sode_id, refrigerant_type, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5)`,
-//                             [
-//                                 ulid(),
-//                                 sode_id,
-//                                 refrigerant.refrigerant_type,
-//                                 refrigerant.quantity,
-//                                 refrigerant.unit
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 4. Handle process_emissions_sources_questions
-//                 const processEmissionsQuestions = scope_one_direct_emissions_questions.process_emissions_sources_questions;
-//                 if (scopeOneResult.rowCount > 0 && Array.isArray(processEmissionsQuestions) && processEmissionsQuestions.length > 0) {
-//                     for (const emission of processEmissionsQuestions) {
-//                         await client.query(
-//                             `INSERT INTO process_emissions_sources_questions 
-//                  (pes_id, sode_id, source, gas_type, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(),
-//                                 sode_id,
-//                                 emission.source,
-//                                 emission.gas_type,
-//                                 emission.quantity,
-//                                 emission.unit
-//                             ]
-//                         );
-//                     }
-//                 }
-//             }
-
-//             if (scope_two_indirect_emissions_questions) {
-//                 let stide_id = ulid();
-
-//                 // Insert parent record
-//                 const scopeTwoInsert = `
-//         INSERT INTO scope_two_indirect_emissions_questions (
-//             stide_id, sgiq_id, do_you_acquired_standardized_re_certificates,
-//             methodology_to_allocate_factory_energy_to_product_level, methodology_details_document_url,
-//             energy_intensity_of_production_estimated_kwhor_mj, process_specific_energy_usage,
-//             do_you_use_any_abatement_systems, water_consumption_and_treatment_details,
-//             do_you_perform_destructive_testing, it_system_use_for_production_control,
-//             total_energy_consumption_of_it_hardware_production, energy_con_included_total_energy_pur_sec_two_qfortythree,
-//             do_you_use_cloud_based_system_for_production, do_you_use_any_cooling_sysytem_for_server,
-//             energy_con_included_total_energy_pur_sec_two_qfifty
-//         )
-//         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-//         RETURNING *;
-//     `;
-
-//                 const scopeTwoResult = await client.query(scopeTwoInsert, [
-//                     stide_id,
-//                     sgiq_id,
-//                     scope_two_indirect_emissions_questions.do_you_acquired_standardized_re_certificates ?? false,
-//                     scope_two_indirect_emissions_questions.methodology_to_allocate_factory_energy_to_product_level ?? false,
-//                     scope_two_indirect_emissions_questions.methodology_details_document_url,
-//                     scope_two_indirect_emissions_questions.energy_intensity_of_production_estimated_kwhor_mj ?? false,
-//                     scope_two_indirect_emissions_questions.process_specific_energy_usage ?? false,
-//                     scope_two_indirect_emissions_questions.do_you_use_any_abatement_systems ?? false,
-//                     scope_two_indirect_emissions_questions.water_consumption_and_treatment_details,
-//                     scope_two_indirect_emissions_questions.do_you_perform_destructive_testing ?? false,
-//                     scope_two_indirect_emissions_questions.it_system_use_for_production_control,
-//                     scope_two_indirect_emissions_questions.total_energy_consumption_of_it_hardware_production ?? false,
-//                     scope_two_indirect_emissions_questions.energy_con_included_total_energy_pur_sec_two_qfortythree ?? false,
-//                     scope_two_indirect_emissions_questions.do_you_use_cloud_based_system_for_production ?? false,
-//                     scope_two_indirect_emissions_questions.do_you_use_any_cooling_sysytem_for_server ?? false,
-//                     scope_two_indirect_emissions_questions.energy_con_included_total_energy_pur_sec_two_qfifty ?? false
-//                 ]);
-
-//                 // 1. scope_two_indirect_emissions_from_purchased_energy_questions
-//                 const purchasedEnergyQuestions = scope_two_indirect_emissions_questions.scope_two_indirect_emissions_from_purchased_energy_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(purchasedEnergyQuestions) && purchasedEnergyQuestions.length > 0) {
-//                     for (const energy of purchasedEnergyQuestions) {
-//                         await client.query(
-//                             `INSERT INTO scope_two_indirect_emissions_from_purchased_energy_questions 
-//                  (stidefpe_id, stide_id, energy_source, energy_type, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, energy.energy_source, energy.energy_type, energy.quantity, energy.unit]
-//                         );
-//                     }
-//                 }
-
-//                 // 2. scope_two_indirect_emissions_certificates_questions
-//                 const certificatesQuestions = scope_two_indirect_emissions_questions.scope_two_indirect_emissions_certificates_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(certificatesQuestions) && certificatesQuestions.length > 0) {
-//                     for (const cert of certificatesQuestions) {
-//                         await client.query(
-//                             `INSERT INTO scope_two_indirect_emissions_certificates_questions 
-//                  (stidec_id, stide_id, certificate_name, mechanism, serial_id, generator_id, 
-//                   generator_name, generator_location, date_of_generation, issuance_date)
-//                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-//                             [
-//                                 ulid(), stide_id, cert.certificate_name, cert.mechanism, cert.serial_id,
-//                                 cert.generator_id, cert.generator_name, cert.generator_location,
-//                                 cert.date_of_generation, cert.issuance_date
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 3. energy_intensity_of_production_estimated_kwhor_mj_questions
-//                 const energyIntensityQuestions = scope_two_indirect_emissions_questions.energy_intensity_of_production_estimated_kwhor_mj_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(energyIntensityQuestions) && energyIntensityQuestions.length > 0) {
-//                     for (const item of energyIntensityQuestions) {
-//                         await client.query(
-//                             `INSERT INTO energy_intensity_of_production_estimated_kwhor_mj_questions 
-//                  (eiopekm_id, stide_id, product_name, energy_intensity, unit)
-//                  VALUES ($1, $2, $3, $4, $5)`,
-//                             [ulid(), stide_id, item.product_name, item.energy_intensity, item.unit]
-//                         );
-//                     }
-//                 }
-
-//                 // 4. process_specific_energy_usage_questions
-//                 const processEnergyQuestions = scope_two_indirect_emissions_questions.process_specific_energy_usage_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(processEnergyQuestions) && processEnergyQuestions.length > 0) {
-//                     for (const process of processEnergyQuestions) {
-//                         await client.query(
-//                             `INSERT INTO process_specific_energy_usage_questions 
-//                  (pseu_id, stide_id, process_specific_energy_type, quantity_consumed, unit, support_from_enviguide)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stide_id, process.process_specific_energy_type,
-//                                 process.quantity_consumed, process.unit, process.support_from_enviguide ?? false
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 5. abatement_systems_used_questions
-//                 const abatementQuestions = scope_two_indirect_emissions_questions.abatement_systems_used_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(abatementQuestions) && abatementQuestions.length > 0) {
-//                     for (const system of abatementQuestions) {
-//                         await client.query(
-//                             `INSERT INTO abatement_systems_used_questions 
-//                  (asu_id, stide_id, source, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5)`,
-//                             [ulid(), stide_id, system.source, system.quantity, system.unit]
-//                         );
-//                     }
-//                 }
-
-//                 // 6. type_of_quality_control_equipment_usage_questions
-//                 const qcEquipmentQuestions = scope_two_indirect_emissions_questions.type_of_quality_control_equipment_usage_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(qcEquipmentQuestions) && qcEquipmentQuestions.length > 0) {
-//                     for (const equipment of qcEquipmentQuestions) {
-//                         await client.query(
-//                             `INSERT INTO type_of_quality_control_equipment_usage_questions 
-//                  (toqceu_id, stide_id, equipment_name, quantity, unit, avg_operating_hours_per_month)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stide_id, equipment.equipment_name, equipment.quantity,
-//                                 equipment.unit, equipment.avg_operating_hours_per_month
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 7. electricity_consumed_for_quality_control_questions
-//                 const electricityQCQuestions = scope_two_indirect_emissions_questions.electricity_consumed_for_quality_control_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(electricityQCQuestions) && electricityQCQuestions.length > 0) {
-//                     for (const elec of electricityQCQuestions) {
-//                         await client.query(
-//                             `INSERT INTO electricity_consumed_for_quality_control_questions 
-//                  (ecfqc_id, stide_id, energy_type, quantity, unit, period)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, elec.energy_type, elec.quantity, elec.unit, elec.period]
-//                         );
-//                     }
-//                 }
-
-//                 // 8. quality_control_process_usage_questions
-//                 const qcProcessQuestions = scope_two_indirect_emissions_questions.quality_control_process_usage_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(qcProcessQuestions) && qcProcessQuestions.length > 0) {
-//                     for (const process of qcProcessQuestions) {
-//                         await client.query(
-//                             `INSERT INTO quality_control_process_usage_questions 
-//                  (qcpu_id, stide_id, process_name, quantity, unit, period)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, process.process_name, process.quantity, process.unit, process.period]
-//                         );
-//                     }
-//                 }
-
-//                 // 9. quality_control_process_usage_pressure_or_flow_questions
-//                 const qcFlowQuestions = scope_two_indirect_emissions_questions.quality_control_process_usage_pressure_or_flow_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(qcFlowQuestions) && qcFlowQuestions.length > 0) {
-//                     for (const flow of qcFlowQuestions) {
-//                         await client.query(
-//                             `INSERT INTO quality_control_process_usage_pressure_or_flow_questions 
-//                  (qcpupf_id, stide_id, flow_name, quantity, unit, period)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, flow.flow_name, flow.quantity, flow.unit, flow.period]
-//                         );
-//                     }
-//                 }
-
-//                 // 10. quality_control_use_any_consumables_questions
-//                 const qcConsumablesQuestions = scope_two_indirect_emissions_questions.quality_control_use_any_consumables_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(qcConsumablesQuestions) && qcConsumablesQuestions.length > 0) {
-//                     for (const consumable of qcConsumablesQuestions) {
-//                         await client.query(
-//                             `INSERT INTO quality_control_use_any_consumables_questions 
-//                  (qcuac_id, stide_id, consumable_name, mass_of_consumables, unit, period)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, consumable.flow_name, consumable.quantity, consumable.unit, consumable.period]
-//                         );
-//                     }
-//                 }
-
-//                 // 11. weight_of_samples_destroyed_questions
-//                 const samplesDestroyedQuestions = scope_two_indirect_emissions_questions.weight_of_samples_destroyed_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(samplesDestroyedQuestions) && samplesDestroyedQuestions.length > 0) {
-//                     for (const sample of samplesDestroyedQuestions) {
-//                         await client.query(
-//                             `INSERT INTO weight_of_samples_destroyed_questions 
-//                  (wosd_id, stide_id, component_name, weight, unit, period)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, sample.component_name, sample.weight, sample.unit, sample.period]
-//                         );
-//                     }
-//                 }
-
-//                 // 12. defect_or_rejection_rate_identified_by_quality_control_questions
-//                 const defectRateQuestions = scope_two_indirect_emissions_questions.defect_or_rejection_rate_identified_by_quality_control_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(defectRateQuestions) && defectRateQuestions.length > 0) {
-//                     for (const defect of defectRateQuestions) {
-//                         await client.query(
-//                             `INSERT INTO defect_or_rejection_rate_identified_by_quality_control_questions 
-//                  (dorriqc_id, stide_id, component_name, percentage)
-//                  VALUES ($1, $2, $3, $4)`,
-//                             [ulid(), stide_id, defect.component_name, defect.percentage]
-//                         );
-//                     }
-//                 }
-
-//                 // 13. rework_rate_due_to_quality_control_questions
-//                 const reworkRateQuestions = scope_two_indirect_emissions_questions.rework_rate_due_to_quality_control_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(reworkRateQuestions) && reworkRateQuestions.length > 0) {
-//                     for (const rework of reworkRateQuestions) {
-//                         await client.query(
-//                             `INSERT INTO rework_rate_due_to_quality_control_questions 
-//                  (rrdqc_id, stide_id, component_name, processes_involved, percentage)
-//                  VALUES ($1, $2, $3, $4, $5)`,
-//                             [ulid(), stide_id, rework.component_name, rework.processes_involved, rework.percentage]
-//                         );
-//                     }
-//                 }
-
-//                 // 14. weight_of_quality_control_waste_generated_questions
-//                 const wasteGeneratedQuestions = scope_two_indirect_emissions_questions.weight_of_quality_control_waste_generated_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(wasteGeneratedQuestions) && wasteGeneratedQuestions.length > 0) {
-//                     for (const waste of wasteGeneratedQuestions) {
-//                         await client.query(
-//                             `INSERT INTO weight_of_quality_control_waste_generated_questions 
-//                  (woqcwg_id, stide_id, waste_type, waste_weight, unit, treatment_type)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, waste.waste_type, waste.waste_weight, waste.unit, waste.treatment_type]
-//                         );
-//                     }
-//                 }
-
-//                 // 15. energy_consumption_for_qfortyfour_questions
-//                 const energyQ44Questions = scope_two_indirect_emissions_questions.energy_consumption_for_qfortyfour_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(energyQ44Questions) && energyQ44Questions.length > 0) {
-//                     for (const energy of energyQ44Questions) {
-//                         await client.query(
-//                             `INSERT INTO energy_consumption_for_qfortyfour_questions 
-//                  (ecfqff_id, stide_id, energy_purchased, energy_type, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, energy.energy_purchased, energy.energy_type, energy.quantity, energy.unit]
-//                         );
-//                     }
-//                 }
-
-//                 // 16. cloud_provider_details_questions
-//                 const cloudProviderQuestions = scope_two_indirect_emissions_questions.cloud_provider_details_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(cloudProviderQuestions) && cloudProviderQuestions.length > 0) {
-//                     for (const cloud of cloudProviderQuestions) {
-//                         await client.query(
-//                             `INSERT INTO cloud_provider_details_questions 
-//                  (cpd_id, stide_id, cloud_provider_name, virtual_machines, data_storage, data_transfer)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stide_id, cloud.cloud_provider_name, cloud.virtual_machines,
-//                                 cloud.data_storage, cloud.data_transfer
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 17. dedicated_monitoring_sensor_usage_questions
-//                 const sensorUsageQuestions = scope_two_indirect_emissions_questions.dedicated_monitoring_sensor_usage_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(sensorUsageQuestions) && sensorUsageQuestions.length > 0) {
-//                     for (const sensor of sensorUsageQuestions) {
-//                         await client.query(
-//                             `INSERT INTO dedicated_monitoring_sensor_usage_questions 
-//                  (dmsu_id, stide_id, type_of_sensor, sensor_quantity, energy_consumption, unit)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stide_id, sensor.type_of_sensor, sensor.sensor_quantity,
-//                                 sensor.energy_consumption, sensor.unit
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 18. annual_replacement_rate_of_sensor_questions
-//                 const sensorReplacementQuestions = scope_two_indirect_emissions_questions.annual_replacement_rate_of_sensor_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(sensorReplacementQuestions) && sensorReplacementQuestions.length > 0) {
-//                     for (const replacement of sensorReplacementQuestions) {
-//                         await client.query(
-//                             `INSERT INTO annual_replacement_rate_of_sensor_questions 
-//                  (arros_id, stide_id, consumable_name, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5)`,
-//                             [ulid(), stide_id, replacement.consumable_name, replacement.quantity, replacement.unit]
-//                         );
-//                     }
-//                 }
-
-//                 // 19. energy_consumption_for_qfiftyone_questions
-//                 const energyQ51Questions = scope_two_indirect_emissions_questions.energy_consumption_for_qfiftyone_questions;
-//                 if (scopeTwoResult.rowCount > 0 && Array.isArray(energyQ51Questions) && energyQ51Questions.length > 0) {
-//                     for (const energy of energyQ51Questions) {
-//                         await client.query(
-//                             `INSERT INTO energy_consumption_for_qfiftyone_questions 
-//                  (ecfqfo_id, stide_id, energy_purchased, energy_type, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [ulid(), stide_id, energy.energy_purchased, energy.energy_type, energy.quantity, energy.unit]
-//                         );
-//                     }
-//                 }
-//             }
-
-//             if (scope_three_other_indirect_emissions_questions) {
-//                 let stoie_id = ulid();
-
-//                 // Insert parent record
-//                 const scopeThreeInsert = `
-//         INSERT INTO scope_three_other_indirect_emissions_questions (
-//             stoie_id, sgiq_id, raw_materials_contact_enviguide_support,
-//             grade_of_metal_used, msds_link_or_upload_document,
-//             use_of_recycled_secondary_materials, percentage_of_pre_post_consumer_material_used_in_product,
-//             do_you_use_recycle_mat_for_packaging, percentage_of_recycled_content_used_in_packaging,
-//             do_you_use_electricity_for_packaging, energy_con_included_total_energy_pur_sec_two_qsixtysix,
-//             internal_or_external_waste_material_per_recycling, any_by_product_generated,
-//             do_you_track_emission_from_transport, mode_of_transport_used_for_transportation,
-//             mode_of_transport_enviguide_support, iso_14001_or_iso_50001_certified,
-//             standards_followed_iso_14067_GHG_catena_etc, do_you_report_to_cdp_sbti_or_other,
-//             measures_to_reduce_carbon_emissions_in_production, renewable_energy_initiatives_or_recycling_programs,
-//             your_company_info
-//         )
-//         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-//         RETURNING *;
-//     `;
-
-//                 const scopeThreeResult = await client.query(scopeThreeInsert, [
-//                     stoie_id,
-//                     sgiq_id,
-//                     scope_three_other_indirect_emissions_questions.raw_materials_contact_enviguide_support ?? false,
-//                     scope_three_other_indirect_emissions_questions.grade_of_metal_used,
-//                     scope_three_other_indirect_emissions_questions.msds_link_or_upload_document,
-//                     scope_three_other_indirect_emissions_questions.use_of_recycled_secondary_materials ?? false,
-//                     scope_three_other_indirect_emissions_questions.percentage_of_pre_post_consumer_material_used_in_product ?? false,
-//                     scope_three_other_indirect_emissions_questions.do_you_use_recycle_mat_for_packaging ?? false,
-//                     scope_three_other_indirect_emissions_questions.percentage_of_recycled_content_used_in_packaging,
-//                     scope_three_other_indirect_emissions_questions.do_you_use_electricity_for_packaging ?? false,
-//                     scope_three_other_indirect_emissions_questions.energy_con_included_total_energy_pur_sec_two_qsixtysix ?? false,
-//                     scope_three_other_indirect_emissions_questions.internal_or_external_waste_material_per_recycling,
-//                     scope_three_other_indirect_emissions_questions.any_by_product_generated ?? false,
-//                     scope_three_other_indirect_emissions_questions.do_you_track_emission_from_transport ?? false,
-//                     scope_three_other_indirect_emissions_questions.mode_of_transport_used_for_transportation ?? false,
-//                     scope_three_other_indirect_emissions_questions.mode_of_transport_enviguide_support ?? false,
-//                     scope_three_other_indirect_emissions_questions.iso_14001_or_iso_50001_certified ?? false,
-//                     scope_three_other_indirect_emissions_questions.standards_followed_iso_14067_GHG_catena_etc ?? false,
-//                     scope_three_other_indirect_emissions_questions.do_you_report_to_cdp_sbti_or_other ?? false,
-//                     scope_three_other_indirect_emissions_questions.measures_to_reduce_carbon_emissions_in_production,
-//                     scope_three_other_indirect_emissions_questions.renewable_energy_initiatives_or_recycling_programs,
-//                     scope_three_other_indirect_emissions_questions.your_company_info
-//                 ]);
-
-//                 // 1. raw_materials_used_in_component_manufacturing_questions (Q52)
-//                 const rawMaterialsQuestions = scope_three_other_indirect_emissions_questions.raw_materials_used_in_component_manufacturing_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(rawMaterialsQuestions) && rawMaterialsQuestions.length > 0) {
-//                     for (const material of rawMaterialsQuestions) {
-//                         await client.query(
-//                             `INSERT INTO raw_materials_used_in_component_manufacturing_questions 
-//                  (rmuicm_id, stoie_id, material_name, percentage)
-//                  VALUES ($1, $2, $3, $4)`,
-//                             [ulid(), stoie_id, material.material_name, material.percentage]
-//                         );
-//                     }
-//                 }
-
-//                 // 2. recycled_materials_with_percentage_questions (Q56)
-//                 const recycledMaterialsQuestions = scope_three_other_indirect_emissions_questions.recycled_materials_with_percentage_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(recycledMaterialsQuestions) && recycledMaterialsQuestions.length > 0) {
-//                     for (const recycled of recycledMaterialsQuestions) {
-//                         await client.query(
-//                             `INSERT INTO recycled_materials_with_percentage_questions 
-//                  (rmwp_id, stoie_id, material_name, percentage)
-//                  VALUES ($1, $2, $3, $4)`,
-//                             [ulid(), stoie_id, recycled.material_name, recycled.percentage]
-//                         );
-//                     }
-//                 }
-
-//                 // 3. pre_post_consumer_reutilization_percentage_questions (Q58)
-//                 const prePostConsumerQuestions = scope_three_other_indirect_emissions_questions.pre_post_consumer_reutilization_percentage_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(prePostConsumerQuestions) && prePostConsumerQuestions.length > 0) {
-//                     for (const consumer of prePostConsumerQuestions) {
-//                         await client.query(
-//                             `INSERT INTO pre_post_consumer_reutilization_percentage_questions 
-//                  (ppcrp_id, stoie_id, material_type, percentage)
-//                  VALUES ($1, $2, $3, $4)`,
-//                             [ulid(), stoie_id, consumer.material_type, consumer.percentage]
-//                         );
-//                     }
-//                 }
-
-//                 // 4. pir_pcr_material_percentage_questions (Q59)
-//                 const pirPcrQuestions = scope_three_other_indirect_emissions_questions.pir_pcr_material_percentage_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(pirPcrQuestions) && pirPcrQuestions.length > 0) {
-//                     for (const pir of pirPcrQuestions) {
-//                         await client.query(
-//                             `INSERT INTO pir_pcr_material_percentage_questions 
-//                  (ppmp_id, stoie_id, material_type, percentage)
-//                  VALUES ($1, $2, $3, $4)`,
-//                             [ulid(), stoie_id, pir.material_type, pir.percentage]
-//                         );
-//                     }
-//                 }
-
-//                 // 5. type_of_pack_mat_used_for_delivering_questions (Q60)
-//                 const packagingMaterialQuestions = scope_three_other_indirect_emissions_questions.type_of_pack_mat_used_for_delivering_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(packagingMaterialQuestions) && packagingMaterialQuestions.length > 0) {
-//                     for (const packaging of packagingMaterialQuestions) {
-//                         await client.query(
-//                             `INSERT INTO type_of_pack_mat_used_for_delivering_questions 
-//                  (topmudp_id, stoie_id, component_name, packagin_type, packaging_size, unit)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stoie_id, packaging.component_name, packaging.packagin_type,
-//                                 packaging.packaging_size, packaging.unit
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 6. weight_of_packaging_per_unit_product_questions (Q61)
-//                 const packagingWeightQuestions = scope_three_other_indirect_emissions_questions.weight_of_packaging_per_unit_product_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(packagingWeightQuestions) && packagingWeightQuestions.length > 0) {
-//                     for (const weight of packagingWeightQuestions) {
-//                         await client.query(
-//                             `INSERT INTO weight_of_packaging_per_unit_product_questions 
-//                  (woppup_id, stoie_id, component_name, packagin_weight, unit)
-//                  VALUES ($1, $2, $3, $4, $5)`,
-//                             [ulid(), stoie_id, weight.component_name, weight.packagin_weight, weight.unit]
-//                         );
-//                     }
-//                 }
-
-//                 // 7. energy_consumption_for_qsixtyseven_questions (Q67)
-//                 const energyQ67Questions = scope_three_other_indirect_emissions_questions.energy_consumption_for_qsixtyseven_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(energyQ67Questions) && energyQ67Questions.length > 0) {
-//                     for (const energy of energyQ67Questions) {
-//                         await client.query(
-//                             `INSERT INTO energy_consumption_for_qsixtyseven_questions 
-//                  (ecfqss_id, stoie_id, energy_purchased, energy_type, quantity, unit)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stoie_id, energy.energy_purchased, energy.energy_type,
-//                                 energy.quantity, energy.unit
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 8. weight_of_pro_packaging_waste_questions (Q68)
-//                 const packagingWasteQuestions = scope_three_other_indirect_emissions_questions.weight_of_pro_packaging_waste_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(packagingWasteQuestions) && packagingWasteQuestions.length > 0) {
-//                     for (const waste of packagingWasteQuestions) {
-//                         await client.query(
-//                             `INSERT INTO weight_of_pro_packaging_waste_questions 
-//                  (woppw_id, stoie_id, waste_type, waste_weight, unit, treatment_type)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stoie_id, waste.waste_type, waste.waste_weight,
-//                                 waste.unit, waste.treatment_type
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 9. type_of_by_product_questions (Q71)
-//                 const byProductQuestions = scope_three_other_indirect_emissions_questions.type_of_by_product_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(byProductQuestions) && byProductQuestions.length > 0) {
-//                     for (const byProduct of byProductQuestions) {
-//                         await client.query(
-//                             `INSERT INTO type_of_by_product_questions 
-//                  (topbp_id, stoie_id, component_name, by_product, price_per_product, quantity)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stoie_id, byProduct.component_name, byProduct.by_product,
-//                                 byProduct.price_per_product, byProduct.quantity
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 10. co_two_emission_of_raw_material_questions (Q73)
-//                 const co2EmissionQuestions = scope_three_other_indirect_emissions_questions.co_two_emission_of_raw_material_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(co2EmissionQuestions) && co2EmissionQuestions.length > 0) {
-//                     for (const emission of co2EmissionQuestions) {
-//                         await client.query(
-//                             `INSERT INTO co_two_emission_of_raw_material_questions 
-//                  (coteorm_id, stoie_id, raw_material_name, transport_mode, source_location, 
-//                   destination_location, co_two_emission)
-//                  VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-//                             [
-//                                 ulid(), stoie_id, emission.raw_material_name, emission.transport_mode,
-//                                 emission.source_location, emission.destination_location, emission.co_two_emission
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 11. mode_of_transport_used_for_transportation_questions (Q74)
-//                 const transportModeQuestions = scope_three_other_indirect_emissions_questions.mode_of_transport_used_for_transportation_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(transportModeQuestions) && transportModeQuestions.length > 0) {
-//                     for (const transport of transportModeQuestions) {
-//                         await client.query(
-//                             `INSERT INTO mode_of_transport_used_for_transportation_questions 
-//                  (motuft_id, stoie_id, mode_of_transport, weight_transported, source_point, 
-//                   drop_point, distance)
-//                  VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-//                             [
-//                                 ulid(), stoie_id, transport.mode_of_transport, transport.weight_transported,
-//                                 transport.source_point, transport.drop_point, transport.distance
-//                             ]
-//                         );
-//                     }
-//                 }
-
-//                 // 12. destination_plant_component_transportation_questions (Q75)
-//                 const destinationPlantQuestions = scope_three_other_indirect_emissions_questions.destination_plant_component_transportation_questions;
-//                 if (scopeThreeResult.rowCount > 0 && Array.isArray(destinationPlantQuestions) && destinationPlantQuestions.length > 0) {
-//                     for (const destination of destinationPlantQuestions) {
-//                         await client.query(
-//                             `INSERT INTO destination_plant_component_transportation_questions 
-//                  (dpct_id, stoie_id, country, state, city, pincode)
-//                  VALUES ($1, $2, $3, $4, $5, $6)`,
-//                             [
-//                                 ulid(), stoie_id, destination.country, destination.state,
-//                                 destination.city, destination.pincode
-//                             ]
-//                         );
-//                     }
-//                 }
-//             }
-
-//             if (scope_four_avoided_emissions_questions) {
-//                 let sfae_id = ulid();
-
-//                 // Insert parent record
-//                 const scopeThreeInsert = `
-//         INSERT INTO scope_four_avoided_emissions_questions (
-//             sfae_id, sgiq_id, products_or_services_that_help_reduce_customer_emissions,
-//             circular_economy_practices_reuse_take_back_epr_refurbishment, 
-//             renewable_energy_carbon_offset_projects_implemented
-//         )
-//         VALUES ($1, $2, $3, $4, $5)
-//         RETURNING *;
-//     `;
-
-//                 const scopeFourResult = await client.query(scopeThreeInsert, [
-//                     sfae_id,
-//                     sgiq_id,
-//                     scope_four_avoided_emissions_questions.products_or_services_that_help_reduce_customer_emissions ?? false,
-//                     scope_four_avoided_emissions_questions.circular_economy_practices_reuse_take_back_epr_refurbishment,
-//                     scope_four_avoided_emissions_questions.renewable_energy_carbon_offset_projects_implemented
-//                 ]);
-//             }
-
-//             const bomPCFStagesData = {
-//                 bom_pcf_id: bom_pcf_id,
-//                 data_collected_by: sup_id,
-//                 completed_date: new Date()
-//             };
-
-//             // PCF Request Stages - Data Collection Stage updated
-//             if (bomPCFStagesData) {
-//                 await client.query(
-//                     `
-//                         INSERT INTO pcf_request_data_collection_stage 
-//                         (id, bom_pcf_id, data_collected_by, completed_date)
-//                         VALUES ($1, $2, $3, $4);
-//                         `,
-//                     [ulid(), bom_pcf_id, bomPCFStagesData.data_collected_by, bomPCFStagesData.completed_date]
-//                 );
-
-//                 await client.query(
-//                     `UPDATE pcf_request_stages SET is_data_collected = true WHERE bom_pcf_id = $1;`, [bom_pcf_id]
-//                 );
-//             }
-
-//             // Commit transaction
-//             await client.query("COMMIT");
-
-//             return res.send(
-//                 generateResponse(true, "Supplier sustainability data added successfully", 200, "Supplier sustainability data added successfully")
-//             );
-//         } catch (error: any) {
-//             await client.query("ROLLBACK"); // rollback on failure
-//             return res.send(generateResponse(false, error.message, 400, null));
-//         }
-//     });
-// }
-
 
 // UNIVERSAL BULK INSERT HELPER
 async function bulkInsert(client: any, tableName: string, columns: string[], rows: any[][]) {
@@ -1619,9 +717,8 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             // Validation
             if (!supplier_general_info_questions?.bom_pcf_id ||
-                !supplier_general_info_questions?.bom_id ||
                 !supplier_general_info_questions?.sup_id) {
-                return res.send(generateResponse(false, "bom_pcf_id, bom_id and sup_id are required", 400, null));
+                return res.send(generateResponse(false, "bom_pcf_id and sup_id are required", 400, null));
             }
 
             const sup_id = supplier_general_info_questions.sup_id;
@@ -1630,23 +727,25 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const sgiq_id = ulid();
             const allDQRConfigs: any[] = [];
 
+            scope_two_indirect_emissions_questions.sup_id = sup_id;
+
             // ============================================
             // STEP 1: Insert General Info (REQUIRED FIRST)
             // ============================================
             const generalInsert = `
                 INSERT INTO supplier_general_info_questions (
-                    sgiq_id, bom_id, bom_pcf_id, ere_acknowledge, repm_acknowledge, dc_acknowledge,
+                    sgiq_id, bom_pcf_id, ere_acknowledge, repm_acknowledge, dc_acknowledge,
                     organization_name, core_business_activitiy, specify_other_activity, designation,
                     email_address, no_of_employees, specify_other_no_of_employees, annual_revenue,
                     specify_other_annual_revenue, annual_reporting_period, 
                     availability_of_scope_one_two_three_emissions_data, sup_id
                 )
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
                 RETURNING *;
             `;
 
             const generalResult = await client.query(generalInsert, [
-                sgiq_id, bom_id, bom_pcf_id,
+                sgiq_id, bom_pcf_id,
                 supplier_general_info_questions.ere_acknowledge ?? false,
                 supplier_general_info_questions.repm_acknowledge ?? false,
                 supplier_general_info_questions.dc_acknowledge ?? false,
@@ -1742,16 +841,16 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             // ============================================
             // STEP 3: Update PCF stages
             // ============================================
-            await client.query(
-                `INSERT INTO pcf_request_data_collection_stage 
-                 (id, bom_pcf_id, data_collected_by, completed_date)
-                 VALUES ($1, $2, $3, $4);`,
-                [ulid(), bom_pcf_id, sup_id, new Date()]
-            );
+
+            // await client.query(
+            //     `UPDATE pcf_request_stages SET is_data_collected = true WHERE bom_pcf_id = $1;`,
+            //     [bom_pcf_id]
+            // );
 
             await client.query(
-                `UPDATE pcf_request_stages SET is_data_collected = true WHERE bom_pcf_id = $1;`,
-                [bom_pcf_id]
+                `UPDATE pcf_request_data_collection_stage SET is_submitted = true,completed_date=NOW()
+                 WHERE bom_pcf_id = $1 AND sup_id=$2;`,
+                [bom_pcf_id, sup_id]
             );
 
             console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
@@ -1826,19 +925,21 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             dqrQ13.push({
                 childId: psd_id,
                 data: {
+                    bom_id: p.bom_id,
+                    material_number: p.material_number,
                     product_name: p.product_name,
                     location: p.location
                 }
             });
 
             // Row for bulk insert
-            return [psd_id, spq_id, p.product_name, p.location];
+            return [psd_id, spq_id, p.bom_id, p.material_number, p.product_name, p.location];
         });
 
         childInserts.push(bulkInsert(
             client,
             'production_site_details_questions',
-            ['psd_id', 'spq_id', 'product_name', 'location'],
+            ['psd_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'location'],
             insertRows
         ));
 
@@ -1862,6 +963,8 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             dqrQ15.push({
                 childId: pcm_id,
                 data: {
+                    bom_id: p.bom_id,
+                    material_number: p.material_number,
                     product_name: p.product_name,
                     production_period: p.production_period,
                     weight_per_unit: p.weight_per_unit,
@@ -1873,7 +976,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
 
             // Return row for bulk insert
             return [
-                pcm_id, spq_id, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity
+                pcm_id, spq_id, p.bom_id, p.material_number, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity
             ];
         });
 
@@ -1881,7 +984,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
         childInserts.push(bulkInsert(
             client,
             'product_component_manufactured_questions',
-            ['pcm_id', 'spq_id', 'product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity'],
+            ['pcm_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity'],
             insertRows
             // data.product_component_manufactured_questions.map((p: any) =>
             //     [ulid(), spq_id, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity]
@@ -1907,6 +1010,8 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             dqrQ15Point2.push({
                 childId: cpcev_id,
                 data: {
+                    bom_id: p.bom_id,
+                    material_number: p.material_number,
                     product_name: p.product_name,
                     co_product_name: p.co_product_name,
                     weight: p.weight,
@@ -1917,7 +1022,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
 
             // Return row for bulk insert
             return [
-                cpcev_id, spq_id, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
+                cpcev_id, spq_id, p.bom_id, p.material_number, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
             ];
         });
 
@@ -1925,7 +1030,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
         childInserts.push(bulkInsert(
             client,
             'co_product_component_economic_value_questions',
-            ['cpcev_id', 'spq_id', 'product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity'],
+            ['cpcev_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity'],
             insertRows
             // data.co_product_component_economic_value_questions.map((c: any) =>
             //     [ulid(), spq_id, c.product_name, c.co_product_name, c.weight, c.price_per_product, c.quantity]
@@ -2398,17 +1503,18 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                     energy_source: e.energy_source,
                     energy_type: e.energy_type,
                     quantity: e.quantity,
-                    unit: e.unit
+                    unit: e.unit,
+                    sup_id: e.sup_id
                 }
             });
 
-            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit];
+            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.sup_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'scope_two_indirect_emissions_from_purchased_energy_questions',
-            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit'],
+            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'sup_id'],
             rows
         ));
 
@@ -2467,13 +1573,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                 payload: i
             });
 
-            return [eiopekm_id, stide_id, i.product_name, i.energy_intensity, i.unit];
+            return [eiopekm_id, stide_id, i.bom_id, i.material_number, i.product_name, i.energy_intensity, i.unit];
         });
 
         childInserts.push(bulkInsert(
             client,
             'energy_intensity_of_production_estimated_kwhor_mj_questions',
-            ['eiopekm_id', 'stide_id', 'product_name', 'energy_intensity', 'unit'],
+            ['eiopekm_id', 'stide_id', 'bom_id', 'material_number', 'product_name', 'energy_intensity', 'unit'],
             rows
         ));
 
@@ -2709,13 +1815,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                 data: JSON.stringify(w)
             });
 
-            return [wosd_id, stide_id, w.component_name, w.weight, w.unit, w.period];
+            return [wosd_id, stide_id, w.bom_id, w.material_number, w.component_name, w.weight, w.unit, w.period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_samples_destroyed_questions',
-            ['wosd_id', 'stide_id', 'component_name', 'weight', 'unit', 'period'],
+            ['wosd_id', 'stide_id', 'bom_id', 'material_number', 'component_name', 'weight', 'unit', 'period'],
             rows
         ));
 
@@ -2739,13 +1845,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                 data: JSON.stringify(d)
             });
 
-            return [dorriqc_id, stide_id, d.component_name, d.percentage];
+            return [dorriqc_id, stide_id, d.bom_id, d.material_number, d.component_name, d.percentage];
         });
 
         childInserts.push(bulkInsert(
             client,
             'defect_or_rejection_rate_identified_by_quality_control_questions',
-            ['dorriqc_id', 'stide_id', 'component_name', 'percentage'],
+            ['dorriqc_id', 'stide_id', 'bom_id', 'material_number', 'component_name', 'percentage'],
             rows
         ));
 
@@ -2769,13 +1875,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                 data: JSON.stringify(r)
             });
 
-            return [rrdqc_id, stide_id, r.component_name, r.processes_involved, r.percentage];
+            return [rrdqc_id, stide_id, r.bom_id, r.material_number, r.component_name, r.processes_involved, r.percentage];
         });
 
         childInserts.push(bulkInsert(
             client,
             'rework_rate_due_to_quality_control_questions',
-            ['rrdqc_id', 'stide_id', 'component_name', 'processes_involved', 'percentage'],
+            ['rrdqc_id', 'stide_id', 'bom_id', 'material_number', 'component_name', 'processes_involved', 'percentage'],
             rows
         ));
 
@@ -3244,18 +2350,20 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 records: dqr52,
                 childId: rmuicm_id,
                 payload: {
+                    bom_id: m.bom_id,
+                    material_number: m.material_number,
                     material_name: m.material_name,
                     percentage: m.percentage
                 }
             });
 
-            return [rmuicm_id, stoie_id, m.material_name, m.percentage];
+            return [rmuicm_id, stoie_id, m.bom_id, m.material_number, m.material_name, m.percentage];
         });
 
         childInserts.push(bulkInsert(
             client,
             'raw_materials_used_in_component_manufacturing_questions',
-            ['rmuicm_id', 'stoie_id', 'material_name', 'percentage'],
+            ['rmuicm_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage'],
             rows
         ));
 
@@ -3278,18 +2386,20 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 records: dqr56,
                 childId: rmwp_id,
                 payload: {
+                    bom_id: r.bom_id,
+                    material_number: r.material_number,
                     material_name: r.material_name,
                     percentage: r.percentage
                 }
             });
 
-            return [rmwp_id, stoie_id, r.material_name, r.percentage];
+            return [rmwp_id, stoie_id, r.bom_id, r.material_number, r.material_name, r.percentage];
         });
 
         childInserts.push(bulkInsert(
             client,
             'recycled_materials_with_percentage_questions',
-            ['rmwp_id', 'stoie_id', 'material_name', 'percentage'],
+            ['rmwp_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage'],
             rows
         ));
 
@@ -3382,13 +2492,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 payload: p
             });
 
-            return [topmudp_id, stoie_id, p.component_name, p.packagin_type, p.packaging_size, p.unit];
+            return [topmudp_id, stoie_id, p.bom_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit];
         });
 
         childInserts.push(bulkInsert(
             client,
             'type_of_pack_mat_used_for_delivering_questions',
-            ['topmudp_id', 'stoie_id', 'component_name', 'packagin_type', 'packaging_size', 'unit'],
+            ['topmudp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit'],
             rows
         ));
 
@@ -3413,13 +2523,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 payload: w
             });
 
-            return [woppup_id, stoie_id, w.component_name, w.packagin_weight, w.unit];
+            return [woppup_id, stoie_id, w.bom_id, w.material_number, w.component_name, w.packagin_weight, w.unit];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_packaging_per_unit_product_questions',
-            ['woppup_id', 'stoie_id', 'component_name', 'packagin_weight', 'unit'],
+            ['woppup_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_weight', 'unit'],
             rows
         ));
 
@@ -3509,6 +2619,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 records: dqr71,
                 childId: topbp_id,
                 payload: {
+                    bom_id: b.bom_id,
+                    material_number: b.material_number,
                     component_name: b.component_name,
                     by_product: b.by_product,
                     price_per_product: b.price_per_product,
@@ -3516,13 +2628,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 }
             });
 
-            return [topbp_id, stoie_id, b.component_name, b.by_product, b.price_per_product, b.quantity];
+            return [topbp_id, stoie_id, b.bom_id, b.material_number, b.component_name, b.by_product, b.price_per_product, b.quantity];
         });
 
         childInserts.push(bulkInsert(
             client,
             'type_of_by_product_questions',
-            ['topbp_id', 'stoie_id', 'component_name', 'by_product', 'price_per_product', 'quantity'],
+            ['topbp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'by_product', 'price_per_product', 'quantity'],
             rows
         ));
 
@@ -3752,10 +2864,11 @@ export async function getSupplierDetailsList(req: any, res: any) {
             // Data query
             const dataQuery = `
             WITH base_data AS (
-                SELECT
-                    sgiq.*,
+    SELECT
+        sgiq.*,
 
-                json_build_object(
+        -- Supplier Object
+        json_build_object(
             'sup_id', sd.sup_id,
             'code', sd.code,
             'supplier_name', sd.supplier_name,
@@ -3763,15 +2876,26 @@ export async function getSupplierDetailsList(req: any, res: any) {
             'supplier_phone_number', sd.supplier_phone_number
         ) AS supplier_details,
 
-                          -- BOM Object
-        json_build_object(
-            'bom_id', b.id,
-            'material_number', b.material_number,
-            'component_name', b.component_name,
-            'production_location', b.production_location
+        -- BOM ARRAY (IMPORTANT CHANGE)
+        (
+            SELECT COALESCE(
+                json_agg(
+                    json_build_object(
+                        'bom_id', b.id,
+                        'material_number', b.material_number,
+                        'component_name', b.component_name,
+                        'production_location', b.production_location
+                    )
+                    ORDER BY b.created_date DESC
+                ),
+                '[]'::json
+            )
+            FROM bom b
+            WHERE b.bom_pcf_id = sgiq.bom_pcf_id
+              AND b.supplier_id = sgiq.sup_id
         ) AS bom,
 
-              -- BOM PCF Object
+        -- BOM PCF Object
         json_build_object(
             'pcf_id', pcf.id,
             'code', pcf.code,
@@ -3782,11 +2906,13 @@ export async function getSupplierDetailsList(req: any, res: any) {
             'request_description', pcf.request_description
         ) AS bom_pcf
 
-                FROM supplier_general_info_questions sgiq
-                LEFT JOIN supplier_details sd ON sd.sup_id = sgiq.sup_id
-                LEFT JOIN bom b ON b.id = sgiq.bom_id
-                LEFT JOIN bom_pcf_request pcf ON pcf.id = sgiq.bom_pcf_id
-            )
+    FROM supplier_general_info_questions sgiq
+    LEFT JOIN supplier_details sd 
+        ON sd.sup_id = sgiq.sup_id
+    LEFT JOIN bom_pcf_request pcf 
+        ON pcf.id = sgiq.bom_pcf_id
+)
+
 SELECT
     bd.*,
 
@@ -3810,8 +2936,9 @@ SELECT
     END AS scope_one_two_three_emissions
 
 FROM base_data bd
-ORDER BY bd.sgiq_id DESC
+ORDER BY bd.created_date DESC
 LIMIT $1 OFFSET $2;
+
         `;
 
             const result = await client.query(dataQuery, [limit, offset]);
@@ -3850,12 +2977,29 @@ export async function getSupplierDetailsById(req: any, res: any) {
         to_jsonb(sgiq) AS supplier_general_info,
 
         to_jsonb(sd) AS supplier_details,
-        to_jsonb(b) AS bom,
+        /* ---------- BOM ARRAY (FIXED) ---------- */
+        (
+            SELECT COALESCE(
+                json_agg(
+                    json_build_object(
+                        'bom_id', b.id,
+                        'code', b.code,
+                        'material_number', b.material_number,
+                        'component_name', b.component_name,
+                        'production_location', b.production_location
+                    )
+                    ORDER BY b.created_date DESC
+                ),
+                '[]'::json
+            )
+            FROM bom b
+            WHERE b.bom_pcf_id = sgiq.bom_pcf_id
+              AND b.supplier_id = sgiq.sup_id
+        ) AS bom,
         to_jsonb(pcf) AS bom_pcf
 
     FROM supplier_general_info_questions sgiq
     LEFT JOIN supplier_details sd ON sd.sup_id = sgiq.sup_id
-    LEFT JOIN bom b ON b.id = sgiq.bom_id
     LEFT JOIN bom_pcf_request pcf ON pcf.id = sgiq.bom_pcf_id
     WHERE sgiq.sgiq_id = $1
 )
@@ -4163,6 +3307,43 @@ export async function updateSupplierSustainabilityData(req: any, res: any) {
             await client.query('ROLLBACK');
             console.error(error);
             return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getPCFBOMListToAutoPop(req: any, res: any) {
+    const { bom_pcf_id, sup_id } = req.query;
+
+    return withClient(async (client: any) => {
+        try {
+            const query = `
+                  SELECT 
+                    b.id AS bom_id,
+                    b.code AS bom_code,
+                    b.material_number,
+                    b.component_name,
+                    b.supplier_id
+                FROM bom b
+                WHERE b.bom_pcf_id = $1 AND b.supplier_id=$2
+                ORDER BY b.created_date DESC;
+            `;
+
+            const result = await client.query(query, [bom_pcf_id, sup_id]);
+
+            if (result.rows.length === 0) {
+                return res
+                    .status(200)
+                    .json(generateResponse(true, "No BOM records found in BOM", 200, []));
+            }
+
+            return res.status(200).json(
+                generateResponse(true, "Fetched successfully", 200, result.rows)
+            );
+        } catch (error: any) {
+            console.error("❌ Error in getPCFBOMListToAutoPop:", error);
+            return res.status(500).json(
+                generateResponse(false, "Something went wrong", 500, error.message)
+            );
         }
     });
 }
