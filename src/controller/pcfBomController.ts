@@ -1846,7 +1846,8 @@ export async function updatePcfRequestWithBOMDetails(req: any, res: any) {
                     updated_by = $12,
                     update_date = CURRENT_TIMESTAMP,
                     technical_specification_file =$14,
-                    product_images=$15
+                    product_images=$15,
+                    is_draft=$16
                 WHERE id = $13
             `;
 
@@ -1865,7 +1866,8 @@ export async function updatePcfRequestWithBOMDetails(req: any, res: any) {
                 updated_by,
                 bomPcfId,
                 bom_pcf_request.technical_specification_file,
-                bom_pcf_request.product_images
+                bom_pcf_request.product_images,
+                bom_pcf_request.is_draft
             ]);
 
             /* --------------------------------------------------

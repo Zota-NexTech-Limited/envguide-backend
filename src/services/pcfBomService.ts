@@ -5,16 +5,16 @@ export const bomService = {
                 id, request_title, priority, request_organization,
                 due_date, request_description, product_category_id, component_category_id,
                 component_type_id, product_code,manufacturer_id,model_version,created_by,
-                 technical_specification_file,product_images,code
+                 technical_specification_file,product_images,is_draft,code
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'PCF' || LPAD(nextval('pcf_code_seq')::text, 5, '0')
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'PCF' || LPAD(nextval('pcf_code_seq')::text, 5, '0')
             )
         `;
         const values = [
             data.id, data.request_title, data.priority, data.request_organization,
             data.due_date, data.request_description, data.product_category_id, data.component_category_id,
             data.component_type_id, data.product_code, data.manufacturer_id, data.model_version, data.created_by,
-            data.technical_specification_file, data.product_images
+            data.technical_specification_file, data.product_images, data.is_draft
         ];
         await client.query(query, values);
     },
