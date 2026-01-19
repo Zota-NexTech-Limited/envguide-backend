@@ -13,6 +13,7 @@ import product from './subRoutes/productRoutes';
 import imageRoutes from './subRoutes/imageRoutes';
 import masterDatasetup from './subRoutes/materDataSetupRoutes';
 import ecoinventEmissionFactorDataSetup from './subRoutes/ecoinventEmissionFactorDataSetupRoutes';
+import componentMaster from './subRoutes/componentMasterRoutes';
 
 export function routes(app: any) {
 
@@ -30,6 +31,7 @@ export function routes(app: any) {
     app.use(imageRoutes);
     app.use(masterDatasetup);
     app.use(ecoinventEmissionFactorDataSetup);
+    app.use(componentMaster);
     app.get('/health', (req: any, res: any) => {
         res.send('ok');
     });
