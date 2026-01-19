@@ -1490,6 +1490,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
     const childInserts = [];
 
     if (Array.isArray(data.scope_two_indirect_emissions_from_purchased_energy_questions)) {
+        data.scope_two_indirect_emissions_from_purchased_energy_questions = data.sup_id;
 
         const dqrQ22: any[] = [];
 
