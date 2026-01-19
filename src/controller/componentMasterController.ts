@@ -376,11 +376,73 @@ LEFT JOIN LATERAL (
     WHERE ps.bom_pcf_id = pcf.id
 ) ps ON TRUE
 
+/* ---------- BOM DETAILS (FULL) ---------- */
 LEFT JOIN LATERAL (
-    SELECT jsonb_agg(to_jsonb(b)) AS bom_details
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'id', b.id,
+            'code', b.code,
+            'material_number', b.material_number,
+            'component_name', b.component_name,
+            'quantity', b.qunatity,
+            'production_location', b.production_location,
+            'manufacturer', b.manufacturer,
+            'detail_description', b.detail_description,
+            'weight_gms', b.weight_gms,
+            'total_weight_gms', b.total_weight_gms,
+            'component_category', b.component_category,
+            'price', b.price,
+            'total_price', b.total_price,
+            'economic_ratio', b.economic_ratio,
+            'supplier_id', b.supplier_id,
+            'is_weight_gms', b.is_weight_gms,
+            'created_date', b.created_date,
+
+            'material_emission',
+            (SELECT jsonb_agg(to_jsonb(mem))
+             FROM bom_emission_material_calculation_engine mem
+             WHERE mem.bom_id = b.id),
+
+            'production_emission_calculation',
+            (SELECT to_jsonb(mep)
+             FROM bom_emission_production_calculation_engine mep
+             WHERE mep.bom_id = b.id
+             LIMIT 1),
+
+            'packaging_emission_calculation',
+            (SELECT to_jsonb(mpk)
+             FROM bom_emission_packaging_calculation_engine mpk
+             WHERE mpk.bom_id = b.id
+             LIMIT 1),
+
+            'waste_emission_calculation',
+            (SELECT to_jsonb(mw)
+             FROM bom_emission_waste_calculation_engine mw
+             WHERE mw.bom_id = b.id
+             LIMIT 1),
+
+            'logistic_emission_calculation',
+            (SELECT to_jsonb(ml)
+             FROM bom_emission_logistic_calculation_engine ml
+             WHERE ml.bom_id = b.id
+             LIMIT 1),
+
+            'pcf_total_emission_calculation',
+            (SELECT to_jsonb(pcfe)
+             FROM bom_emission_calculation_engine pcfe
+             WHERE pcfe.bom_id = b.id
+             LIMIT 1),
+
+            'allocation_methodology',
+            (SELECT to_jsonb(am)
+             FROM allocation_methodology am
+             WHERE am.bom_id = b.id
+             LIMIT 1)
+        )
+    ) AS bom_details
     FROM bom b
     WHERE b.bom_pcf_id = pcf.id
-    AND b.is_bom_calculated = TRUE
+      AND b.is_bom_calculated = TRUE
 ) bomd ON TRUE
 
 ${whereClause}

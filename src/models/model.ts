@@ -445,7 +445,7 @@ export async function createTables() {
 
         `CREATE TABLE IF NOT EXISTS allocation_methodology (
             id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255),   
+            bom_id VARCHAR(255) UNIQUE,   
             split_allocation BOOLEAN DEFAULT false,   
             sys_expansion_allocation BOOLEAN DEFAULT false,
             check_er_less_than_five VARCHAR(255),

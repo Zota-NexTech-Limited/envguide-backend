@@ -854,7 +854,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             );
 
             console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
-            // await createDQRRecords(client, allDQRConfigs);
+            await createDQRRecords(client, allDQRConfigs);
 
             await client.query("COMMIT");
 
@@ -1060,6 +1060,46 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
                 `UPDATE bom SET economic_ratio = $1 WHERE id = $2`,
                 [ER, bom_id]
             );
+
+            let econAllocation = 'NA';
+            let phyMassAllocation = 'Physical';
+            let checkER = 'Physical';
+
+            if (ER > 5) {
+                econAllocation = 'Economic';
+            }
+
+            await client.query(
+                `
+    INSERT INTO allocation_methodology (
+        id,
+        bom_id,
+        econ_allocation_er_greater_than_five,
+        phy_mass_allocation_er_less_than_five,
+        check_er_less_than_five
+    )
+    SELECT 
+        $1,
+        $2::VARCHAR(255),
+        $3,
+        $4,
+        $5
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM allocation_methodology
+        WHERE bom_id = $2::VARCHAR(255)
+    )
+    `,
+                [
+                    ulid(),
+                    bom_id,
+                    econAllocation,
+                    phyMassAllocation,
+                    checkER
+                ]
+            );
+
+
 
             console.log(`BOM ID ${bom_id} | BOM Price: ${bomPrice} | Avg Co-Product Price: ${avgPricePerProduct} | ER: ${ER}`);
         }
