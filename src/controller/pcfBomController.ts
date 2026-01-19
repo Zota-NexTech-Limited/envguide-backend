@@ -1072,9 +1072,9 @@ export async function createPcfRequestWithBOMDetails(req: any, res: any) {
             if (Array.isArray(bom)) {
                 for (const BomDetails of bom) {
 
-                    const total_weight_gms = BomDetails.qunatity * BomDetails.weight_gms;
-                    const total_price = BomDetails.qunatity * BomDetails.price;
-                    console.log(total_weight_gms, "calculation pcf", BomDetails.qunatity, BomDetails.weight_gms);
+                    const total_weight_gms = parseInt(BomDetails.qunatity) * parseFloat(BomDetails.weight_gms);
+                    const total_price = parseInt(BomDetails.qunatity) * parseFloat(BomDetails.price);
+                    console.log(total_weight_gms, "calculation pcf", parseInt(BomDetails.qunatity), BomDetails.weight_gms);
 
                     // insert or fetch supplier id
                     const supplier_id = await supplierService.getOrCreateSupplier(client, {
@@ -1403,6 +1403,7 @@ SELECT
                 'price', b.price,
                 'total_price', b.total_price,
                 'weight_gms', b.weight_gms,
+                'economic_ratio', b.economic_ratio,
                 'total_weight_gms', b.total_weight_gms,
                 'production_location',b.production_location,
                 'manufacturer',b.manufacturer,
@@ -2268,8 +2269,10 @@ export async function pcfCalculate(req: any, res: any) {
 
                 const Q15PointOneResult = fetchQ15PointOneSupResult.rows[0];
 
-                const Economic_Ratio_ER = (Q15Result.price / Q15PointOneResult.price_per_product);
-                console.log("Economic Ratio (ER):", Economic_Ratio_ER);
+                // const Economic_Ratio_ER = (Q15Result.price / Q15PointOneResult.price_per_product);
+                // console.log("Economic Ratio (ER):", Economic_Ratio_ER);
+
+                const Economic_Ratio_ER = BomData.economic_ratio;
 
                 const Allocation_Method = Economic_Ratio_ER > 5 ? "Economic Allocation Method" : "Physical Mass Balance allocation Method";
                 console.log("Allocation Method:", Allocation_Method);

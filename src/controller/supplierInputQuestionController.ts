@@ -854,7 +854,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             );
 
             console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
-            await createDQRRecords(client, allDQRConfigs);
+            // await createDQRRecords(client, allDQRConfigs);
 
             await client.query("COMMIT");
 
@@ -1002,6 +1002,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
     // Co-product component - BULK
     if (Array.isArray(data.co_product_component_economic_value_questions) && data.co_product_component_economic_value_questions.length > 0) {
         const dqrQ15Point2: any[] = [];
+        const bomGroups: Record<string, any[]> = {};
         // Q15
         const insertRows = data.co_product_component_economic_value_questions.map((p: any) => {
             const cpcev_id = ulid(); //unique child id
@@ -1020,6 +1021,9 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
                 }
             });
 
+            if (!bomGroups[p.bom_id]) bomGroups[p.bom_id] = [];
+            bomGroups[p.bom_id].push(p);
+
             // Return row for bulk insert
             return [
                 cpcev_id, spq_id, p.bom_id, p.material_number, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
@@ -1036,6 +1040,29 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             //     [ulid(), spq_id, c.product_name, c.co_product_name, c.weight, c.price_per_product, c.quantity]
             // )
         ));
+
+
+        for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
+            //  Fetch BOM price
+
+            const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1`, [bom_id]);
+            const bomPrice = bomRes.rows[0]?.price || 0;
+
+            //  Calculate average price_per_product
+            const totalPrice = coProducts.reduce((sum, p) => sum + (p.price_per_product || 0), 0);
+            const avgPricePerProduct = totalPrice / (coProducts.length || 1);
+
+            // Compute ER safely
+            const ER = bomPrice / (avgPricePerProduct || 1);
+
+            // Update BOM table
+            await client.query(
+                `UPDATE bom SET economic_ratio = $1 WHERE id = $2`,
+                [ER, bom_id]
+            );
+
+            console.log(`BOM ID ${bom_id} | BOM Price: ${bomPrice} | Avg Co-Product Price: ${avgPricePerProduct} | ER: ${ER}`);
+        }
 
         allDQRConfigs.push({
             tableName: 'dqr_co_product_component_manufactured_rating_qfiftenone',
