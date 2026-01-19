@@ -1072,9 +1072,9 @@ export async function createPcfRequestWithBOMDetails(req: any, res: any) {
             if (Array.isArray(bom)) {
                 for (const BomDetails of bom) {
 
-                    const total_weight_gms = BomDetails.qunatity * BomDetails.weight_gms;
-                    const total_price = BomDetails.qunatity * BomDetails.price;
-                    console.log(total_weight_gms, "calculation pcf", BomDetails.qunatity, BomDetails.weight_gms);
+                    const total_weight_gms = parseInt(BomDetails.qunatity) * parseFloat(BomDetails.weight_gms);
+                    const total_price = parseInt(BomDetails.qunatity) * parseFloat(BomDetails.price);
+                    console.log(total_weight_gms, "calculation pcf", parseInt(BomDetails.qunatity), BomDetails.weight_gms);
 
                     // insert or fetch supplier id
                     const supplier_id = await supplierService.getOrCreateSupplier(client, {
