@@ -14,6 +14,7 @@ import imageRoutes from './subRoutes/imageRoutes';
 import masterDatasetup from './subRoutes/materDataSetupRoutes';
 import ecoinventEmissionFactorDataSetup from './subRoutes/ecoinventEmissionFactorDataSetupRoutes';
 import componentMaster from './subRoutes/componentMasterRoutes';
+import reports from './subRoutes/reportsRoutes';
 
 export function routes(app: any) {
 
@@ -32,6 +33,7 @@ export function routes(app: any) {
     app.use(masterDatasetup);
     app.use(ecoinventEmissionFactorDataSetup);
     app.use(componentMaster);
+    app.use(reports);
     app.get('/health', (req: any, res: any) => {
         res.send('ok');
     });
