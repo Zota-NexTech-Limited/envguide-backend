@@ -363,6 +363,7 @@ export async function mirgation() {
             price DOUBLE PRECISION, 
             total_price DOUBLE PRECISION,
             economic_ratio DOUBLE PRECISION,
+            is_bom_calculated BOOLEAN DEFAULT false,
             supplier_id VARCHAR(255),
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
@@ -371,24 +372,9 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
-        `CREATE TABLE IF NOT EXISTS bom_supplier_co_product_value_calculation (
-            id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255),      
-            supplier_id VARCHAR(255),
-            co_product_id VARCHAR(255),
-            manufacturer_id VARCHAR(255),
-            economic_or_co_product_value DOUBLE PRECISION,
-            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-  );`,
-
         `CREATE TABLE IF NOT EXISTS bom_emission_material_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
             bom_id VARCHAR(255),
-            aluminium_id VARCHAR(255), 
-            silicon_id VARCHAR(255),
-            magnesium_id VARCHAR(255),
-            iron_id VARCHAR(255),
             material_composition DOUBLE PRECISION,
             material_composition_weight DOUBLE PRECISION,
             material_emission_factor DOUBLE PRECISION,
@@ -438,12 +424,7 @@ export async function mirgation() {
 
         `CREATE TABLE IF NOT EXISTS bom_emission_logistic_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255),      
-            transport_mode_id VARCHAR(255),
-            vehicle_id VARCHAR(255),
-            manufacturer_id VARCHAR(255),
-            user_id VARCHAR(255),
-            destination_site VARCHAR(255),
+            bom_id VARCHAR(255),    
             mass_transported_kg DOUBLE PRECISION,
             mass_transported_ton DOUBLE PRECISION,
             distance_km DOUBLE PRECISION,
