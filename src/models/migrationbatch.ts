@@ -3189,36 +3189,60 @@ export async function mirgation() {
 
 
         // ==============> ECOinvent Emission Factor DataSetup <================
+
         `CREATE TABLE IF NOT EXISTS materials_emission_factor (
     mef_id VARCHAR(255) PRIMARY KEY,
-    element_name VARCHAR(255) NOT NULL, 
-    ef_eu_region VARCHAR(255) NOT NULL,  
-    ef_india_region VARCHAR(255) NOT NULL,
-    ef_global_region VARCHAR(255) NOT NULL,
-    source VARCHAR(255) NOT NULL,
-    time VARCHAR(255) NOT NULL,
-    location VARCHAR(255) NOT NULL,
+    element_name VARCHAR(255), 
+    ef_eu_region VARCHAR(255),  
+    ef_india_region VARCHAR(255),
+    ef_global_region VARCHAR(255),
     year VARCHAR(255),
     unit VARCHAR(255),
     iso_country_code VARCHAR(255),
-    code VARCHAR(255) NOT NULL,
+    code VARCHAR(255),
     created_by VARCHAR(255),
     updated_by VARCHAR(255),
     update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );`,
 
+        `CREATE TABLE IF NOT EXISTS waste_treatment_type (
+            wtt_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
 
-        `CREATE TABLE IF NOT EXISTS electricity_emission_factor (
-    eef_id VARCHAR(255) PRIMARY KEY,
-    type_of_energy VARCHAR(255) NOT NULL, 
-    ef_eu_region VARCHAR(255) NOT NULL,  
-    ef_india_region VARCHAR(255) NOT NULL,
-    ef_global_region VARCHAR(255) NOT NULL,
+        `CREATE TABLE IF NOT EXISTS waste_material_treatment_type_emission_factor (
+    wmttef_id VARCHAR(255) PRIMARY KEY,
+    waste_type VARCHAR(255),
+    wtt_id VARCHAR(255),  
+    ef_eu_region VARCHAR(255),  
+    ef_india_region VARCHAR(255),
+    ef_global_region VARCHAR(255),
     year VARCHAR(255),
     unit VARCHAR(255),
     iso_country_code VARCHAR(255),
-    code VARCHAR(255) NOT NULL,
+    code VARCHAR(255),
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+
+        `CREATE TABLE IF NOT EXISTS electricity_emission_factor (
+    eef_id VARCHAR(255) PRIMARY KEY,
+    type_of_energy VARCHAR(255), 
+    ef_eu_region VARCHAR(255),  
+    ef_india_region VARCHAR(255),
+    ef_global_region VARCHAR(255),
+    year VARCHAR(255),
+    unit VARCHAR(255),
+    iso_country_code VARCHAR(255),
+    code VARCHAR(255),
     created_by VARCHAR(255),
     updated_by VARCHAR(255),
     update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -3227,71 +3251,46 @@ export async function mirgation() {
 
         `CREATE TABLE IF NOT EXISTS fuel_emission_factor (
     fef_id VARCHAR(255) PRIMARY KEY,
-    fuel_type VARCHAR(255) NOT NULL, 
-    ef_eu_region VARCHAR(255) NOT NULL,  
-    ef_india_region VARCHAR(255) NOT NULL,
-    ef_global_region VARCHAR(255) NOT NULL,
+    fuel_type VARCHAR(255), 
+    ef_eu_region VARCHAR(255),  
+    ef_india_region VARCHAR(255),
+    ef_global_region VARCHAR(255),
     year VARCHAR(255),
     unit VARCHAR(255),
     iso_country_code VARCHAR(255),
-    code VARCHAR(255) NOT NULL,
+    code VARCHAR(255),
     created_by VARCHAR(255),
     updated_by VARCHAR(255),
     update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );`,
 
+        `CREATE TABLE IF NOT EXISTS packaging_treatment_type (
+            ptt_id VARCHAR(255) PRIMARY KEY,
+            code VARCHAR(255), 
+            name VARCHAR(255),  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
 
-        `CREATE TABLE IF NOT EXISTS packaging_emission_factor (
+        `CREATE TABLE IF NOT EXISTS packaging_material_treatment_type_emission_factor (
     pef_id VARCHAR(255) PRIMARY KEY,
-    material_type VARCHAR(255) NOT NULL, 
-    ef_eu_region VARCHAR(255) NOT NULL,  
-    ef_india_region VARCHAR(255) NOT NULL,
-    ef_global_region VARCHAR(255) NOT NULL,
+    material_type VARCHAR(255),
+    ptt_id VARCHAR(255), 
+    ef_eu_region VARCHAR(255),  
+    ef_india_region VARCHAR(255),
+    ef_global_region VARCHAR(255),
     year VARCHAR(255),
     unit VARCHAR(255),
     iso_country_code VARCHAR(255),
-    code VARCHAR(255) NOT NULL,
+    code VARCHAR(255),
     created_by VARCHAR(255),
     updated_by VARCHAR(255),
     update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );`,
-
-
-        `CREATE TABLE IF NOT EXISTS waste_treatment_type_emission_factor (
-    wttef_id VARCHAR(255) PRIMARY KEY,
-    treatment_type VARCHAR(255) NOT NULL, 
-    ef_eu_region VARCHAR(255) NOT NULL,  
-    ef_india_region VARCHAR(255) NOT NULL,
-    ef_global_region VARCHAR(255) NOT NULL,
-    year VARCHAR(255),
-    unit VARCHAR(255),
-    iso_country_code VARCHAR(255),
-    code VARCHAR(255) NOT NULL,
-    created_by VARCHAR(255),
-    updated_by VARCHAR(255),
-    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`,
-
-
-        `CREATE TABLE IF NOT EXISTS waste_material_type_emission_factor (
-    wmtef_id VARCHAR(255) PRIMARY KEY,
-    waste_type VARCHAR(255) NOT NULL, 
-    ef_eu_region VARCHAR(255) NOT NULL,  
-    ef_india_region VARCHAR(255) NOT NULL,
-    ef_global_region VARCHAR(255) NOT NULL,
-    year VARCHAR(255) NOT NULL,
-    unit VARCHAR(255) NOT NULL,
-    iso_country_code VARCHAR(255) NOT NULL,
-    code VARCHAR(255) NOT NULL,
-    created_by VARCHAR(255),
-    updated_by VARCHAR(255),
-    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`,
-
 
         `CREATE TABLE IF NOT EXISTS vehicle_type_emission_factor (
     wtef_id VARCHAR(255) PRIMARY KEY,

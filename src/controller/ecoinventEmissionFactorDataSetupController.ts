@@ -37,7 +37,7 @@ export async function addMaterialsEmissionFactor(req: any, res: any) {
         try {
 
 
-            const { element_name, ef_eu_region, ef_india_region, ef_global_region, source, time, location, year, unit, iso_country_code } = req.body;
+            const { element_name, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -77,12 +77,12 @@ export async function addMaterialsEmissionFactor(req: any, res: any) {
             const code = formatCode('MEF', nextNumber);
 
             const query = `
-                INSERT INTO materials_emission_factor (mef_id,element_name,ef_eu_region,ef_india_region,ef_global_region,source,time,location, code, created_by,year,iso_country_code,unit)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8 ,$9, $10,$11,$12,13)
+                INSERT INTO materials_emission_factor (mef_id,element_name,ef_eu_region,ef_india_region,ef_global_region, code, created_by,year,iso_country_code,unit)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8 ,$9, $10)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, element_name, ef_eu_region, ef_india_region, ef_global_region, source, time, location, code, req.user_id, year, iso_country_code, unit]);
+            const result = await client.query(query, [id, element_name, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, iso_country_code, unit]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -140,19 +140,16 @@ export async function updateMaterialsEmissionFactor(req: any, res: any) {
                     ef_eu_region        = $3,
                     ef_india_region     = $4,
                     ef_global_region    = $5,
-                    source              = $6,
-                     time                = $7,
-                     location            = $8,
-                     updated_by          = $9,
-                     year= $10,
-                     iso_country_code= $11,
-                     unit = $12
+                     updated_by          = $6,
+                     year= $7,
+                     iso_country_code= $8,
+                     unit = $9
                      WHERE mef_id = $1
                      RETURNING *;
 
                 `;
 
-                const result = await client.query(query, [item.mef_id, item.element_name, item.ef_eu_region, item.ef_india_region, item.ef_global_region, item.source, item.time, item.location, req.user_id, item.year, item.iso_country_code, item.unit]);
+                const result = await client.query(query, [item.mef_id, item.element_name, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.iso_country_code, item.unit]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -229,7 +226,7 @@ export async function materialsEmissionFactorDataSetup(req: any, res: any) {
 
             // Check existing names in DB
             const existing = await client.query(
-                `SELECT name FROM materials_emission_factor WHERE name ILIKE ANY($1)`,
+                `SELECT element_name FROM materials_emission_factor WHERE element_name ILIKE ANY($1)`,
                 [names]
             );
 
@@ -259,9 +256,6 @@ export async function materialsEmissionFactorDataSetup(req: any, res: any) {
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    source: item.source,
-                    time: item.time,
-                    location: item.location,
                     year: item.year,
                     iso_country_code: item.iso_country_code,
                     unit: item.unit,
@@ -531,7 +525,7 @@ export async function electricityEmissionFactorDataSetup(req: any, res: any) {
 
             // Check existing names in DB
             const existing = await client.query(
-                `SELECT name FROM electricity_emission_factor WHERE name ILIKE ANY($1)`,
+                `SELECT type_of_energy FROM electricity_emission_factor WHERE type_of_energy ILIKE ANY($1)`,
                 [names]
             );
 
@@ -830,7 +824,7 @@ export async function fuelEmissionFactorDataSetup(req: any, res: any) {
 
             // Check existing names in DB
             const existing = await client.query(
-                `SELECT name FROM fuel_emission_factor WHERE name ILIKE ANY($1)`,
+                `SELECT fuel_type FROM fuel_emission_factor WHERE fuel_type ILIKE ANY($1)`,
                 [names]
             );
 
@@ -932,61 +926,265 @@ export async function getFuelEmissionFactorDropDownnList(req: any, res: any) {
     });
 }
 
+// Packaging Treatment Type
+export async function addPackingTreatmentType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { code, name } = req.body;
+            const ptt_id = ulid();
 
+            const checkExists = await client.query(
+                `SELECT * 
+             FROM packaging_treatment_type 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
+
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Code is already used", 400, null));
+                }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+            INSERT INTO packaging_treatment_type (ptt_id, code, name)
+            VALUES ($1, $2, $3)
+            RETURNING *;
+        `;
+            const result = await client.query(query, [ptt_id, code, name]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function updatePackingTreatmentType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "ptt_id")
+                    .map(([columnName], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "ptt_id")
+                    .map(([_, value]) => value);
+
+                const query = `
+                UPDATE packaging_treatment_type
+                SET ${columnValuePairs}, update_date = NOW()
+                WHERE ptt_id = $${values.length + 1}
+                RETURNING *;
+            `;
+                const result = await client.query(query, [...values, item.ptt_id]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getPackingTreatmentTypeListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+
+            let whereClause = '';
+            let orderByClause = 'ORDER BY i.created_date ASC';
+
+            if (searchValue) {
+                whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+            }
+
+            const listQuery = `
+            SELECT i.* 
+            FROM packaging_treatment_type i
+            WHERE 1=1 ${whereClause}
+            GROUP BY i.ptt_id
+            ${orderByClause};
+        `;
+
+            const countQuery = `
+            SELECT COUNT(*) 
+            FROM packaging_treatment_type i
+            WHERE 1=1 ${whereClause};
+        `;
+
+            const values = searchValue ? [`%${searchValue}%`] : [];
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function PackingTreatmentTypeDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const obj = req.body;
+
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            const finalData = obj.map((item: any) => ({
+                ptt_id: ulid(),
+                code: item.code,
+                name: item.name,
+                created_by: req.user_id,
+            }));
+
+            const columns = Object.keys(finalData[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            finalData.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+                placeholders.push(`(${placeholder.join(', ')})`);
+            });
+
+            const insertQuery = `
+            INSERT INTO packaging_treatment_type (${columns.join(', ')})
+            VALUES ${placeholders.join(', ')}
+            RETURNING *;
+        `;
+
+            const result = await client.query(insertQuery, values);
+            return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    })
+}
+
+export async function getPackingTreatmentTypeDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `SELECT ptt_id, code, name FROM packaging_treatment_type;`;
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function deletePackingTreatmentType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { ptt_id } = req.body;
+            const query = `DELETE FROM packaging_treatment_type WHERE ptt_id = $1;`;
+            await client.query(query, [ptt_id]);
+
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
 
 ///Packaging Emission Factor
 export async function addPackagingEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const {
+                material_type,
+                ptt_id,
+                ef_eu_region,
+                ef_india_region,
+                ef_global_region,
+                year,
+                unit,
+                iso_country_code
+            } = req.body;
 
+            if (!material_type) throw new Error("material_type is required");
+            if (!ptt_id) throw new Error("ptt_id is required");
+            if (!ef_eu_region) throw new Error("ef_eu_region is required");
+            if (!ef_india_region) throw new Error("ef_india_region is required");
+            if (!ef_global_region) throw new Error("ef_global_region is required");
 
-            const { material_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
-
-            console.log(req.user_id, "user_id");
-
-            if (!material_type) {
-                throw new Error("Type of energy is required");
-            }
-
-            if (!ef_eu_region) {
-                throw new Error("Ef Eu region is required");
-            }
-
-            if (!ef_india_region) {
-                throw new Error("Ef India region is required");
-            }
-
-            if (!ef_global_region) {
-                throw new Error("Ef global region is required");
-            }
-
-
-
-            const checkName = await client.query(
-                `SELECT 1 FROM packaging_emission_factor WHERE material_type ILIKE $1`,
-                [material_type]
+            const check = await client.query(
+                `SELECT 1 
+                 FROM packaging_material_treatment_type_emission_factor 
+                 WHERE material_type ILIKE $1 AND ptt_id = $2`,
+                [material_type, ptt_id]
             );
 
-            if (checkName.rowCount > 0) {
+            if (check.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Type of energy already exists", 400, null));
+                    .send(generateResponse(false, "Combination already exists", 400, null));
             }
 
-            const id = ulid();
-
-
-            const nextNumber = await generateDynamicCode(client, 'PEF', 'packaging_emission_factor');
-
+            const pef_id = ulid();
+            const nextNumber = await generateDynamicCode(
+                client,
+                'PEF',
+                'packaging_material_treatment_type_emission_factor'
+            );
             const code = formatCode('PEF', nextNumber);
 
-            const query = `
-                INSERT INTO packaging_emission_factor (pef_id,material_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year, unit, iso_country_code)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
+            const insertQuery = `
+                INSERT INTO packaging_material_treatment_type_emission_factor (
+                    pef_id,
+                    material_type,
+                    ptt_id,
+                    ef_eu_region,
+                    ef_india_region,
+                    ef_global_region,
+                    year,
+                    unit,
+                    iso_country_code,
+                    code,
+                    created_by
+                )
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, material_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
+            const result = await client.query(insertQuery, [
+                pef_id,
+                material_type,
+                ptt_id,
+                ef_eu_region,
+                ef_india_region,
+                ef_global_region,
+                year,
+                unit,
+                iso_country_code,
+                code,
+                req.user_id
+            ]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -998,106 +1196,61 @@ export async function addPackagingEmissionFactor(req: any, res: any) {
 export async function updatePackagingEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-
-            console.log(req.user_id, "user_id");
-
             const updatingData = req.body;
             const updatedRows: any[] = [];
 
             for (const item of updatingData) {
+                if (!item.pef_id) throw new Error("pef_id is required");
 
-                if (!item.material_type) {
-                    throw new Error("Type of energy is required");
-                }
-
-
-                if (!item.ef_eu_region) {
-                    throw new Error("Ef Eu region is required");
-                }
-
-                if (!item.ef_india_region) {
-                    throw new Error("Ef India region is required");
-                }
-
-                if (!item.ef_global_region) {
-                    throw new Error("Ef global region is required");
-                }
-
-                const checkName = await client.query(
-                    `SELECT 1 
-                     FROM packaging_emission_factor 
-                     WHERE material_type ILIKE $1 AND pef_id <> $2`,
-                    [item.material_type, item.pef_id]
+                const duplicateCheck = await client.query(
+                    `SELECT 1
+                     FROM packaging_material_treatment_type_emission_factor
+                     WHERE material_type ILIKE $1
+                       AND ptt_id = $2
+                       AND pef_id <> $3`,
+                    [item.material_type, item.ptt_id, item.pef_id]
                 );
 
-                if (checkName.rowCount > 0) {
-                    return res
-                        .status(400)
-                        .send(generateResponse(false, `Type of energy '${item.material_type}' already exists`, 400, null));
+                if (duplicateCheck.rowCount > 0) {
+                    return res.status(400).send(
+                        generateResponse(false, "Combination already exists", 400, null)
+                    );
                 }
 
-                const query = `
-                    UPDATE packaging_emission_factor
+                const updateQuery = `
+                    UPDATE packaging_material_treatment_type_emission_factor
                     SET
-                    material_type        = $2,
-                    ef_eu_region        = $3,
-                    ef_india_region     = $4,
-                    ef_global_region    = $5,
-                     updated_by          = $6,
-                     year=$7,
-                    unit=$8,
-                    iso_country_code=$9
-                     WHERE pef_id = $1
-                     RETURNING *;
-
+                        material_type     = $2,
+                        ptt_id            = $3,
+                        ef_eu_region      = $4,
+                        ef_india_region   = $5,
+                        ef_global_region  = $6,
+                        year              = $7,
+                        unit              = $8,
+                        iso_country_code  = $9,
+                        updated_by        = $10,
+                        update_date       = CURRENT_TIMESTAMP
+                    WHERE pef_id = $1
+                    RETURNING *;
                 `;
 
-                const result = await client.query(query, [item.pef_id, item.material_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
+                const result = await client.query(updateQuery, [
+                    item.pef_id,
+                    item.material_type,
+                    item.ptt_id,
+                    item.ef_eu_region,
+                    item.ef_india_region,
+                    item.ef_global_region,
+                    item.year,
+                    item.unit,
+                    item.iso_country_code,
+                    req.user_id
+                ]);
 
-                if (result.rows.length > 0) {
-                    updatedRows.push(result.rows[0]);
-                }
+                if (result.rows.length) updatedRows.push(result.rows[0]);
             }
 
             return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
-        } catch (error: any) {
-            return res.send(generateResponse(false, error.message, 400, null));
-        }
-    });
-}
-
-export async function getPackagingEmissionFactorListSearch(req: any, res: any) {
-    return withClient(async (client: any) => {
-        try {
-            const { searchValue } = req.query;
-            let whereClause = '';
-            const values: any[] = [];
-
-            if (searchValue) {
-                whereClause = `AND (i.code ILIKE $1 OR i.material_type ILIKE $1)`;
-                values.push(`%${searchValue}%`);
-            }
-
-            const listQuery = `
-                SELECT i.*
-                FROM packaging_emission_factor i
-                WHERE 1=1 ${whereClause}
-                ORDER BY i.created_date ASC;
-            `;
-
-            const countQuery = `
-                SELECT COUNT(*)
-                FROM packaging_emission_factor i
-                WHERE 1=1 ${whereClause};
-            `;
-
-            const totalCount = await client.query(countQuery, values);
-            const listResult = await client.query(listQuery, values);
-
-            return res.send(generateResponse(true, "List fetched successfully", 200, {
-                totalCount: totalCount.rows[0].count,
-                list: listResult.rows
-            }));
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }
@@ -1110,59 +1263,51 @@ export async function packagingEmissionFactorDataSetup(req: any, res: any) {
             const data = req.body;
 
             if (!Array.isArray(data) || data.length === 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid input array", 400, null));
-            }
-
-            // Check duplicate names inside payload
-            const names = data.map(d => d.material_type.toLowerCase());
-            const duplicatePayloadNames = names.filter(
-                (n, i) => names.indexOf(n) !== i
-            );
-
-            if (duplicatePayloadNames.length > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
-            }
-
-            // Check existing names in DB
-            const existing = await client.query(
-                `SELECT name FROM packaging_emission_factor WHERE name ILIKE ANY($1)`,
-                [names]
-            );
-
-            if (existing.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "One or more names already exist", 400, null));
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
             }
 
             const rows: any[] = [];
-
-            let nextNumber = await generateDynamicCode(client, 'PEF', 'packaging_emission_factor');
+            let nextNumber = await generateDynamicCode(
+                client,
+                'PEF',
+                'packaging_material_treatment_type_emission_factor'
+            );
 
             for (const item of data) {
+                if (!item.material_type) throw new Error("material_type is required");
+                if (!item.treatment_type_name) throw new Error("treatment_type_name is required");
 
-                if (!item.material_type) {
-                    throw new Error("material_type is required");
+                // 🔹 Fetch ptt_id from name
+                const treatment = await client.query(
+                    `SELECT ptt_id 
+                     FROM packaging_treatment_type
+                     WHERE name ILIKE $1`,
+                    [item.treatment_type_name]
+                );
+
+                if (treatment.rowCount === 0) {
+                    throw new Error(
+                        `Treatment type '${item.treatment_type_name}' not found`
+                    );
                 }
 
-                const code = formatCode('PEF', nextNumber);
-                nextNumber++;
+                const ptt_id = treatment.rows[0].ptt_id;
+                const code = formatCode('PEF', nextNumber++);
 
                 rows.push({
                     pef_id: ulid(),
-                    code: code,
+                    code,
                     material_type: item.material_type,
+                    ptt_id,
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id,
                     year: item.year,
+                    unit: item.unit,
                     iso_country_code: item.iso_country_code,
-                    unit: item.unit
+                    created_by: req.user_id
                 });
             }
 
@@ -1179,7 +1324,8 @@ export async function packagingEmissionFactorDataSetup(req: any, res: any) {
             });
 
             const insertQuery = `
-                INSERT INTO packaging_emission_factor (${columns.join(', ')})
+                INSERT INTO packaging_material_treatment_type_emission_factor
+                (${columns.join(', ')})
                 VALUES ${placeholders.join(', ')}
                 RETURNING *;
             `;
@@ -1188,9 +1334,88 @@ export async function packagingEmissionFactorDataSetup(req: any, res: any) {
 
             return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
         } catch (error: any) {
-            return res
-                .status(500)
-                .send(generateResponse(false, error.message, 500, null));
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
+
+export async function getPackagingEmissionFactorListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            const values: any[] = [];
+            let whereClause = '';
+
+            if (searchValue) {
+                whereClause = `
+                    AND (
+                        pef.code ILIKE $1
+                        OR pef.material_type ILIKE $1
+                        OR ptt.treatment_type_name ILIKE $1
+                    )
+                `;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT
+                    pef.*,
+                    ptt.name
+                FROM packaging_material_treatment_type_emission_factor pef
+                LEFT JOIN packaging_treatment_type ptt
+                    ON ptt.ptt_id = pef.ptt_id
+                WHERE 1=1
+                ${whereClause}
+                ORDER BY pef.created_date DESC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM packaging_material_treatment_type_emission_factor pef
+                LEFT JOIN packaging_treatment_type ptt
+                    ON ptt.ptt_id = pef.ptt_id
+                WHERE 1=1
+                ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getPackagingEmissionFactorDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `
+                SELECT
+                    pef.pef_id,
+                    pef.code,
+                    pef.material_type,
+                    pef.ptt_id,
+                    ptt.name
+                FROM packaging_material_treatment_type_emission_factor pef
+                LEFT JOIN packaging_treatment_type ptt
+                    ON ptt.ptt_id = pef.ptt_id
+                ORDER BY pef.material_type ASC;
+            `;
+
+            const result = await client.query(query);
+
+            return res.send(
+                generateResponse(true, "Dropdown list fetched successfully", 200, result.rows)
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
         }
     });
 }
@@ -1200,159 +1425,106 @@ export async function deletePackagingEmissionFactor(req: any, res: any) {
         try {
             const { pef_id } = req.body;
 
-            await client.query(
-                `DELETE FROM packaging_emission_factor WHERE pef_id = $1`,
+            if (!pef_id) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "pef_id is required", 400, null));
+            }
+
+            const check = await client.query(
+                `SELECT 1 
+                 FROM packaging_material_treatment_type_emission_factor 
+                 WHERE pef_id = $1`,
                 [pef_id]
             );
 
-            return res.send(generateResponse(true, "Deleted successfully", 200, null));
-        } catch (error: any) {
-            return res.send(generateResponse(false, error.message, 400, null));
-        }
-    });
-}
-
-export async function getPackagingEmissionFactorDropDownnList(req: any, res: any) {
-    return withClient(async (client: any) => {
-        try {
-
-            const listQuery = `
-                SELECT i.*
-                FROM packaging_emission_factor i
-                ORDER BY i.created_date ASC;
-            `;
-
-            const listResult = await client.query(listQuery);
-
-            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
-        } catch (error: any) {
-            return res.send(generateResponse(false, error.message, 400, null));
-        }
-    });
-}
-
-
-
-
-///Waste Treatment Type Emission Factor
-export async function addWasteTreatmentTypeEmissionFactor(req: any, res: any) {
-    return withClient(async (client: any) => {
-        try {
-
-
-            const { treatment_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
-
-            console.log(req.user_id, "user_id");
-
-            if (!treatment_type) {
-                throw new Error("Type of energy is required");
+            if (check.rowCount === 0) {
+                return res
+                    .status(404)
+                    .send(generateResponse(false, "Record not found", 404, null));
             }
 
-            if (!ef_eu_region) {
-                throw new Error("Ef Eu region is required");
-            }
-
-            if (!ef_india_region) {
-                throw new Error("Ef India region is required");
-            }
-
-            if (!ef_global_region) {
-                throw new Error("Ef global region is required");
-            }
-
-
-
-            const checkName = await client.query(
-                `SELECT 1 FROM waste_treatment_type_emission_factor WHERE treatment_type ILIKE $1`,
-                [treatment_type]
+            await client.query(
+                `DELETE 
+                 FROM packaging_material_treatment_type_emission_factor 
+                 WHERE pef_id = $1`,
+                [pef_id]
             );
 
-            if (checkName.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Type of energy already exists", 400, null));
-            }
-
-            const id = ulid();
-
-
-            const nextNumber = await generateDynamicCode(client, 'ETTEF', 'waste_treatment_type_emission_factor');
-
-            const code = formatCode('WTTEF', nextNumber);
-
-            const query = `
-                INSERT INTO waste_treatment_type_emission_factor (wttef_id,treatment_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by, year, unit, iso_country_code)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
-                RETURNING *;
-            `;
-
-            const result = await client.query(query, [id, treatment_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
-
-            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+            return res.send(
+                generateResponse(true, "Deleted successfully", 200, null)
+            );
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }
     });
 }
 
-export async function updateWasteTreatmentTypeEmissionFactor(req: any, res: any) {
+// Waste Treatment Type
+export async function addWasteTreatmentType(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const { code, name } = req.body;
+            const wtt_id = ulid();
 
-            console.log(req.user_id, "user_id");
+            const checkExists = await client.query(
+                `SELECT * 
+             FROM waste_treatment_type 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
 
-            const updatingData = req.body;
-            const updatedRows: any[] = [];
-
-            for (const item of updatingData) {
-
-                if (!item.treatment_type) {
-                    throw new Error("Type of energy is required");
-                }
-
-
-                if (!item.ef_eu_region) {
-                    throw new Error("Ef Eu region is required");
-                }
-
-                if (!item.ef_india_region) {
-                    throw new Error("Ef India region is required");
-                }
-
-                if (!item.ef_global_region) {
-                    throw new Error("Ef global region is required");
-                }
-
-                const checkName = await client.query(
-                    `SELECT 1 
-                     FROM waste_treatment_type_emission_factor 
-                     WHERE treatment_type ILIKE $1 AND wttef_id <> $2`,
-                    [item.treatment_type, item.wttef_id]
-                );
-
-                if (checkName.rowCount > 0) {
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
                     return res
                         .status(400)
-                        .send(generateResponse(false, `Type of energy '${item.treatment_type}' already exists`, 400, null));
+                        .send(generateResponse(false, "Code is already used", 400, null));
                 }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+            INSERT INTO waste_treatment_type (wtt_id, code, name)
+            VALUES ($1, $2, $3)
+            RETURNING *;
+        `;
+            const result = await client.query(query, [wtt_id, code, name]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function updateWasteTreatmentType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "wtt_id")
+                    .map(([columnName], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "wtt_id")
+                    .map(([_, value]) => value);
 
                 const query = `
-                    UPDATE waste_treatment_type_emission_factor
-                    SET
-                    treatment_type        = $2,
-                    ef_eu_region        = $3,
-                    ef_india_region     = $4,
-                    ef_global_region    = $5,
-                     updated_by          = $6,
-                      year=$7,
-                    unit=$8,
-                    iso_country_code=$9
-                     WHERE wttef_id = $1
-                     RETURNING *;
-
-                `;
-
-                const result = await client.query(query, [item.wttef_id, item.treatment_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
+                UPDATE waste_treatment_type
+                SET ${columnValuePairs}, update_date = NOW()
+                WHERE wtt_id = $${values.length + 1}
+                RETURNING *;
+            `;
+                const result = await client.query(query, [...values, item.wtt_id]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -1363,34 +1535,36 @@ export async function updateWasteTreatmentTypeEmissionFactor(req: any, res: any)
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }
-    });
+    })
 }
 
-export async function getWasteTreatmentTypeEmissionFactorListSearch(req: any, res: any) {
+export async function getWasteTreatmentTypeListSearch(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const { searchValue } = req.query;
+
             let whereClause = '';
-            const values: any[] = [];
+            let orderByClause = 'ORDER BY i.created_date ASC';
 
             if (searchValue) {
-                whereClause = `AND (i.code ILIKE $1 OR i.treatment_type ILIKE $1)`;
-                values.push(`%${searchValue}%`);
+                whereClause += ` AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
             }
 
             const listQuery = `
-                SELECT i.*
-                FROM waste_treatment_type_emission_factor i
-                WHERE 1=1 ${whereClause}
-                ORDER BY i.created_date ASC;
-            `;
+            SELECT i.* 
+            FROM waste_treatment_type i
+            WHERE 1=1 ${whereClause}
+            GROUP BY i.wtt_id
+            ${orderByClause};
+        `;
 
             const countQuery = `
-                SELECT COUNT(*)
-                FROM waste_treatment_type_emission_factor i
-                WHERE 1=1 ${whereClause};
-            `;
+            SELECT COUNT(*) 
+            FROM waste_treatment_type i
+            WHERE 1=1 ${whereClause};
+        `;
 
+            const values = searchValue ? [`%${searchValue}%`] : [];
             const totalCount = await client.query(countQuery, values);
             const listResult = await client.query(listQuery, values);
 
@@ -1401,191 +1575,147 @@ export async function getWasteTreatmentTypeEmissionFactorListSearch(req: any, re
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }
-    });
+    })
 }
 
-export async function wasteTreatmentTypeEmissionFactorDataSetup(req: any, res: any) {
+export async function WasteTreatmentTypeDataSetup(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const data = req.body;
+            const obj = req.body;
 
-            if (!Array.isArray(data) || data.length === 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid input array", 400, null));
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
             }
 
-            // Check duplicate names inside payload
-            const names = data.map(d => d.treatment_type.toLowerCase());
-            const duplicatePayloadNames = names.filter(
-                (n, i) => names.indexOf(n) !== i
-            );
+            const finalData = obj.map((item: any) => ({
+                wtt_id: ulid(),
+                code: item.code,
+                name: item.name,
+                created_by: req.user_id,
+            }));
 
-            if (duplicatePayloadNames.length > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
-            }
-
-            // Check existing names in DB
-            const existing = await client.query(
-                `SELECT name FROM waste_treatment_type_emission_factor WHERE name ILIKE ANY($1)`,
-                [names]
-            );
-
-            if (existing.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "One or more names already exist", 400, null));
-            }
-
-            const rows: any[] = [];
-
-            let nextNumber = await generateDynamicCode(client, 'WTTEF', 'waste_treatment_type_emission_factor');
-
-            for (const item of data) {
-
-                if (!item.treatment_type) {
-                    throw new Error("treatment_type is required");
-                }
-
-                const code = formatCode('WTTEF', nextNumber);
-                nextNumber++;
-
-                rows.push({
-                    wttef_id: ulid(),
-                    code: code,
-                    treatment_type: item.treatment_type,
-                    ef_eu_region: item.ef_eu_region,
-                    ef_india_region: item.ef_india_region,
-                    ef_global_region: item.ef_global_region,
-                    created_by: req.user_id,
-                    year: item.year,
-                    iso_country_code: item.iso_country_code,
-                    unit: item.unit
-                });
-            }
-
-            const columns = Object.keys(rows[0]);
+            const columns = Object.keys(finalData[0]);
             const values: any[] = [];
             const placeholders: string[] = [];
 
-            rows.forEach((row, rowIndex) => {
+            finalData.forEach((row, rowIndex) => {
                 const rowValues = Object.values(row);
                 values.push(...rowValues);
-                placeholders.push(
-                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
-                );
+                const placeholder = rowValues.map((_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`);
+                placeholders.push(`(${placeholder.join(', ')})`);
             });
 
             const insertQuery = `
-                INSERT INTO waste_treatment_type_emission_factor (${columns.join(', ')})
-                VALUES ${placeholders.join(', ')}
-                RETURNING *;
-            `;
+            INSERT INTO waste_treatment_type (${columns.join(', ')})
+            VALUES ${placeholders.join(', ')}
+            RETURNING *;
+        `;
 
             const result = await client.query(insertQuery, values);
-
-            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+            return res.status(200).send(generateResponse(true, "Added successfully", 200, result.rows));
         } catch (error: any) {
-            return res
-                .status(500)
-                .send(generateResponse(false, error.message, 500, null));
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
         }
-    });
+    })
 }
 
-export async function deleteWasteTreatmentTypeEmissionFactor(req: any, res: any) {
+export async function getWasteTreatmentTypeDropDownList(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { wttef_id } = req.body;
+            const query = `SELECT wtt_id, code, name FROM waste_treatment_type;`;
+            const result = await client.query(query);
 
-            await client.query(
-                `DELETE FROM waste_treatment_type_emission_factor WHERE wttef_id = $1`,
-                [wttef_id]
-            );
-
-            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }
-    });
+    })
 }
 
-export async function getWasteTreatmentTypeEmissionFactorDropDownnList(req: any, res: any) {
+export async function deleteWasteTreatmentType(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const { wtt_id } = req.body;
+            const query = `DELETE FROM waste_treatment_type WHERE wtt_id = $1;`;
+            await client.query(query, [wtt_id]);
 
-            const listQuery = `
-                SELECT i.*
-                FROM waste_treatment_type_emission_factor i
-                ORDER BY i.created_date ASC;
-            `;
-
-            const listResult = await client.query(listQuery);
-
-            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }
-    });
+    })
 }
 
-
-
-///Waste Material Type Emission Factor
-export async function addWasteMaterialTypeEmissionFactor(req: any, res: any) {
+// Waste Emission Factor
+export async function addWasteEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const {
+                waste_type,
+                wtt_id,
+                ef_eu_region,
+                ef_india_region,
+                ef_global_region,
+                year,
+                unit,
+                iso_country_code
+            } = req.body;
 
+            if (!waste_type) throw new Error("waste_type is required");
+            if (!wtt_id) throw new Error("wtt_id is required");
 
-            const { waste_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
-
-            console.log(req.user_id, "user_id");
-
-            if (!waste_type) {
-                throw new Error("Type of energy is required");
-            }
-
-            if (!ef_eu_region) {
-                throw new Error("Ef Eu region is required");
-            }
-
-            if (!ef_india_region) {
-                throw new Error("Ef India region is required");
-            }
-
-            if (!ef_global_region) {
-                throw new Error("Ef global region is required");
-            }
-
-
-
-            const checkName = await client.query(
-                `SELECT 1 FROM waste_material_type_emission_factor WHERE waste_type ILIKE $1`,
-                [waste_type]
+            const duplicate = await client.query(
+                `SELECT 1
+                 FROM waste_material_treatment_type_emission_factor
+                 WHERE waste_type ILIKE $1 AND wtt_id = $2`,
+                [waste_type, wtt_id]
             );
 
-            if (checkName.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Type of energy already exists", 400, null));
+            if (duplicate.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, "Combination already exists", 400, null)
+                );
             }
 
-            const id = ulid();
-
-
-            const nextNumber = await generateDynamicCode(client, 'WMTEF', 'waste_material_type_emission_factor');
-
-            const code = formatCode('WMTEF', nextNumber);
+            const wmttef_id = ulid();
+            const nextNumber = await generateDynamicCode(
+                client,
+                'WMTTEF',
+                'waste_material_treatment_type_emission_factor'
+            );
+            const code = formatCode('WMTTEF', nextNumber);
 
             const query = `
-                INSERT INTO waste_material_type_emission_factor (wmtef_id,waste_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year, unit, iso_country_code)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
+                INSERT INTO waste_material_treatment_type_emission_factor (
+                    wmttef_id,
+                    waste_type,
+                    wtt_id,
+                    ef_eu_region,
+                    ef_india_region,
+                    ef_global_region,
+                    year,
+                    unit,
+                    iso_country_code,
+                    code,
+                    created_by
+                )
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, waste_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
+            const result = await client.query(query, [
+                wmttef_id,
+                waste_type,
+                wtt_id,
+                ef_eu_region,
+                ef_india_region,
+                ef_global_region,
+                year,
+                unit,
+                iso_country_code,
+                code,
+                req.user_id
+            ]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -1594,68 +1724,61 @@ export async function addWasteMaterialTypeEmissionFactor(req: any, res: any) {
     });
 }
 
-export async function updateWasteMaterialTypeEmissionFactor(req: any, res: any) {
+export async function updateWasteEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-
-            console.log(req.user_id, "user_id");
-
-            const updatingData = req.body;
+            const data = req.body;
             const updatedRows: any[] = [];
 
-            for (const item of updatingData) {
+            for (const item of data) {
+                if (!item.wmttef_id) throw new Error("wmttef_id is required");
 
-                if (!item.waste_type) {
-                    throw new Error("Type of energy is required");
-                }
-
-
-                if (!item.ef_eu_region) {
-                    throw new Error("Ef Eu region is required");
-                }
-
-                if (!item.ef_india_region) {
-                    throw new Error("Ef India region is required");
-                }
-
-                if (!item.ef_global_region) {
-                    throw new Error("Ef global region is required");
-                }
-
-                const checkName = await client.query(
-                    `SELECT 1 
-                     FROM waste_material_type_emission_factor 
-                     WHERE waste_type ILIKE $1 AND wmtef_id <> $2`,
-                    [item.waste_type, item.wmtef_id]
+                const duplicate = await client.query(
+                    `SELECT 1
+                     FROM waste_material_treatment_type_emission_factor
+                     WHERE waste_type ILIKE $1
+                       AND wtt_id = $2
+                       AND wmttef_id <> $3`,
+                    [item.waste_type, item.wtt_id, item.wmttef_id]
                 );
 
-                if (checkName.rowCount > 0) {
-                    return res
-                        .status(400)
-                        .send(generateResponse(false, `Type of energy '${item.waste_type}' already exists`, 400, null));
+                if (duplicate.rowCount > 0) {
+                    return res.status(400).send(
+                        generateResponse(false, "Combination already exists", 400, null)
+                    );
                 }
 
                 const query = `
-                    UPDATE waste_material_type_emission_factor
+                    UPDATE waste_material_treatment_type_emission_factor
                     SET
-                    waste_type        = $2,
-                    ef_eu_region        = $3,
-                    ef_india_region     = $4,
-                    ef_global_region    = $5,
-                     updated_by          = $6,
-                     year=$7,
-                    unit=$8,
-                    iso_country_code=$9
-                     WHERE wmtef_id = $1
-                     RETURNING *;
-
+                        waste_type        = $2,
+                        wtt_id            = $3,
+                        ef_eu_region      = $4,
+                        ef_india_region   = $5,
+                        ef_global_region  = $6,
+                        year              = $7,
+                        unit              = $8,
+                        iso_country_code  = $9,
+                        updated_by        = $10,
+                        update_date       = CURRENT_TIMESTAMP
+                    WHERE wmttef_id = $1
+                    RETURNING *;
                 `;
 
-                const result = await client.query(query, [item.wmtef_id, item.waste_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
+                const result = await client.query(query, [
+                    item.wmttef_id,
+                    item.waste_type,
+                    item.wtt_id,
+                    item.ef_eu_region,
+                    item.ef_india_region,
+                    item.ef_global_region,
+                    item.year,
+                    item.unit,
+                    item.iso_country_code,
+                    req.user_id
+                ]);
 
-                if (result.rows.length > 0) {
-                    updatedRows.push(result.rows[0]);
-                }
+                if (result.rows.length) updatedRows.push(result.rows[0]);
             }
 
             return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
@@ -1665,103 +1788,57 @@ export async function updateWasteMaterialTypeEmissionFactor(req: any, res: any) 
     });
 }
 
-export async function getWasteMaterialTypeEmissionFactorListSearch(req: any, res: any) {
-    return withClient(async (client: any) => {
-        try {
-            const { searchValue } = req.query;
-            let whereClause = '';
-            const values: any[] = [];
-
-            if (searchValue) {
-                whereClause = `AND (i.code ILIKE $1 OR i.waste_type ILIKE $1)`;
-                values.push(`%${searchValue}%`);
-            }
-
-            const listQuery = `
-                SELECT i.*
-                FROM waste_material_type_emission_factor i
-                WHERE 1=1 ${whereClause}
-                ORDER BY i.created_date ASC;
-            `;
-
-            const countQuery = `
-                SELECT COUNT(*)
-                FROM waste_material_type_emission_factor i
-                WHERE 1=1 ${whereClause};
-            `;
-
-            const totalCount = await client.query(countQuery, values);
-            const listResult = await client.query(listQuery, values);
-
-            return res.send(generateResponse(true, "List fetched successfully", 200, {
-                totalCount: totalCount.rows[0].count,
-                list: listResult.rows
-            }));
-        } catch (error: any) {
-            return res.send(generateResponse(false, error.message, 400, null));
-        }
-    });
-}
-
-export async function wasteMaterialTypeEmissionFactorDataSetup(req: any, res: any) {
+export async function wasteEmissionFactorDataSetup(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const data = req.body;
 
             if (!Array.isArray(data) || data.length === 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid input array", 400, null));
-            }
-
-            // Check duplicate names inside payload
-            const names = data.map(d => d.waste_type.toLowerCase());
-            const duplicatePayloadNames = names.filter(
-                (n, i) => names.indexOf(n) !== i
-            );
-
-            if (duplicatePayloadNames.length > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
-            }
-
-            // Check existing names in DB
-            const existing = await client.query(
-                `SELECT name FROM waste_material_type_emission_factor WHERE name ILIKE ANY($1)`,
-                [names]
-            );
-
-            if (existing.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "One or more names already exist", 400, null));
+                return res.status(400).send(
+                    generateResponse(false, "Invalid input array", 400, null)
+                );
             }
 
             const rows: any[] = [];
-
-            let nextNumber = await generateDynamicCode(client, 'WMTEF', 'waste_material_type_emission_factor');
+            let nextNumber = await generateDynamicCode(
+                client,
+                'WMTTEF',
+                'waste_material_treatment_type_emission_factor'
+            );
 
             for (const item of data) {
+                if (!item.waste_type) throw new Error("waste_type is required");
+                if (!item.treatment_type_name)
+                    throw new Error("treatment_type_name is required");
 
-                if (!item.waste_type) {
-                    throw new Error("waste_type is required");
+                const treatment = await client.query(
+                    `SELECT wtt_id
+                     FROM waste_treatment_type
+                     WHERE name ILIKE $1`,
+                    [item.treatment_type_name]
+                );
+
+                if (treatment.rowCount === 0) {
+                    throw new Error(
+                        `Treatment type '${item.treatment_type_name}' not found`
+                    );
                 }
 
-                const code = formatCode('WMTEF', nextNumber);
-                nextNumber++;
+                const code = formatCode('WMTTEF', nextNumber++);
+                const wtt_id = treatment.rows[0].wtt_id;
 
                 rows.push({
-                    wmtef_id: ulid(),
-                    code: code,
+                    wmttef_id: ulid(),
+                    code,
                     waste_type: item.waste_type,
+                    wtt_id,
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id,
                     year: item.year,
+                    unit: item.unit,
                     iso_country_code: item.iso_country_code,
-                    unit: item.unit
+                    created_by: req.user_id
                 });
             }
 
@@ -1778,7 +1855,8 @@ export async function wasteMaterialTypeEmissionFactorDataSetup(req: any, res: an
             });
 
             const insertQuery = `
-                INSERT INTO waste_material_type_emission_factor (${columns.join(', ')})
+                INSERT INTO waste_material_treatment_type_emission_factor
+                (${columns.join(', ')})
                 VALUES ${placeholders.join(', ')}
                 RETURNING *;
             `;
@@ -1787,52 +1865,133 @@ export async function wasteMaterialTypeEmissionFactorDataSetup(req: any, res: an
 
             return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
         } catch (error: any) {
-            return res
-                .status(500)
-                .send(generateResponse(false, error.message, 500, null));
-        }
-    });
-}
-
-export async function deleteWasteMaterialTypeEmissionFactor(req: any, res: any) {
-    return withClient(async (client: any) => {
-        try {
-            const { wmtef_id } = req.body;
-
-            await client.query(
-                `DELETE FROM waste_material_type_emission_factor WHERE wmtef_id = $1`,
-                [wmtef_id]
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
             );
-
-            return res.send(generateResponse(true, "Deleted successfully", 200, null));
-        } catch (error: any) {
-            return res.send(generateResponse(false, error.message, 400, null));
         }
     });
 }
 
-export async function getWasteMaterialTypeEmissionFactorDropDownnList(req: any, res: any) {
+export async function getWasteEmissionFactorListSearch(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const { searchValue } = req.query;
+            const values: any[] = [];
+            let whereClause = '';
+
+            if (searchValue) {
+                whereClause = `
+                    AND (
+                        w.code ILIKE $1
+                        OR w.waste_type ILIKE $1
+                        OR wt.name ILIKE $1
+                    )
+                `;
+                values.push(`%${searchValue}%`);
+            }
 
             const listQuery = `
-                SELECT i.*
-                FROM waste_material_type_emission_factor i
-                ORDER BY i.created_date ASC;
+                SELECT
+                    w.*,
+                    wt.name
+                FROM waste_material_treatment_type_emission_factor w
+                LEFT JOIN waste_treatment_type wt
+                    ON wt.wtt_id = w.wtt_id
+                WHERE 1=1
+                ${whereClause}
+                ORDER BY w.created_date DESC;
             `;
 
-            const listResult = await client.query(listQuery);
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM waste_material_treatment_type_emission_factor w
+                LEFT JOIN waste_treatment_type wt
+                    ON wt.wtt_id = w.wtt_id
+                WHERE 1=1
+                ${whereClause};
+            `;
 
-            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }
     });
 }
 
+export async function getWasteEmissionFactorDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `
+                SELECT
+                    w.wmttef_id,
+                    w.code,
+                    w.waste_type,
+                    w.wtt_id,
+                    wt.name
+                FROM waste_material_treatment_type_emission_factor w
+                LEFT JOIN waste_treatment_type wt
+                    ON wt.wtt_id = w.wtt_id
+                ORDER BY w.waste_type ASC;
+            `;
 
+            const result = await client.query(query);
 
-///vehicle Type Emission Factor
+            return res.send(
+                generateResponse(true, "Dropdown list fetched successfully", 200, result.rows)
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function deleteWasteEmissionFactor(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { wmttef_id } = req.body;
+
+            if (!wmttef_id) {
+                return res.status(400).send(
+                    generateResponse(false, "wmttef_id is required", 400, null)
+                );
+            }
+
+            const check = await client.query(
+                `SELECT 1
+                 FROM waste_material_treatment_type_emission_factor
+                 WHERE wmttef_id = $1`,
+                [wmttef_id]
+            );
+
+            if (check.rowCount === 0) {
+                return res.status(404).send(
+                    generateResponse(false, "Record not found", 404, null)
+                );
+            }
+
+            await client.query(
+                `DELETE
+                 FROM waste_material_treatment_type_emission_factor
+                 WHERE wmttef_id = $1`,
+                [wmttef_id]
+            );
+
+            return res.send(
+                generateResponse(true, "Deleted successfully", 200, null)
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+//vehicle Type Emission Factor
 export async function addVehicleTypeEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
@@ -2027,7 +2186,7 @@ export async function vehicleTypeEmissionFactorDataSetup(req: any, res: any) {
 
             // Check existing names in DB
             const existing = await client.query(
-                `SELECT name FROM vehicle_type_emission_factor WHERE name ILIKE ANY($1)`,
+                `SELECT vehicle_type FROM vehicle_type_emission_factor WHERE vehicle_type ILIKE ANY($1)`,
                 [names]
             );
 
