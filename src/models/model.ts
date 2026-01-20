@@ -1132,6 +1132,9 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS co_two_emission_of_raw_material_questions (
             coteorm_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
+            component_name VARCHAR(255),
             raw_material_name VARCHAR(255),
             transport_mode VARCHAR(255),
             source_location VARCHAR(255),
@@ -1150,6 +1153,9 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS mode_of_transport_used_for_transportation_questions (
             motuft_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),
+            material_number VARCHAR(255),
+            component_name VARCHAR(255),
             mode_of_transport VARCHAR(255),
             weight_transported VARCHAR(255),
             source_point VARCHAR(255),
