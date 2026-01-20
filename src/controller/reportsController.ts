@@ -1,6 +1,116 @@
 import { withClient } from '../util/database';
 import { generateResponse } from '../util/genRes';
 
+//  export async function getMaterialFootPrint(req: any, res: any) {
+//     const {
+//         pageNumber = 1,
+//         pageSize = 20
+//     } = req.query;
+
+//     const limit = Number(pageSize);
+//     const page = Number(pageNumber) > 0 ? Number(pageNumber) : 1;
+//     const offset = (page - 1) * limit;
+
+//     return withClient(async (client: any) => {
+//         try {
+//             const query = `
+// SELECT
+//     b.id,
+//     b.code,
+//     b.material_number,
+//     b.component_name,
+//     b.qunatity,
+//     b.production_location,
+//     b.manufacturer,
+//     b.detail_description,
+//     b.weight_gms,
+//     b.total_weight_gms,
+//     b.component_category,
+//     b.price,
+//     b.total_price,
+//     b.economic_ratio,
+//     b.supplier_id,
+//     b.is_weight_gms,
+//     b.created_date,
+
+//     /* ---------- SUPPLIER DETAILS ---------- */
+//     jsonb_build_object(
+//         'sup_id', sd.sup_id,
+//         'code', sd.code,
+//         'supplier_name', sd.supplier_name,
+//         'supplier_email', sd.supplier_email
+//     ) AS supplier_details,
+
+
+//     /* ---------- Q52 : RAW MATERIAL TYPE DETAILS ---------- */
+//     COALESCE(q52.q52_material_type_data, '[]'::jsonb) AS "Q52_material_type_data",
+
+//     /* ---------- Q56 : Recycled Material ---------- */
+//     COALESCE(q56.q56_recycled_material_data, '[]'::jsonb) AS "q56_recycled_material_data"
+// FROM bom b
+
+// LEFT JOIN supplier_details sd
+//     ON sd.sup_id = b.supplier_id
+
+
+// /* ---------- Q52 : RAW MATERIALS USED ---------- */
+// LEFT JOIN LATERAL (
+//     SELECT jsonb_agg(
+//         jsonb_build_object(
+//             'rmuicm_id', rm.rmuicm_id,
+//             'stoie_id', rm.stoie_id,
+//             'bom_id', rm.bom_id,
+//             'material_number', rm.material_number,
+//             'material_name', rm.material_name,
+//             'percentage', rm.percentage,
+//             'created_date', rm.created_date
+//         )
+//     ) AS q52_material_type_data
+//     FROM raw_materials_used_in_component_manufacturing_questions rm
+//     WHERE rm.bom_id = b.id
+// ) q52 ON TRUE
+
+// /* ---------- Q56 : Recycled materials with percentage ---------- */
+// LEFT JOIN LATERAL (
+//     SELECT jsonb_agg(
+//         jsonb_build_object(
+//             'rmwp_id', rmd.rmwp_id,
+//             'stoie_id', rmd.stoie_id,
+//             'bom_id', rmd.bom_id,
+//             'material_number', rmd.material_number,
+//             'material_name', rmd.material_name,
+//             'percentage', rmd.percentage
+//         )
+//     ) AS q56_recycled_material_data
+//     FROM recycled_materials_with_percentage_questions rmd
+//     WHERE rmd.bom_id = b.id
+// ) q56 ON TRUE
+
+// WHERE b.is_bom_calculated = TRUE
+// ORDER BY b.created_date DESC
+// LIMIT $1 OFFSET $2;
+// `;
+
+//             const result = await client.query(query, [limit, offset]);
+
+//             return res.status(200).send(
+//                 generateResponse(true, "Success!", 200, {
+//                     page,
+//                     pageSize: limit,
+//                     data: result.rows
+//                 })
+//             );
+
+//         } catch (error: any) {
+//             console.error("Error fetching Supplier Footprint:", error);
+//             return res.status(500).json({
+//                 success: false,
+//                 message: error.message || "Failed to fetch Supplier Footprint"
+//             });
+//         }
+//     });
+// }
+
 export async function getProductFootPrint(req: any, res: any) {
     const {
         pageNumber = 1,
@@ -369,6 +479,7 @@ SELECT
     b.id,
     b.code,
     b.material_number,
+    b.bom_pcf_id,
     b.component_name,
     b.qunatity,
     b.production_location,
@@ -392,50 +503,160 @@ SELECT
         'supplier_email', sd.supplier_email
     ) AS supplier_details,
 
+    /* ---------- Q52 RAW MATERIAL DETAILS ---------- */
+    COALESCE(q52.q52_material_type_data, '[]'::jsonb) AS q52_material_type_data,
 
-    /* ---------- Q52 : RAW MATERIAL TYPE DETAILS ---------- */
-    COALESCE(q52.q52_material_type_data, '[]'::jsonb) AS "Q52_material_type_data",
+    /* ---------- Q56 RECYCLED MATERIAL DETAILS ---------- */
+    COALESCE(q56.q56_recycled_material_data, '[]'::jsonb) AS q56_recycled_material_data
 
-    /* ---------- Q56 : Recycled Material ---------- */
-    COALESCE(q56.q56_recycled_material_data, '[]'::jsonb) AS "q56_recycled_material_data"
 FROM bom b
 
 LEFT JOIN supplier_details sd
     ON sd.sup_id = b.supplier_id
 
-
-/* ---------- Q52 : RAW MATERIALS USED ---------- */
+/* ================= Q52 : RAW MATERIALS (DEDUPED) ================= */
 LEFT JOIN LATERAL (
+
+    WITH supplier_ctx AS (
+        SELECT
+            sgi.annual_reporting_period AS year,
+            aso.country_iso_three AS iso_country_code
+        FROM supplier_general_info_questions sgi
+        LEFT JOIN availability_of_scope_one_two_three_emissions_questions aso
+            ON aso.sgiq_id = sgi.sgiq_id
+        WHERE sgi.bom_pcf_id = b.bom_pcf_id
+        LIMIT 1
+    )
+
     SELECT jsonb_agg(
         jsonb_build_object(
             'rmuicm_id', rm.rmuicm_id,
             'stoie_id', rm.stoie_id,
             'bom_id', rm.bom_id,
-            'material_number', rm.material_number,
             'material_name', rm.material_name,
+            'material_number', rm.material_number,
             'percentage', rm.percentage,
-            'created_date', rm.created_date
+            'year', ctx.year,
+            'iso_country_code', ctx.iso_country_code,
+            'unit', 'kg',
+            'ef_eu_region', mef.ef_eu_region,
+            'ef_india_region', mef.ef_india_region,
+            'ef_global_region', mef.ef_global_region
         )
     ) AS q52_material_type_data
+
     FROM raw_materials_used_in_component_manufacturing_questions rm
+    CROSS JOIN supplier_ctx ctx
+
+    LEFT JOIN materials_emission_factor mef
+        ON mef.year = ctx.year
+        AND mef.unit = 'kg'
+        AND mef.iso_country_code = ctx.iso_country_code
+        AND mef.element_name = rm.material_name
+
     WHERE rm.bom_id = b.id
+
 ) q52 ON TRUE
 
-/* ---------- Q56 : Recycled materials with percentage ---------- */
+
+
+/* ================= Q56 : RECYCLED MATERIAL (FIXED & CLEAN) ================= */
 LEFT JOIN LATERAL (
-    SELECT jsonb_agg(
-        jsonb_build_object(
-            'rmwp_id', rmd.rmwp_id,
-            'stoie_id', rmd.stoie_id,
-            'bom_id', rmd.bom_id,
-            'material_number', rmd.material_number,
-            'material_name', rmd.material_name,
-            'percentage', rmd.percentage
-        )
-    ) AS q56_recycled_material_data
+    SELECT
+        jsonb_agg(
+            jsonb_build_object(
+                'rmwp_id', rmd.rmwp_id,
+                'stoie_id', rmd.stoie_id,
+                'bom_id', rmd.bom_id,
+                'material_name', rmd.material_name,
+                'material_number', rmd.material_number,
+                'percentage', rmd.percentage,
+
+                'bom_weight_kg',
+                    (b.weight_gms::numeric / 1000),
+
+                'recycled_weight_kg',
+                    ROUND(
+                        (
+                            (b.weight_gms::numeric / 1000)
+                            * COALESCE(rmd.percentage::numeric, 0)
+                            / 100
+                        ),
+                        4
+                    ),
+
+                'emission_factor_used',
+                    COALESCE(
+                        CASE
+                            WHEN aso.country_iso_three = 'IN'
+                                THEN mef.ef_india_region::numeric
+                            WHEN aso.country_iso_three = 'EU'
+                                THEN mef.ef_eu_region::numeric
+                            ELSE
+                                mef.ef_global_region::numeric
+                        END,
+                        0::numeric
+                    ),
+
+                'emission_in_co2_eq',
+                    ROUND(
+                        (
+                            (
+                                (b.weight_gms::numeric / 1000)
+                                * COALESCE(rmd.percentage::numeric, 0)
+                                / 100
+                            )
+                            *
+                            COALESCE(
+                                CASE
+                                    WHEN aso.country_iso_three = 'IN'
+                                        THEN mef.ef_india_region::numeric
+                                    WHEN aso.country_iso_three = 'EU'
+                                        THEN mef.ef_eu_region::numeric
+                                    ELSE
+                                        mef.ef_global_region::numeric
+                                END,
+                                0::numeric
+                            )
+                        ),
+                        6
+                    )
+            )
+        ) AS q56_recycled_material_data
+
     FROM recycled_materials_with_percentage_questions rmd
+
+    LEFT JOIN supplier_general_info_questions sgi
+        ON sgi.bom_pcf_id = b.bom_pcf_id
+
+    LEFT JOIN LATERAL (
+        SELECT country_iso_three
+        FROM availability_of_scope_one_two_three_emissions_questions
+        WHERE sgiq_id = sgi.sgiq_id
+        ORDER BY created_date ASC
+        LIMIT 1
+    ) aso ON TRUE
+
+    /* 🔑 ONE RAW MATERIAL PER BOM → NO DUPLICATION */
+    LEFT JOIN (
+        SELECT DISTINCT ON (bom_id)
+            bom_id,
+            material_name
+        FROM raw_materials_used_in_component_manufacturing_questions
+        WHERE material_name IS NOT NULL
+        ORDER BY bom_id
+    ) rm ON rm.bom_id = b.id
+
+    LEFT JOIN materials_emission_factor mef
+        ON mef.year = sgi.annual_reporting_period
+        AND mef.unit = 'kg'
+        AND mef.iso_country_code = aso.country_iso_three
+        AND mef.element_name = rm.material_name
+
     WHERE rmd.bom_id = b.id
 ) q56 ON TRUE
+
+
 
 WHERE b.is_bom_calculated = TRUE
 ORDER BY b.created_date DESC
@@ -699,6 +920,7 @@ LIMIT $1 OFFSET $2;
         }
     });
 }
+
 // in this below api need to add two more data Emission Factor (kg CO₂e / kg) and emission 0.25 and emission 0.5 need calrification from abhiram
 export async function getPackagingFootPrint(req: any, res: any) {
     const {

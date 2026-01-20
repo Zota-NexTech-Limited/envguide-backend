@@ -2233,13 +2233,17 @@ export async function pcfCalculate(req: any, res: any) {
                         }
                     }
 
+                    console.log("Component Weight (kg):", BomData.weight_gms);
+
+                    const weightInKg = parseFloat(BomData.weight_gms) / 1000;
 
                     console.log("Material composition (%):", ProductData.percentage);
-                    console.log("Component Weight (kg):", BomData.weight_gms);
-                    console.log("Material composition Weight in (Kg):", (BomData.weight_gms / 100) * ProductData.percentage);
+                    console.log("Weight In KG convert:", weightInKg);
+
+                    console.log("Material composition Weight in (Kg):", (weightInKg / 100) * ProductData.percentage);
                     console.log("Material Emission Factor (kg CO₂e/kg):", FetchEmiassionValue);
-                    console.log("Material emissions (kg CO₂e):", ((BomData.weight_gms / 100) * ProductData.percentage) * FetchEmiassionValue);
-                    let Material_emissions_kg_CO_e = ((((BomData.weight_gms / 100) * ProductData.percentage) * FetchEmiassionValue));
+                    console.log("Material emissions (kg CO₂e):", ((weightInKg / 100) * ProductData.percentage) * FetchEmiassionValue);
+                    let Material_emissions_kg_CO_e = ((((weightInKg / 100) * ProductData.percentage) * FetchEmiassionValue));
                     Raw_Material_emissions += Material_emissions_kg_CO_e;
 
                 }
@@ -2707,6 +2711,34 @@ export async function pcfCalculate(req: any, res: any) {
 
 
                     // Fourth Phase END
+
+
+
+
+                    // Fifth Phase Start
+
+                    // Fifth Phase END
+
+
+
+                    // Sixth Phase Start
+                    const fetchQ40WasteQualityControl = `
+                                SELECT bom_id,material_number,waste_type,
+                                waste_weight,unit,treatment_type
+                                FROM weight_of_quality_control_waste_generated_questions
+                                WHERE bom_id = $1;
+                             `;
+
+
+                    const fetchQ40WasteQualityControlResult = await client.query(fetchQ40WasteQualityControl, [BomData.id]);
+
+                    for (let fetchQ40Data of fetchQ40WasteQualityControlResult) {
+
+                    }
+
+                    // Sixth Phase END
+
+
 
                 }
 
