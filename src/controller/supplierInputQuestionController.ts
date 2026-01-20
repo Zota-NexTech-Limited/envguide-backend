@@ -1973,13 +1973,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                 data: JSON.stringify(w)
             });
 
-            return [woqcwg_id, stide_id, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
+            return [woqcwg_id, stide_id, w.bom_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_quality_control_waste_generated_questions',
-            ['woqcwg_id', 'stide_id', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
+            ['woqcwg_id', 'stide_id', 'bom_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
             rows
         ));
 
@@ -2651,6 +2651,9 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 records: dqr68,
                 childId: woppw_id,
                 payload: {
+                    bom_id: w.bom_id,
+                    material_number: w.material_number,
+                    component_name: w.component_name,
                     waste_type: w.waste_type,
                     waste_weight: w.waste_weight,
                     unit: w.unit,
@@ -2658,13 +2661,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 }
             });
 
-            return [woppw_id, stoie_id, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
+            return [woppw_id, stoie_id, w.bom_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_pro_packaging_waste_questions',
-            ['woppw_id', 'stoie_id', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
+            ['woppw_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
             rows
         ));
 

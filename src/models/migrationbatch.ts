@@ -914,6 +914,9 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS weight_of_quality_control_waste_generated_questions (
             woqcwg_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
+            component_name VARCHAR(255),
             waste_type VARCHAR(255),
             waste_weight VARCHAR(255),
             unit VARCHAR(50),
@@ -1104,6 +1107,9 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS weight_of_pro_packaging_waste_questions (
             woppw_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
+            bom_id VARCHAR(255),  
+            material_number VARCHAR(255),
+            component_name VARCHAR(255),
             waste_type VARCHAR(255),
             waste_weight VARCHAR(255),
             unit VARCHAR(50),
