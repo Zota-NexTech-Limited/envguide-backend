@@ -1557,7 +1557,9 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
     const childInserts = [];
 
     if (Array.isArray(data.scope_two_indirect_emissions_from_purchased_energy_questions)) {
-        data.scope_two_indirect_emissions_from_purchased_energy_questions = data.sup_id;
+        console.log(data.sup_id,"data.sup_iddata.sup_id");
+        
+        // data.scope_two_indirect_emissions_from_purchased_energy_questions = data.sup_id;
 
         const dqrQ22: any[] = [];
 
@@ -1572,7 +1574,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                     energy_type: e.energy_type,
                     quantity: e.quantity,
                     unit: e.unit,
-                    sup_id: e.sup_id
+                    sup_id: data.sup_id
                 }
             });
 
