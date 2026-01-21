@@ -1566,6 +1566,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
         const rows = data.scope_two_indirect_emissions_from_purchased_energy_questions.map((e: any) => {
             const stidefpe_id = ulid();
 
+            e = data.sup_id;
             prepareDQR({
                 records: dqrQ22,
                 childId: stidefpe_id,
