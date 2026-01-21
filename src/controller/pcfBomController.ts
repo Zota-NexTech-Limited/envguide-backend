@@ -2678,8 +2678,8 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchPAckaginEmissionFactor = `
                                 SELECT material_type,ef_eu_region,ef_india_region,
-                                ef_global_region,year,unit
-                                FROM packaging_emission_factor
+                                ef_global_region,year,unit,iso_country_code
+                                FROM packaging_material_treatment_type_emission_factor
                                 WHERE material_type = $1 AND year=$2 AND unit=$3;
                              `;
 
@@ -2719,9 +2719,13 @@ export async function pcfCalculate(req: any, res: any) {
 
                     // Fifth Phase END
 
-
-
                     // Sixth Phase Start
+
+                    //=======> Emission Factor Box waste treatment (kg CO₂e/kg) 
+
+                    let emission_factor_box_waste_treatment_kg_CO2e_kg = 0;
+                    let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0;
+
                     const fetchQ40WasteQualityControl = `
                                 SELECT bom_id,material_number,waste_type,
                                 waste_weight,unit,treatment_type
@@ -2732,9 +2736,125 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchQ40WasteQualityControlResult = await client.query(fetchQ40WasteQualityControl, [BomData.id]);
 
-                    for (let fetchQ40Data of fetchQ40WasteQualityControlResult) {
+                    for (let fetchQ40Data of fetchQ40WasteQualityControlResult.rows) {
+
+                        // let emission_factor_box_waste_treatment_kg_CO2e_kg = 0;
+
+                        const fetchWasteTreatmentEmissionFactor = `
+                                SELECT
+                                    wmttef.waste_type,
+                                    wmttef.wtt_id,
+                                    wmttef.ef_eu_region,
+                                    wmttef.ef_india_region,
+                                    wmttef.ef_global_region,
+                                    wmttef.year,
+                                    wmttef.unit,
+                                    wmttef.iso_country_code
+                                FROM waste_material_treatment_type_emission_factor AS wmttef
+                                JOIN waste_treatment_type AS wtt
+                                ON wmttef.wtt_id = wtt.wtt_id
+                            WHERE
+                             wmttef.waste_type = $1
+                             AND wmttef.year = $2
+                             AND wmttef.unit = $3
+                             AND wtt.name = $4;
+                        `;
+
+                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ40Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ40Data.unit, fetchQ40Data.treatment_type]);
+
+                        if (fetchPackagingEmisResult.rows[0]) {
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
+                            }
+
+                        }
+
+                        console.log("emission_factor_box_waste_treatment_kg_CO2e_kg:", emission_factor_box_waste_treatment_kg_CO2e_kg);
+
 
                     }
+                    //=======> END
+
+                    // ====>Emission Factor Packaging waste treatment (kg CO₂e/kWh) 
+
+                    const fetchQ68PackagingWasteControl = `
+                                SELECT bom_id,material_number,waste_type,
+                                waste_weight,unit,treatment_type
+                                FROM weight_of_pro_packaging_waste_questions
+                                WHERE bom_id = $1;
+                             `;
+
+
+                    const fetchQ68PackagingWasteControlResult = await client.query(fetchQ68PackagingWasteControl, [BomData.id]);
+
+                    for (let fetchQ68Data of fetchQ68PackagingWasteControlResult.rows) {
+
+                        // let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0;
+
+                        const fetchWasteTreatmentEmissionFactor = `
+                                SELECT
+                                    pmttef.material_type,
+                                    pmttef.ptt_id,
+                                    pmttef.ef_eu_region,
+                                    pmttef.ef_india_region,
+                                    pmttef.ef_global_region,
+                                    pmttef.year,
+                                    pmttef.unit,
+                                    pmttef.iso_country_code
+                                FROM packaging_material_treatment_type_emission_factor AS pmttef
+                                JOIN packaging_treatment_type AS ptt
+                                ON pmttef.ptt_id = ptt.ptt_id
+                            WHERE
+                             pmttef.material_type = $1
+                             AND pmttef.year = $2
+                             AND pmttef.unit = $3
+                             AND ptt.name = $4;
+                        `;
+
+                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ68Data.unit, fetchQ68Data.treatment_type]);
+
+                        console.log(fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ68Data.unit, fetchQ68Data.treatment_type);
+
+                        if (fetchPackagingEmisResult.rows[0]) {
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
+                            }
+
+                        }
+
+                        console.log("emission_factor_packaging_waste_treatment_kg_COe2_kWh:", emission_factor_packaging_waste_treatment_kg_COe2_kWh);
+
+
+
+
+                    }
+
+
+                    let waste_disposal_emissions_kg_CO2e = 0;
+
+                    const weightInKg68 = parseFloat(BomData.weight_gms) / 1000;
+
+                    waste_disposal_emissions_kg_CO2e = ((weightInKg68 * emission_factor_box_waste_treatment_kg_CO2e_kg) + emission_factor_packaging_waste_treatment_kg_COe2_kWh);
+                    console.log("waste_disposal_emissions_kg_CO2e:", waste_disposal_emissions_kg_CO2e);
+                    // ====> END
 
                     // Sixth Phase END
 

@@ -1557,7 +1557,9 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
     const childInserts = [];
 
     if (Array.isArray(data.scope_two_indirect_emissions_from_purchased_energy_questions)) {
-        data.scope_two_indirect_emissions_from_purchased_energy_questions = data.sup_id;
+        console.log(data.sup_id,"data.sup_iddata.sup_id");
+        
+        // data.scope_two_indirect_emissions_from_purchased_energy_questions = data.sup_id;
 
         const dqrQ22: any[] = [];
 
@@ -1572,7 +1574,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                     energy_type: e.energy_type,
                     quantity: e.quantity,
                     unit: e.unit,
-                    sup_id: e.sup_id
+                    sup_id: data.sup_id
                 }
             });
 
@@ -2728,6 +2730,9 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 records: dqr73,
                 childId: coteorm_id,
                 payload: {
+                    bom_id: c.bom_id,
+                    material_number: c.material_number,
+                    component_name: c.component_name,
                     raw_material_name: c.raw_material_name,
                     transport_mode: c.transport_mode,
                     source_location: c.source_location,
@@ -2739,6 +2744,9 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
             return [
                 coteorm_id,
                 stoie_id,
+                c.bom_id,
+                c.material_number,
+                c.component_name,
                 c.raw_material_name,
                 c.transport_mode,
                 c.source_location,
@@ -2750,7 +2758,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
         childInserts.push(bulkInsert(
             client,
             'co_two_emission_of_raw_material_questions',
-            ['coteorm_id', 'stoie_id', 'raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission'],
+            ['coteorm_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission'],
             rows
         ));
 
@@ -2773,6 +2781,9 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                 records: dqr74,
                 childId: motuft_id,
                 payload: {
+                    bom_id: t.bom_id,
+                    material_number: t.material_number,
+                    component_name: t.component_name,
                     mode_of_transport: t.mode_of_transport,
                     weight_transported: t.weight_transported,
                     source_point: t.source_point,
@@ -2784,6 +2795,9 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
             return [
                 motuft_id,
                 stoie_id,
+                t.bom_id,
+                t.material_number,
+                t.component_name,
                 t.mode_of_transport,
                 t.weight_transported,
                 t.source_point,
@@ -2795,7 +2809,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
         childInserts.push(bulkInsert(
             client,
             'mode_of_transport_used_for_transportation_questions',
-            ['motuft_id', 'stoie_id', 'mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance'],
+            ['motuft_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance'],
             rows
         ));
 
