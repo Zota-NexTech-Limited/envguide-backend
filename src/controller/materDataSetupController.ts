@@ -3773,6 +3773,284 @@ export async function getFuelTypeDropDownList(req: any, res: any) {
     });
 }
 
+// ======>
+export async function addSubFuelType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { ft_id, name } = req.body;
+
+            if (!ft_id || !name) {
+                throw new Error("Fuel Type and Name are required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM sub_fuel_types WHERE name ILIKE $1 AND ft_id = $2`,
+                [name, ft_id]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const sft_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'SFT', 'sub_fuel_types');
+            const code = formatCode('SFT', nextNumber);
+
+            const query = `
+                INSERT INTO sub_fuel_types (sft_id, ft_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [
+                sft_id,
+                ft_id,
+                code,
+                name,
+                req.user_id
+            ]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+
+export async function updateSubFuelType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+                if (!item.name || !item.ft_id) {
+                    throw new Error("Fuel Type and Name are required");
+                }
+
+                const checkName = await client.query(
+                    `SELECT 1
+                     FROM sub_fuel_types
+                     WHERE name ILIKE $1
+                       AND ft_id = $2
+                       AND sft_id <> $3`,
+                    [item.name, item.ft_id, item.sft_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE sub_fuel_types
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE sft_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.sft_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getSubFuelTypeListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue, ft_id } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (ft_id) {
+                values.push(ft_id);
+                whereClause += ` AND s.ft_id = $${values.length}`;
+            }
+
+            if (searchValue) {
+                values.push(`%${searchValue}%`);
+                whereClause += `
+                    AND (s.code ILIKE $${values.length}
+                    OR s.name ILIKE $${values.length})
+                `;
+            }
+
+            const listQuery = `
+                SELECT s.*, f.name AS fuel_type_name
+                FROM sub_fuel_types s
+                LEFT JOIN fuel_types f ON f.ft_id = s.ft_id
+                WHERE 1=1 ${whereClause}
+                ORDER BY s.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM sub_fuel_types s
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function SubFuelTypeDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            // Collect fuel type names
+            const fuelTypeNames = [...new Set(
+                data.map(d => d.fuel_type_name.toLowerCase())
+            )];
+
+            const fuelTypes = await client.query(
+                `SELECT ft_id, name FROM fuel_types WHERE name ILIKE ANY($1)`,
+                [fuelTypeNames]
+            );
+
+            if (fuelTypes.rowCount !== fuelTypeNames.length) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more fuel types not found", 400, null));
+            }
+
+            const fuelTypeMap = new Map(
+                fuelTypes.rows.map((f: any) => [f.name.toLowerCase(), f.ft_id])
+            );
+
+            let nextNumber = await generateDynamicCode(client, 'SFT', 'sub_fuel_types');
+            const rows: any[] = [];
+
+            for (const item of data) {
+                if (!item.name || !item.fuel_type_name) {
+                    throw new Error("Fuel Type Name and Sub Fuel Type Name are required");
+                }
+
+                rows.push({
+                    sft_id: ulid(),
+                    ft_id: fuelTypeMap.get(item.fuel_type_name.toLowerCase()),
+                    code: formatCode('SFT', nextNumber++),
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO sub_fuel_types (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteSubFuelType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { sft_id } = req.body;
+
+            await client.query(
+                `DELETE FROM sub_fuel_types WHERE sft_id = $1`,
+                [sft_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getSubFuelTypeDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT s.sft_id, s.name, s.ft_id, f.name AS fuel_type_name
+                FROM sub_fuel_types s
+                LEFT JOIN fuel_types f ON f.ft_id = s.ft_id
+                ORDER BY s.created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getSubFuelTypeDropDownListUsingId(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT s.sft_id, s.name, s.ft_id
+                FROM sub_fuel_types s
+                WHERE s.ft_id = $1;
+            `;
+
+            const listResult = await client.query(listQuery, [req.query.ft_id]);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
 // ===>
 export async function addVehicleType(req: any, res: any) {
     return withClient(async (client: any) => {
