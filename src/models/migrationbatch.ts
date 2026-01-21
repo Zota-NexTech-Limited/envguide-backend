@@ -3009,6 +3009,17 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+          `CREATE TABLE IF NOT EXISTS sub_fuel_types (
+            sft_id VARCHAR(255) PRIMARY KEY,
+            ft_id VARCHAR(255),
+            code VARCHAR(255) NOT NULL, 
+            name VARCHAR(255) NOT NULL,  
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
         `CREATE TABLE IF NOT EXISTS vehicle_types (
             vt_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255) NOT NULL, 
