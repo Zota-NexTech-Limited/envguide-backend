@@ -2179,7 +2179,7 @@ export async function pcfCalculate(req: any, res: any) {
 
             // To fetch ALL BOM for particular PCF 
             const fetchAllBOM = `
-                SELECT id,bom_pcf_id,material_number,
+                SELECT id,bom_pcf_id,material_number,economic_ratio,
                 component_name,qunatity,production_location,
                 weight_gms,total_weight_gms,price,total_price
                 FROM bom
@@ -2189,6 +2189,16 @@ export async function pcfCalculate(req: any, res: any) {
             const allBOMResult = await client.query(fetchAllBOM, [bom_pcf_id]);
 
             for (let BomData of allBOMResult.rows) {
+
+                const fetchSGIQID = `
+                SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
+                FROM supplier_general_info_questions
+                WHERE bom_pcf_id = $1;
+            `;
+
+                const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id]);
+
+                let Total_Housing_Component_Emissions = 0;
                 //========> Phase one start
                 let Raw_Material_emissions = 0;
 
@@ -2214,40 +2224,76 @@ export async function pcfCalculate(req: any, res: any) {
 
 
                     const fetchEmissionMaterialFactor = `
-                SELECT element_name,
+                SELECT element_name,year,unit,
                 ef_eu_region,ef_india_region,ef_global_region
-                FROM materials_emission_factor;
+                FROM materials_emission_factor WHERE element_name=$1 AND year=$2 AND unit=$3;
             `;
 
-                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor);
+                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "Kg"]);
 
-                    let FetchEmiassionValue = 0;
+                    let Material_Emission_Factor_kg_CO2E_kg = 0;
                     if (fetchEmissionMaterialFactorSupResult.rows) {
-                        for (let data of fetchEmissionMaterialFactorSupResult.rows) {
+
+                        if (fetchQ13SupResult.rows[0]) {
 
                             if (fetchQ13SupResult.rows[0].location.toLowerCase() === "india") {
-                                if (data.element_name.toLowerCase() === fetchQ52SupResult.rows[0].material_name.toLowerCase()) {
-                                    FetchEmiassionValue = data.ef_india_region
-                                }
+                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_india_region)
                             }
+
+                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "europe") {
+                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_eu_region)
+                            }
+
+                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "global") {
+                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_global_region)
+                            }
+
                         }
+
                     }
 
                     console.log("Component Weight (kg):", BomData.weight_gms);
 
                     const weightInKg = parseFloat(BomData.weight_gms) / 1000;
 
+                    const material_composition = ProductData.percentage;
+                    const material_composition_weight = ((weightInKg / 100) * ProductData.percentage);
+
+
                     console.log("Material composition (%):", ProductData.percentage);
                     console.log("Weight In KG convert:", weightInKg);
 
                     console.log("Material composition Weight in (Kg):", (weightInKg / 100) * ProductData.percentage);
-                    console.log("Material Emission Factor (kg CO₂e/kg):", FetchEmiassionValue);
-                    console.log("Material emissions (kg CO₂e):", ((weightInKg / 100) * ProductData.percentage) * FetchEmiassionValue);
-                    let Material_emissions_kg_CO_e = ((((weightInKg / 100) * ProductData.percentage) * FetchEmiassionValue));
+                    console.log("Material_Emission_Factor_kg_CO2E_kg:", Material_Emission_Factor_kg_CO2E_kg);
+                    console.log("Material emissions (kg CO₂e):", ((weightInKg / 100) * ProductData.percentage) * Material_Emission_Factor_kg_CO2E_kg);
+                    let Material_emissions_kg_CO_e = ((((weightInKg / 100) * ProductData.percentage) * Material_Emission_Factor_kg_CO2E_kg));
                     Raw_Material_emissions += Material_emissions_kg_CO_e;
+
+                    // ====> Insert into bom_emission_material_calculation_engine table
+                    //         const queryMaterial = `
+                    //     INSERT INTO bom_emission_material_calculation_engine 
+                    //     (id,bom_id, material_type, material_composition,
+                    //      material_composition_weight, material_emission_factor,material_emission)
+                    //     VALUES ($1,$2, $3, $4, $5, $6, $7)
+                    //     RETURNING *;
+                    // `;
+
+                    //         await client.query(queryMaterial, [
+                    //             ulid(),
+                    //             BomData.id,
+                    //             ProductData.material_name,
+                    //             material_composition,
+                    //             material_composition_weight,
+                    //             Material_Emission_Factor_kg_CO2E_kg,
+                    //             Material_emissions_kg_CO_e
+                    //         ]);
+
+                    // ===> Insert Ends here
 
                 }
                 console.log("Raw Material emissions (kg CO₂e):", Raw_Material_emissions);
+
+                Total_Housing_Component_Emissions += Raw_Material_emissions;
                 //========> Phase One END
 
                 //========> Second Phase start
@@ -2281,17 +2327,11 @@ export async function pcfCalculate(req: any, res: any) {
                 const Allocation_Method = Economic_Ratio_ER > 5 ? "Economic Allocation Method" : "Physical Mass Balance allocation Method";
                 console.log("Allocation Method:", Allocation_Method);
 
+                console.log("Economic_Ratio_ER:", Economic_Ratio_ER);
+
                 // ========>Second Phase End
 
                 // ========>Third Phase Start
-
-                const fetchSGIQID = `
-                SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
-                FROM supplier_general_info_questions
-                WHERE bom_pcf_id = $1;
-            `;
-
-                const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id]);
 
                 const fetchSTIDEID = `
                 SELECT sgiq_id,stide_id
@@ -2401,10 +2441,10 @@ export async function pcfCalculate(req: any, res: any) {
                     const someOfAllProductQues = `
                 SELECT spq_id, bom_id,material_number,weight_per_unit,price,quantity
                 FROM product_component_manufactured_questions
-                WHERE spq_id = $1;
+                WHERE bom_id = $1;
             `;
 
-                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [fetcSPQIDSupResult.rows[0].spq_id]);
+                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [BomData.id]);
 
                     let Total_weight_produced_at_Factory_level_kg = 0;
                     if (someOfAllProductQuesSupResult.rows) {
@@ -2416,7 +2456,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                     }
 
-                    let No_of_products_current_copomnent_produced = 0;
+                    let no_of_products_current_component_produced = 0;
 
                     const partcularProductQuanty = `
                 SELECT spq_id,bom_id,material_number,quantity
@@ -2427,13 +2467,13 @@ export async function pcfCalculate(req: any, res: any) {
                     const partcularProductQuantySupResult = await client.query(partcularProductQuanty, [BomData.id]);
 
                     if (partcularProductQuantySupResult.rows[0]) {
-                        No_of_products_current_copomnent_produced = partcularProductQuantySupResult.rows[0].quantity
+                        no_of_products_current_component_produced += partcularProductQuantySupResult.rows[0].quantity
                     }
-                    console.log("No_of_products_current_copomnent_produced:", No_of_products_current_copomnent_produced);
+                    console.log("no_of_products_current_component_produced:", no_of_products_current_component_produced);
 
                     let Total_weight_of_current_component_produced_Kg = 0;
                     if (partcularProductQuantySupResult.rows[0].bom_id === BomData.id) {
-                        Total_weight_of_current_component_produced_Kg = No_of_products_current_copomnent_produced * BomData.weight_gms
+                        Total_weight_of_current_component_produced_Kg += ((BomData.weight_gms / 1000) * no_of_products_current_component_produced)
                     }
                     console.log("Total_weight_of_current_component_produced_Kg:", Total_weight_of_current_component_produced_Kg);
 
@@ -2445,19 +2485,19 @@ export async function pcfCalculate(req: any, res: any) {
                     let Production_electricity_energy_use_per_unit_kWh = 0;
 
                     Production_electricity_energy_use_per_unit_kWh =
-                        (Total_electricity_utilised_for_production_all_current_components_kWh / No_of_products_current_copomnent_produced);
+                        (Total_electricity_utilised_for_production_all_current_components_kWh / no_of_products_current_component_produced);
                     console.log("Production_electricity_energy_use_per_unit_kWh:", Production_electricity_energy_use_per_unit_kWh);
 
                     let Production_Heating_energy_use_per_unit_kWh = 0;
-                    Production_Heating_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Heating_Energy_consumed_at_Factory_level_kWh) / No_of_products_current_copomnent_produced)
+                    Production_Heating_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Heating_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
                     console.log("Production_Heating_energy_use_per_unit_kWh :", Production_Heating_energy_use_per_unit_kWh);
 
                     let Production_Cooling_energy_use_per_unit_kWh = 0;
-                    Production_Cooling_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Cooling_Energy_consumed_at_Factory_level_kWh) / No_of_products_current_copomnent_produced)
+                    Production_Cooling_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Cooling_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
                     console.log("Production_Cooling_energy_use_per_unit_kWh :", Production_Cooling_energy_use_per_unit_kWh);
 
                     let Production_Steam_energy_use_per_unit_kWh = 0;
-                    Production_Steam_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Steam_Energy_consumed_at_Factory_level_kWh) / No_of_products_current_copomnent_produced)
+                    Production_Steam_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Steam_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
                     console.log("Production_Steam_energy_use_per_unit_kWh :", Production_Steam_energy_use_per_unit_kWh);
 
 
@@ -2638,6 +2678,53 @@ export async function pcfCalculate(req: any, res: any) {
 
                     console.log("Manufacturing_Emissions_kg_CO2e:", Manufacturing_Emissions_kg_CO2e);
 
+                    Total_Housing_Component_Emissions += Manufacturing_Emissions_kg_CO2e;
+
+                    const weightInKg = parseFloat(BomData.weight_gms) / 1000;
+
+                    // ====> Insert into bom_emission_production_calculation_engine table
+                    //         const queryProd = `
+                    //     INSERT INTO bom_emission_production_calculation_engine 
+                    //     (id,bom_id, component_weight_kg, allocation_methodology,
+                    //      total_electrical_energy_consumed_at_factory_level_kWh, total_heating_energy_consumed_at_factory_level_kWh,
+                    //      total_cooling_energy_consumed_at_factory_level_kWh,total_steam_energy_consumed_at_factory_level_kWh,
+                    //      total_energy_consumed_at_factory_level_kWh,total_weight_produced_at_factory_level_kg,
+                    //      no_of_products_current_component_produced,total_weight_of_current_component_produced_kg,
+                    //      total_electricity_utilised_for_production_all_current_components_kWh,
+                    //      production_electricity_energy_use_per_unit_kWh,production_heat_energy_use_per_unit_kWh,
+                    //      production_cooling_energy_use_per_unit_kWh,production_steam_energy_use_per_unit_kWh,
+                    //      emission_factor_of_electricity,emission_factor_of_heat,
+                    //      emission_factor_of_cooling,emission_factor_of_steam)
+                    //     VALUES ($1,$2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+                    //     RETURNING *;
+                    // `;
+
+                    //         await client.query(queryProd, [
+                    //             ulid(),
+                    //             BomData.id,
+                    //             weightInKg,
+                    //             Allocation_Method,
+                    //             Total_Electrical_Energy_consumed_at_Factory_level_kWh,
+                    //             Total_Heating_Energy_consumed_at_Factory_level_kWh,
+                    //             Total_Cooling_Energy_consumed_at_Factory_level_kWh,
+                    //             Total_Steam_Energy_consumed_at_Factory_level_kWh,
+                    //             Total_Energy_consumed_at_Factory_level_kWh,
+                    //             Total_weight_produced_at_Factory_level_kg,
+                    //             no_of_products_current_component_produced,
+                    //             Total_weight_of_current_component_produced_Kg,
+                    //             Total_electricity_utilised_for_production_all_current_components_kWh,
+                    //             Production_electricity_energy_use_per_unit_kWh,
+                    //             Production_Heating_energy_use_per_unit_kWh,
+                    //             Production_Cooling_energy_use_per_unit_kWh,
+                    //             Production_Steam_energy_use_per_unit_kWh,
+                    //             FetchElectricityTypeEmiassionValue,
+                    //             FetchHeatingTypeEmiassionValue,
+                    //             FetchCoolingTypeEmiassionValue,
+                    //             FetchSteamTypeEmiassionValue
+                    //         ]);
+
+                    // ===> Insert Ends here
+
                     // Third Phase END
 
 
@@ -2686,7 +2773,6 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResult.rows[0].unit]);
 
-
                     if (fetchPackagingEmisResult.rows[0]) {
 
                         if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
@@ -2709,17 +2795,167 @@ export async function pcfCalculate(req: any, res: any) {
                     console.log("Emission_Factor_Box_kg_CO2E_kg:", Emission_Factor_Box_kg_CO2E_kg);
                     console.log("Packaging_Carbon_Emissions_kg_CO2e_or_box:", Packaging_Carbon_Emissions_kg_CO2e_or_box);
 
+                    Total_Housing_Component_Emissions += Packaging_Carbon_Emissions_kg_CO2e_or_box;
+
+
+                    // ====> Insert into bom_emission_packaging_calculation_engine table
+                    //         const queryPacking = `
+                    //     INSERT INTO bom_emission_packaging_calculation_engine 
+                    //     (id,bom_id, pack_weight_kg, emission_factor_box_kg,
+                    //     packaging_type)
+                    //     VALUES ($1,$2, $3, $4, $5)
+                    //     RETURNING *;
+                    // `;
+
+                    //         await client.query(queryPacking, [
+                    //             ulid(),
+                    //             BomData.id,
+                    //             packaginWeight,
+                    //             Emission_Factor_Box_kg_CO2E_kg,
+                    //             packaginType
+                    //         ]);
+
+                    // ===> Insert Ends here
 
                     // Fourth Phase END
 
 
-
-
                     // Fifth Phase Start
+
+
+                    const extractNumber = (value: string | number | null | undefined): number => {
+                        if (typeof value === 'number') return value;
+                        if (!value) return 0;
+
+                        const num = value.match(/[\d.]+/);
+                        return num ? parseFloat(num[0]) : 0;
+                    };
+
+                    let Total_Transportation_emissions_per_unit_kg_CO2E = 0;
+
+                    const fetchQ74ModeOFTransportControl = `
+                                SELECT bom_id,material_number,mode_of_transport,
+                                weight_transported,distance
+                                FROM mode_of_transport_used_for_transportation_questions
+                                WHERE bom_id = $1;
+                             `;
+
+
+                    const fetchQ74ModeOFTransportControlResult = await client.query(fetchQ74ModeOFTransportControl, [BomData.id]);
+
+
+                    const packaginWeightNum =
+                        typeof packaginWeight === 'string'
+                            ? parseFloat(packaginWeight)
+                            : packaginWeight || 0;
+                    const bomWeightKg = (parseFloat(BomData.weight_gms) || 0) / 1000;
+
+                    console.log("packaginWeightNum:", packaginWeightNum, "packaginWeight:", bomWeightKg);
+
+                    const mass_transported_Kg = packaginWeightNum + bomWeightKg;
+
+                    console.log("mass_transported_Kg:", mass_transported_Kg);
+
+                    for (let fetchQ74TransportData of fetchQ74ModeOFTransportControlResult.rows) {
+
+
+
+                        let modeOfTransport = fetchQ74TransportData.mode_of_transport;
+                        let weightTransportedRaw = fetchQ74TransportData.weight_transported;
+                        let distance = extractNumber(fetchQ74TransportData.distance);
+
+                        console.log("modeOfTransport:", modeOfTransport);
+                        console.log("weightTransportedRaw:", weightTransportedRaw);
+                        console.log("distance:", distance);
+
+                        let Mass_transported_ton;
+
+                        // if (weightTransportedRaw) {
+
+                        //     let weightTransported = extractNumber(weightTransportedRaw);
+
+                        //     Mass_transported_ton = weightTransported;
+                        // } else {
+                        Mass_transported_ton = mass_transported_Kg / 1000;
+                        // }
+
+                        console.log("Mass_transported_ton:", Mass_transported_ton);
+
+                        let Distance_Km = distance;
+                        console.log("Distance_Km:", Distance_Km);
+
+                        let transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = 0;
+
+
+                        const fetchVehicleTypeEmissionFactor = `
+                                SELECT vehicle_type,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit,iso_country_code
+                                FROM vehicle_type_emission_factor
+                                WHERE vehicle_type = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                        const fetchVehicleTypeEmisResult = await client.query(fetchVehicleTypeEmissionFactor, [modeOfTransport, fetchSGIQIDSupResult.rows[0].annual_reporting_period, 'Kms']);
+
+                        if (fetchVehicleTypeEmisResult.rows[0]) {
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_india_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_eu_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_global_region)
+                            }
+
+                        }
+
+                        console.log("transport_Mode_Emission_Factor_Value_kg_CO2e_t_km:", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km);
+
+                        let Leg_wise_transport_emissions_per_unit_kg_CO2E = 0;
+
+                        Leg_wise_transport_emissions_per_unit_kg_CO2E += (Mass_transported_ton * Distance_Km * transport_Mode_Emission_Factor_Value_kg_CO2e_t_km)
+
+                        console.log("Leg_wise_transport_emissions_per_unit_kg_CO2E:", Leg_wise_transport_emissions_per_unit_kg_CO2E);
+
+                        Total_Transportation_emissions_per_unit_kg_CO2E += Leg_wise_transport_emissions_per_unit_kg_CO2E;
+
+
+                        // ====> Insert into bom_emission_logistic_calculation_engine table
+                        //             const query = `
+                        //     INSERT INTO bom_emission_logistic_calculation_engine 
+                        //     (id,bom_id, mode_of_transport, mass_transported_kg,
+                        //     mass_transported_ton,distance_km,transport_mode_emission_factor_value_kg_co2e_t_km,
+                        //     leg_wise_transport_emissions_per_unit_kg_co2e)
+                        //     VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
+                        //     RETURNING *;
+                        // `;
+
+                        //             await client.query(query, [
+                        //                 ulid(),
+                        //                 BomData.id,
+                        //                 modeOfTransport,
+                        //                 mass_transported_Kg,
+                        //                 Mass_transported_ton,
+                        //                 Distance_Km,
+                        //                 transport_Mode_Emission_Factor_Value_kg_CO2e_t_km,
+                        //                 Leg_wise_transport_emissions_per_unit_kg_CO2E
+                        //             ]);
+
+                        // ===> Insert Ends here
+
+                    }
+
+                    console.log("Total_Transportation_emissions_per_unit_kg_CO2E:", Total_Transportation_emissions_per_unit_kg_CO2E);
+
+                    Total_Housing_Component_Emissions += Total_Transportation_emissions_per_unit_kg_CO2E;
 
                     // Fifth Phase END
 
-                    // Sixth Phase Start
+                    // Sixth Phase Start 
 
                     //=======> Emission Factor Box waste treatment (kg CO₂e/kg) 
 
@@ -2852,12 +3088,64 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const weightInKg68 = parseFloat(BomData.weight_gms) / 1000;
 
-                    waste_disposal_emissions_kg_CO2e = ((weightInKg68 * emission_factor_box_waste_treatment_kg_CO2e_kg) + emission_factor_packaging_waste_treatment_kg_COe2_kWh);
+                    const weightOfTenPercent = ((weightInKg68 / 100) * 10);
+
+                    console.log("weightInKg68:", weightInKg68, "weightOfTenPercent:", weightOfTenPercent);
+
+                    waste_disposal_emissions_kg_CO2e = ((weightOfTenPercent * emission_factor_box_waste_treatment_kg_CO2e_kg) + (emission_factor_packaging_waste_treatment_kg_COe2_kWh));
                     console.log("waste_disposal_emissions_kg_CO2e:", waste_disposal_emissions_kg_CO2e);
                     // ====> END
 
+
+                    Total_Housing_Component_Emissions += waste_disposal_emissions_kg_CO2e;
+
+                    console.log(waste_disposal_emissions_kg_CO2e, Raw_Material_emissions, Manufacturing_Emissions_kg_CO2e, Packaging_Carbon_Emissions_kg_CO2e_or_box, Total_Transportation_emissions_per_unit_kg_CO2E);
+
+
+                    // ====> Insert into bom_emission_waste_calculation_engine table
+                    //         const query = `
+                    //     INSERT INTO bom_emission_waste_calculation_engine 
+                    //     (id,bom_id, waste_generated_per_box_kg, emission_factor_box_waste_treatment_kg_co2e_kg,
+                    //     emission_factor_packaging_waste_treatment_kg_co2e_kWh)
+                    //     VALUES ($1,$2, $3, $4, $5)
+                    //     RETURNING *;
+                    // `;
+
+                    //         await client.query(query, [
+                    //             ulid(),
+                    //             BomData.id,
+                    //             weightOfTenPercent,
+                    //             emission_factor_box_waste_treatment_kg_CO2e_kg,
+                    //             emission_factor_packaging_waste_treatment_kg_COe2_kWh
+                    //         ]);
+
+                    // ===> Insert Ends here
+
+                    console.log("Total_Housing_Component_Emissions:", Total_Housing_Component_Emissions);
+
                     // Sixth Phase END
 
+                    // ====> Insert into bom_emission_calculation_engine table
+                    //         const queryLastPhase = `
+                    //     INSERT INTO bom_emission_calculation_engine 
+                    //     (id,bom_id, material_value, production_value,
+                    //     packaging_value,logistic_value,waste_value,total_pcf_value)
+                    //     VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
+                    //     RETURNING *;
+                    // `;
+
+                    //         await client.query(queryLastPhase, [
+                    //             ulid(),
+                    //             BomData.id,
+                    //             Raw_Material_emissions,
+                    //             Manufacturing_Emissions_kg_CO2e,
+                    //             Packaging_Carbon_Emissions_kg_CO2e_or_box,
+                    //             Total_Transportation_emissions_per_unit_kg_CO2E,
+                    //             waste_disposal_emissions_kg_CO2e,
+                    //             Total_Housing_Component_Emissions
+                    //         ]);
+
+                    // ===> Insert Ends here
 
 
                 }
