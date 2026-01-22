@@ -2188,6 +2188,7 @@ export async function pcfCalculate(req: any, res: any) {
 
             const allBOMResult = await client.query(fetchAllBOM, [bom_pcf_id]);
 
+            const TotalBomDetails = [];
             for (let BomData of allBOMResult.rows) {
 
                 const fetchSGIQID = `
@@ -3147,6 +3148,15 @@ export async function pcfCalculate(req: any, res: any) {
 
                     // ===> Insert Ends here
 
+                    TotalBomDetails.push({
+                        bom_id: BomData.id,
+                        material_value: Raw_Material_emissions,
+                        production_value: Manufacturing_Emissions_kg_CO2e,
+                        packaging_value: Packaging_Carbon_Emissions_kg_CO2e_or_box,
+                        logistic_value: Total_Transportation_emissions_per_unit_kg_CO2E,
+                        waste_value: waste_disposal_emissions_kg_CO2e,
+                        total_pcf_value: Total_Housing_Component_Emissions
+                    });
 
                 }
 
@@ -3160,7 +3170,7 @@ export async function pcfCalculate(req: any, res: any) {
 
 
             return res.send(
-                generateResponse(true, "PCF calculation can be initiated", 200, null)
+                generateResponse(true, "PCF calculation can be initiated", 200, TotalBomDetails)
             );
 
         } catch (error: any) {
