@@ -2183,7 +2183,7 @@ export async function pcfCalculate(req: any, res: any) {
                 component_name,qunatity,production_location,
                 weight_gms,total_weight_gms,price,total_price
                 FROM bom
-                WHERE bom_pcf_id = $1;
+                WHERE bom_pcf_id = $1 AND is_bom_calculated = FALSE;
             `;
 
             const allBOMResult = await client.query(fetchAllBOM, [bom_pcf_id]);
@@ -3168,9 +3168,16 @@ export async function pcfCalculate(req: any, res: any) {
             }
 
 
-            // Update status of bom calculation
+            // Update status of bom calculation bom level
             await client.query(
                 `UPDATE bom SET is_bom_calculated = true
+                 WHERE bom_pcf_id = $1;`,
+                [bom_pcf_id]
+            );
+
+            // Update status of bom calculation Pcf level
+            await client.query(
+                `UPDATE pcf_request_stages SET is_pcf_calculated = true
                  WHERE bom_pcf_id = $1;`,
                 [bom_pcf_id]
             );
