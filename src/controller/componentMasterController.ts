@@ -244,7 +244,8 @@ export async function getComponnetMasterList(req: any, res: any) {
         pcfCode,
         productCode,
         requestTitle,
-        search
+        search,
+        pcf_status
     } = req.query;
 
     const limit = Number(pageSize);
@@ -277,6 +278,12 @@ export async function getComponnetMasterList(req: any, res: any) {
                 idx += 2;
             }
 
+             if (pcf_status) {
+                whereConditions.push(`pcf.status = $${idx}`);
+                values.push(pcf_status);
+                idx++;
+            }
+            
             /* ---------- EXACT FILTERS ---------- */
             const exactFilters: any[] = [
                 { field: 'pc.code', value: productCategoryCode },

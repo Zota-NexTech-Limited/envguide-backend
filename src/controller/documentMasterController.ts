@@ -358,7 +358,8 @@ export async function listDocumentMaster(req: any, res: any) {
                 status,
                 category,
                 sortBy = "created_date",
-                sortOrder = "DESC"
+                sortOrder = "DESC",
+                document_type
             } = req.query;
 
             const offset = (pageNumber - 1) * pageSize;
@@ -372,13 +373,19 @@ export async function listDocumentMaster(req: any, res: any) {
                 where += ` AND (
                     dm.document_title ILIKE $${values.length} OR
                     dm.code ILIKE $${values.length} OR
-                    dm.document_type ILIKE $${values.length}
+                    dm.document_type ILIKE $${values.length} OR
+                    dm.product_code ILIKE $${values.length}
                 )`;
             }
 
             if (status) {
                 values.push(status);
                 where += ` AND dm.status = $${values.length}`;
+            }
+
+            if (document_type) {
+                values.push(document_type);
+                where += ` AND dm.document_type = $${values.length}`;
             }
 
             if (category) {
