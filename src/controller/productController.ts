@@ -276,7 +276,9 @@ export async function listProducts(req: any, res: any) {
                 start_date,
                 end_date,
                 category_name,
+                sub_ategory_name,
                 pcf_status,
+                product_name,
                 search = ""
             } = req.query;
 
@@ -301,6 +303,19 @@ export async function listProducts(req: any, res: any) {
                 index++;
             }
 
+             if (product_name) {
+                whereClauses.push(`p.product_name ILIKE $${index}`);
+                params.push(`%${product_name}%`);
+                index++;
+            }
+
+              if (sub_ategory_name) {
+                whereClauses.push(`sc.name ILIKE $${index}`);
+                params.push(`%${sub_ategory_name}%`);
+                index++;
+            }
+
+
             // Filter: PCF Status
             if (pcf_status) {
                 whereClauses.push(`p.pcf_status = $${index}`);
@@ -312,7 +327,10 @@ export async function listProducts(req: any, res: any) {
             if (search) {
                 whereClauses.push(`(
                     p.product_code ILIKE $${index} OR 
-                    p.product_name ILIKE $${index}
+                    p.product_name ILIKE $${index} OR
+                    sc.name ILIKE $${index} OR
+                    pc.name ILIKE $${index}
+                    
                 )`);
                 params.push(`%${search}%`);
                 index++;
