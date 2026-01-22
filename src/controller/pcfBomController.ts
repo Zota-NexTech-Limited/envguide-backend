@@ -1172,14 +1172,119 @@ export const supplierService = {
 };
 
 export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
-    const { pageNumber = 1, pageSize = 20 } = req.query;
+    const {
+        pageNumber = 1,
+        pageSize = 20,
+
+        // booleans
+        is_approved,
+        is_rejected,
+        is_draft,
+
+
+        // filters
+        code,
+        request_title,
+        product_category,
+        component_category,
+        component_type,
+        manufacturer,
+
+        // common
+        search,
+        from_date,
+        to_date
+
+    } = req.query;
 
     const limit = parseInt(pageSize);
     const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
     const offset = (page - 1) * limit;
 
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
     return withClient(async (client: any) => {
         try {
+
+            /* ---------- BOOLEAN FILTERS ---------- */
+            if (is_approved !== undefined) {
+                conditions.push(`pcf.is_approved = $${idx++}`);
+                values.push(is_approved === 'true');
+            }
+
+            if (is_rejected !== undefined) {
+                conditions.push(`pcf.is_rejected = $${idx++}`);
+                values.push(is_rejected === 'true');
+            }
+
+            if (is_draft !== undefined) {
+                conditions.push(`pcf.is_draft = $${idx++}`);
+                values.push(is_draft === 'true');
+            }
+
+
+            /* ---------- COLUMN FILTERS ---------- */
+            if (code) {
+                conditions.push(`pcf.code ILIKE $${idx++}`);
+                values.push(`%${code}%`);
+            }
+
+            if (request_title) {
+                conditions.push(`pcf.request_title ILIKE $${idx++}`);
+                values.push(`%${request_title}%`);
+            }
+
+            if (product_category) {
+                conditions.push(`pc.name ILIKE $${idx++}`);
+                values.push(`%${product_category}%`);
+            }
+
+            if (component_category) {
+                conditions.push(`cc.name ILIKE $${idx++}`);
+                values.push(`%${component_category}%`);
+            }
+
+            if (component_type) {
+                conditions.push(`ct.name ILIKE $${idx++}`);
+                values.push(`%${component_type}%`);
+            }
+
+            if (manufacturer) {
+                conditions.push(`m.name ILIKE $${idx++}`);
+                values.push(`%${manufacturer}%`);
+            }
+
+            if (from_date) {
+                conditions.push(`pcf.created_date >= $${idx++}::date`);
+                values.push(from_date);
+            }
+
+            if (to_date) {
+                conditions.push(
+                    `pcf.created_date < ($${idx++}::date + INTERVAL '1 day')`
+                );
+                values.push(to_date);
+            }
+
+            if (search) {
+                conditions.push(`
+    (
+      pcf.code ILIKE $${idx}
+      OR pcf.request_title ILIKE $${idx}
+      OR pc.name ILIKE $${idx}
+      OR cc.name ILIKE $${idx}
+      OR ct.name ILIKE $${idx}
+      OR m.name ILIKE $${idx}
+    )
+  `);
+                values.push(`%${search}%`);
+                idx++;
+            }
+
+            values.push(limit, offset);
+
             const result = await client.query(
                 `
                 SELECT
@@ -1281,11 +1386,12 @@ LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
 LEFT JOIN users_table usb ON usb.user_id = prs.pcf_request_submitted_by
 
-ORDER BY pcf.created_date DESC
-LIMIT $1 OFFSET $2;
-
-`,
-                [limit, offset]
+WHERE 1=1
+                ${conditions.length ? `AND ${conditions.join(' AND ')}` : ''}
+                ORDER BY pcf.created_date DESC
+                LIMIT $${idx++} OFFSET $${idx++}
+                `,
+                values
             );
 
             return res.status(200).send(

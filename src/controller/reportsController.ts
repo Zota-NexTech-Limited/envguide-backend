@@ -1945,7 +1945,7 @@ export async function getTransportationFootPrint(req: any, res: any) {
             }
 
 
-              if (from_date) {
+            if (from_date) {
                 conditions.push(`b.created_date >= $${idx++}::date`);
                 values.push(from_date);
             }
