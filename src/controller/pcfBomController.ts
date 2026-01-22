@@ -2271,23 +2271,23 @@ export async function pcfCalculate(req: any, res: any) {
                     Raw_Material_emissions += Material_emissions_kg_CO_e;
 
                     // ====> Insert into bom_emission_material_calculation_engine table
-                    //         const queryMaterial = `
-                    //     INSERT INTO bom_emission_material_calculation_engine 
-                    //     (id,bom_id, material_type, material_composition,
-                    //      material_composition_weight, material_emission_factor,material_emission)
-                    //     VALUES ($1,$2, $3, $4, $5, $6, $7)
-                    //     RETURNING *;
-                    // `;
+                    const queryMaterial = `
+                        INSERT INTO bom_emission_material_calculation_engine 
+                        (id,bom_id, material_type, material_composition,
+                         material_composition_weight, material_emission_factor,material_emission)
+                        VALUES ($1,$2, $3, $4, $5, $6, $7)
+                        RETURNING *;
+                    `;
 
-                    //         await client.query(queryMaterial, [
-                    //             ulid(),
-                    //             BomData.id,
-                    //             ProductData.material_name,
-                    //             material_composition,
-                    //             material_composition_weight,
-                    //             Material_Emission_Factor_kg_CO2E_kg,
-                    //             Material_emissions_kg_CO_e
-                    //         ]);
+                    await client.query(queryMaterial, [
+                        ulid(),
+                        BomData.id,
+                        ProductData.material_name,
+                        material_composition,
+                        material_composition_weight,
+                        Material_Emission_Factor_kg_CO2E_kg,
+                        Material_emissions_kg_CO_e
+                    ]);
 
                     // ===> Insert Ends here
 
@@ -2684,45 +2684,45 @@ export async function pcfCalculate(req: any, res: any) {
                     const weightInKg = parseFloat(BomData.weight_gms) / 1000;
 
                     // ====> Insert into bom_emission_production_calculation_engine table
-                    //         const queryProd = `
-                    //     INSERT INTO bom_emission_production_calculation_engine 
-                    //     (id,bom_id, component_weight_kg, allocation_methodology,
-                    //      total_electrical_energy_consumed_at_factory_level_kWh, total_heating_energy_consumed_at_factory_level_kWh,
-                    //      total_cooling_energy_consumed_at_factory_level_kWh,total_steam_energy_consumed_at_factory_level_kWh,
-                    //      total_energy_consumed_at_factory_level_kWh,total_weight_produced_at_factory_level_kg,
-                    //      no_of_products_current_component_produced,total_weight_of_current_component_produced_kg,
-                    //      total_electricity_utilised_for_production_all_current_components_kWh,
-                    //      production_electricity_energy_use_per_unit_kWh,production_heat_energy_use_per_unit_kWh,
-                    //      production_cooling_energy_use_per_unit_kWh,production_steam_energy_use_per_unit_kWh,
-                    //      emission_factor_of_electricity,emission_factor_of_heat,
-                    //      emission_factor_of_cooling,emission_factor_of_steam)
-                    //     VALUES ($1,$2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-                    //     RETURNING *;
-                    // `;
+                    const queryProd = `
+                        INSERT INTO bom_emission_production_calculation_engine 
+                        (id,bom_id, component_weight_kg, allocation_methodology,
+                         total_electrical_energy_consumed_at_factory_level_kWh, total_heating_energy_consumed_at_factory_level_kWh,
+                         total_cooling_energy_consumed_at_factory_level_kWh,total_steam_energy_consumed_at_factory_level_kWh,
+                         total_energy_consumed_at_factory_level_kWh,total_weight_produced_at_factory_level_kg,
+                         no_of_products_current_component_produced,total_weight_of_current_component_produced_kg,
+                         total_electricity_utilised_for_production_all_current_components_kWh,
+                         production_electricity_energy_use_per_unit_kWh,production_heat_energy_use_per_unit_kWh,
+                         production_cooling_energy_use_per_unit_kWh,production_steam_energy_use_per_unit_kWh,
+                         emission_factor_of_electricity,emission_factor_of_heat,
+                         emission_factor_of_cooling,emission_factor_of_steam)
+                        VALUES ($1,$2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+                        RETURNING *;
+                    `;
 
-                    //         await client.query(queryProd, [
-                    //             ulid(),
-                    //             BomData.id,
-                    //             weightInKg,
-                    //             Allocation_Method,
-                    //             Total_Electrical_Energy_consumed_at_Factory_level_kWh,
-                    //             Total_Heating_Energy_consumed_at_Factory_level_kWh,
-                    //             Total_Cooling_Energy_consumed_at_Factory_level_kWh,
-                    //             Total_Steam_Energy_consumed_at_Factory_level_kWh,
-                    //             Total_Energy_consumed_at_Factory_level_kWh,
-                    //             Total_weight_produced_at_Factory_level_kg,
-                    //             no_of_products_current_component_produced,
-                    //             Total_weight_of_current_component_produced_Kg,
-                    //             Total_electricity_utilised_for_production_all_current_components_kWh,
-                    //             Production_electricity_energy_use_per_unit_kWh,
-                    //             Production_Heating_energy_use_per_unit_kWh,
-                    //             Production_Cooling_energy_use_per_unit_kWh,
-                    //             Production_Steam_energy_use_per_unit_kWh,
-                    //             FetchElectricityTypeEmiassionValue,
-                    //             FetchHeatingTypeEmiassionValue,
-                    //             FetchCoolingTypeEmiassionValue,
-                    //             FetchSteamTypeEmiassionValue
-                    //         ]);
+                    await client.query(queryProd, [
+                        ulid(),
+                        BomData.id,
+                        weightInKg,
+                        Allocation_Method,
+                        Total_Electrical_Energy_consumed_at_Factory_level_kWh,
+                        Total_Heating_Energy_consumed_at_Factory_level_kWh,
+                        Total_Cooling_Energy_consumed_at_Factory_level_kWh,
+                        Total_Steam_Energy_consumed_at_Factory_level_kWh,
+                        Total_Energy_consumed_at_Factory_level_kWh,
+                        Total_weight_produced_at_Factory_level_kg,
+                        no_of_products_current_component_produced,
+                        Total_weight_of_current_component_produced_Kg,
+                        Total_electricity_utilised_for_production_all_current_components_kWh,
+                        Production_electricity_energy_use_per_unit_kWh,
+                        Production_Heating_energy_use_per_unit_kWh,
+                        Production_Cooling_energy_use_per_unit_kWh,
+                        Production_Steam_energy_use_per_unit_kWh,
+                        FetchElectricityTypeEmiassionValue,
+                        FetchHeatingTypeEmiassionValue,
+                        FetchCoolingTypeEmiassionValue,
+                        FetchSteamTypeEmiassionValue
+                    ]);
 
                     // ===> Insert Ends here
 
@@ -2800,21 +2800,21 @@ export async function pcfCalculate(req: any, res: any) {
 
 
                     // ====> Insert into bom_emission_packaging_calculation_engine table
-                    //         const queryPacking = `
-                    //     INSERT INTO bom_emission_packaging_calculation_engine 
-                    //     (id,bom_id, pack_weight_kg, emission_factor_box_kg,
-                    //     packaging_type)
-                    //     VALUES ($1,$2, $3, $4, $5)
-                    //     RETURNING *;
-                    // `;
+                    const queryPacking = `
+                        INSERT INTO bom_emission_packaging_calculation_engine 
+                        (id,bom_id, pack_weight_kg, emission_factor_box_kg,
+                        packaging_type)
+                        VALUES ($1,$2, $3, $4, $5)
+                        RETURNING *;
+                    `;
 
-                    //         await client.query(queryPacking, [
-                    //             ulid(),
-                    //             BomData.id,
-                    //             packaginWeight,
-                    //             Emission_Factor_Box_kg_CO2E_kg,
-                    //             packaginType
-                    //         ]);
+                    await client.query(queryPacking, [
+                        ulid(),
+                        BomData.id,
+                        packaginWeight,
+                        Emission_Factor_Box_kg_CO2E_kg,
+                        packaginType
+                    ]);
 
                     // ===> Insert Ends here
 
@@ -2926,25 +2926,25 @@ export async function pcfCalculate(req: any, res: any) {
 
 
                         // ====> Insert into bom_emission_logistic_calculation_engine table
-                        //             const query = `
-                        //     INSERT INTO bom_emission_logistic_calculation_engine 
-                        //     (id,bom_id, mode_of_transport, mass_transported_kg,
-                        //     mass_transported_ton,distance_km,transport_mode_emission_factor_value_kg_co2e_t_km,
-                        //     leg_wise_transport_emissions_per_unit_kg_co2e)
-                        //     VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
-                        //     RETURNING *;
-                        // `;
+                        const query = `
+                            INSERT INTO bom_emission_logistic_calculation_engine 
+                            (id,bom_id, mode_of_transport, mass_transported_kg,
+                            mass_transported_ton,distance_km,transport_mode_emission_factor_value_kg_co2e_t_km,
+                            leg_wise_transport_emissions_per_unit_kg_co2e)
+                            VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
+                            RETURNING *;
+                        `;
 
-                        //             await client.query(query, [
-                        //                 ulid(),
-                        //                 BomData.id,
-                        //                 modeOfTransport,
-                        //                 mass_transported_Kg,
-                        //                 Mass_transported_ton,
-                        //                 Distance_Km,
-                        //                 transport_Mode_Emission_Factor_Value_kg_CO2e_t_km,
-                        //                 Leg_wise_transport_emissions_per_unit_kg_CO2E
-                        //             ]);
+                        await client.query(query, [
+                            ulid(),
+                            BomData.id,
+                            modeOfTransport,
+                            mass_transported_Kg,
+                            Mass_transported_ton,
+                            Distance_Km,
+                            transport_Mode_Emission_Factor_Value_kg_CO2e_t_km,
+                            Leg_wise_transport_emissions_per_unit_kg_CO2E
+                        ]);
 
                         // ===> Insert Ends here
 
@@ -3104,21 +3104,21 @@ export async function pcfCalculate(req: any, res: any) {
 
 
                     // ====> Insert into bom_emission_waste_calculation_engine table
-                    //         const query = `
-                    //     INSERT INTO bom_emission_waste_calculation_engine 
-                    //     (id,bom_id, waste_generated_per_box_kg, emission_factor_box_waste_treatment_kg_co2e_kg,
-                    //     emission_factor_packaging_waste_treatment_kg_co2e_kWh)
-                    //     VALUES ($1,$2, $3, $4, $5)
-                    //     RETURNING *;
-                    // `;
+                    const query = `
+                        INSERT INTO bom_emission_waste_calculation_engine 
+                        (id,bom_id, waste_generated_per_box_kg, emission_factor_box_waste_treatment_kg_co2e_kg,
+                        emission_factor_packaging_waste_treatment_kg_co2e_kWh)
+                        VALUES ($1,$2, $3, $4, $5)
+                        RETURNING *;
+                    `;
 
-                    //         await client.query(query, [
-                    //             ulid(),
-                    //             BomData.id,
-                    //             weightOfTenPercent,
-                    //             emission_factor_box_waste_treatment_kg_CO2e_kg,
-                    //             emission_factor_packaging_waste_treatment_kg_COe2_kWh
-                    //         ]);
+                    await client.query(query, [
+                        ulid(),
+                        BomData.id,
+                        weightOfTenPercent,
+                        emission_factor_box_waste_treatment_kg_CO2e_kg,
+                        emission_factor_packaging_waste_treatment_kg_COe2_kWh
+                    ]);
 
                     // ===> Insert Ends here
 
@@ -3127,24 +3127,24 @@ export async function pcfCalculate(req: any, res: any) {
                     // Sixth Phase END
 
                     // ====> Insert into bom_emission_calculation_engine table
-                    //         const queryLastPhase = `
-                    //     INSERT INTO bom_emission_calculation_engine 
-                    //     (id,bom_id, material_value, production_value,
-                    //     packaging_value,logistic_value,waste_value,total_pcf_value)
-                    //     VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
-                    //     RETURNING *;
-                    // `;
+                    const queryLastPhase = `
+                        INSERT INTO bom_emission_calculation_engine 
+                        (id,bom_id, material_value, production_value,
+                        packaging_value,logistic_value,waste_value,total_pcf_value)
+                        VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
+                        RETURNING *;
+                    `;
 
-                    //         await client.query(queryLastPhase, [
-                    //             ulid(),
-                    //             BomData.id,
-                    //             Raw_Material_emissions,
-                    //             Manufacturing_Emissions_kg_CO2e,
-                    //             Packaging_Carbon_Emissions_kg_CO2e_or_box,
-                    //             Total_Transportation_emissions_per_unit_kg_CO2E,
-                    //             waste_disposal_emissions_kg_CO2e,
-                    //             Total_Housing_Component_Emissions
-                    //         ]);
+                    await client.query(queryLastPhase, [
+                        ulid(),
+                        BomData.id,
+                        Raw_Material_emissions,
+                        Manufacturing_Emissions_kg_CO2e,
+                        Packaging_Carbon_Emissions_kg_CO2e_or_box,
+                        Total_Transportation_emissions_per_unit_kg_CO2E,
+                        waste_disposal_emissions_kg_CO2e,
+                        Total_Housing_Component_Emissions
+                    ]);
 
                     // ===> Insert Ends here
 
@@ -3168,6 +3168,12 @@ export async function pcfCalculate(req: any, res: any) {
             }
 
 
+            // Update status of bom calculation
+            await client.query(
+                `UPDATE bom SET is_bom_calculated = true
+                 WHERE bom_pcf_id = $1;`,
+                [bom_pcf_id]
+            );
 
             return res.send(
                 generateResponse(true, "PCF calculation can be initiated", 200, TotalBomDetails)
