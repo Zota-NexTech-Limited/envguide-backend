@@ -1870,19 +1870,137 @@ LIMIT $${paramIndex++} OFFSET $${paramIndex++};
     });
 }
 
-// in this below api need to add two more data Fuel or Energy Source and emission factor need calrification from abhiram
 export async function getTransportationFootPrint(req: any, res: any) {
     const {
         pageNumber = 1,
-        pageSize = 20
+        pageSize = 20,
+
+        search,              // global search
+        from_date,           // date range
+        to_date,
+
+        code,
+        material_number,
+        component_name,
+        production_location,
+        manufacturer,
+        component_category,
+
+        supplier_code,
+        supplier_name,
+
+        mode_of_transport
     } = req.query;
 
     const limit = Number(pageSize);
     const page = Number(pageNumber) > 0 ? Number(pageNumber) : 1;
     const offset = (page - 1) * limit;
 
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
     return withClient(async (client: any) => {
         try {
+
+            if (code) {
+                conditions.push(`b.code ILIKE $${idx++}`);
+                values.push(`%${code}%`);
+            }
+
+            if (material_number) {
+                conditions.push(`b.material_number ILIKE $${idx++}`);
+                values.push(`%${material_number}%`);
+            }
+
+            if (component_name) {
+                conditions.push(`b.component_name ILIKE $${idx++}`);
+                values.push(`%${component_name}%`);
+            }
+
+            if (production_location) {
+                conditions.push(`b.production_location ILIKE $${idx++}`);
+                values.push(`%${production_location}%`);
+            }
+
+            if (manufacturer) {
+                conditions.push(`b.manufacturer ILIKE $${idx++}`);
+                values.push(`%${manufacturer}%`);
+            }
+
+            if (component_category) {
+                conditions.push(`b.component_category ILIKE $${idx++}`);
+                values.push(`%${component_category}%`);
+            }
+
+            // ---------- SUPPLIER ----------
+            if (supplier_code) {
+                conditions.push(`sd.code ILIKE $${idx++}`);
+                values.push(`%${supplier_code}%`);
+            }
+
+            if (supplier_name) {
+                conditions.push(`sd.supplier_name ILIKE $${idx++}`);
+                values.push(`%${supplier_name}%`);
+            }
+
+
+              if (from_date) {
+                conditions.push(`b.created_date >= $${idx++}::date`);
+                values.push(from_date);
+            }
+
+            if (to_date) {
+                conditions.push(
+                    `b.created_date < ($${idx++}::date + INTERVAL '1 day')`
+                );
+                values.push(to_date);
+            }
+
+            // ---------- TRANSPORT ----------
+            if (mode_of_transport) {
+                conditions.push(`
+    EXISTS (
+      SELECT 1
+      FROM supplier_general_info_questions sgiq
+      JOIN scope_three_other_indirect_emissions_questions stoie
+        ON stoie.sgiq_id = sgiq.sgiq_id
+      JOIN mode_of_transport_used_for_transportation_questions ec
+        ON ec.stoie_id = stoie.stoie_id
+      WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+        AND ec.mode_of_transport ILIKE $${idx++}
+    )
+  `);
+                values.push(`%${mode_of_transport}%`);
+            }
+
+            if (search) {
+                conditions.push(`
+    (
+      b.code ILIKE $${idx}
+      OR b.material_number ILIKE $${idx}
+      OR b.component_name ILIKE $${idx}
+      OR b.production_location ILIKE $${idx}
+      OR b.manufacturer ILIKE $${idx}
+      OR b.component_category ILIKE $${idx}
+      OR sd.code ILIKE $${idx}
+      OR sd.supplier_name ILIKE $${idx}
+      OR EXISTS (
+          SELECT 1
+          FROM supplier_general_info_questions sgiq
+          JOIN scope_three_other_indirect_emissions_questions stoie
+            ON stoie.sgiq_id = sgiq.sgiq_id
+          JOIN mode_of_transport_used_for_transportation_questions ec
+            ON ec.stoie_id = stoie.stoie_id
+          WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+            AND ec.mode_of_transport ILIKE $${idx}
+      )
+    )
+  `);
+                values.push(`%${search}%`);
+                idx++;
+            }
+
             const query = `
 SELECT
     b.id,
@@ -1902,6 +2020,7 @@ SELECT
     b.supplier_id,
     b.is_weight_gms,
     b.created_date,
+    arp.annual_reporting_period,
 
     /* ---------- SUPPLIER DETAILS ---------- */
     jsonb_build_object(
@@ -1918,34 +2037,114 @@ FROM bom b
 LEFT JOIN supplier_details sd
     ON sd.sup_id = b.supplier_id
 
+LEFT JOIN LATERAL (
+    SELECT sgiq.annual_reporting_period
+    FROM supplier_general_info_questions sgiq
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+      AND sgiq.sup_id = b.supplier_id
+    ORDER BY sgiq.created_date ASC
+    LIMIT 1
+) arp ON TRUE
+
+/* ---------- SINGLE LOCATION (FOR EMISSION FACTOR) ---------- */
+LEFT JOIN LATERAL (
+    SELECT psd.location
+    FROM production_site_details_questions psd
+    WHERE psd.bom_id = b.id
+    ORDER BY psd.created_date ASC
+    LIMIT 1
+) loc ON TRUE
 
 /* ---------- Q74 join (NEW) ---------- */
 LEFT JOIN LATERAL (
     SELECT jsonb_agg(
-        jsonb_build_object(
-            'motuft_id', ec.motuft_id,
-            'stoie_id', ec.stoie_id,
-            'mode_of_transport', ec.mode_of_transport,
-            'weight_transported', ec.weight_transported,
-            'source_point', ec.source_point,
-            'drop_point', ec.drop_point,
-            'distance', ec.distance
+       jsonb_build_object(
+    'motuft_id', ec.motuft_id,
+    'stoie_id', ec.stoie_id,
+    'mode_of_transport', ec.mode_of_transport,
+    'weight_transported', ec.weight_transported,
+    'source_point', ec.source_point,
+    'drop_point', ec.drop_point,
+    'distance', ec.distance,
+
+    /* ---------- NUMERIC VALUES ---------- */
+    'distance_numeric',
+    COALESCE(
+        regexp_replace(ec.distance, '[^0-9\.]', '', 'g')::numeric,
+        0
+    ),
+
+    'weight_numeric_kg',
+    COALESCE(
+        regexp_replace(ec.weight_transported, '[^0-9\.]', '', 'g')::numeric,
+        0
+    ),
+
+    /* ---------- EMISSION FACTOR ---------- */
+    'emission_factor_used',
+    COALESCE(
+        CASE
+            WHEN lower(loc.location) = 'india' THEN mef.ef_india_region::numeric
+            WHEN lower(loc.location) = 'europe' THEN mef.ef_eu_region::numeric
+            ELSE mef.ef_global_region::numeric
+        END,
+        0
+    ),
+
+    /* ---------- WEIGHT IN TONS (ton-km) ---------- */
+    'weight_in_tons',
+    ROUND(
+        (
+            COALESCE(regexp_replace(ec.weight_transported, '[^0-9\.]', '', 'g')::numeric, 0) / 1000
         )
+        *
+        COALESCE(regexp_replace(ec.distance, '[^0-9\.]', '', 'g')::numeric, 0),
+        6
+    ),
+
+    /* ---------- TRANSPORTED EMISSION ---------- */
+    'transported_emission',
+    ROUND(
+        (
+            (
+                COALESCE(regexp_replace(ec.weight_transported, '[^0-9\.]', '', 'g')::numeric, 0) / 1000
+            )
+            *
+            COALESCE(regexp_replace(ec.distance, '[^0-9\.]', '', 'g')::numeric, 0)
+        )
+        *
+        COALESCE(
+            CASE
+                WHEN lower(loc.location) = 'india' THEN mef.ef_india_region::numeric
+                WHEN lower(loc.location) = 'europe' THEN mef.ef_eu_region::numeric
+                ELSE mef.ef_global_region::numeric
+            END,
+            0
+        ),
+        6
+    )
+)
     ) AS q74_transport 
     FROM supplier_general_info_questions sgiq
     JOIN scope_three_other_indirect_emissions_questions stoie
         ON stoie.sgiq_id = sgiq.sgiq_id
     JOIN mode_of_transport_used_for_transportation_questions ec
         ON ec.stoie_id = stoie.stoie_id
+    LEFT JOIN vehicle_type_emission_factor mef
+        ON mef.year = arp.annual_reporting_period
+        AND mef.unit = 'Kms'
+        AND lower(mef.vehicle_type) = lower(ec.mode_of_transport)
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id
 ) q74 ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
-ORDER BY b.created_date DESC
-LIMIT $1 OFFSET $2;
+${conditions.length ? `AND ${conditions.join(' AND ')}` : ''}
+LIMIT $${idx++} OFFSET $${idx++};
 `;
 
-            const result = await client.query(query, [limit, offset]);
+            values.push(limit);
+            values.push(offset);
+            const result = await client.query(query, values);
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
