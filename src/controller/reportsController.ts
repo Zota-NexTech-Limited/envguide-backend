@@ -114,15 +114,134 @@ import { generateResponse } from '../util/genRes';
 export async function getProductFootPrint(req: any, res: any) {
     const {
         pageNumber = 1,
-        pageSize = 20
+        pageSize = 20,
+
+        code,
+        material_number,
+        component_name,
+        production_location,
+        manufacturer,
+        component_category,
+
+        supplier_code,
+        supplier_name,
+
+        material_type, // material_emission.material_type
+        mode_of_transport, // transportation_details.mode_of_transport
+
+        search,
+
+        from_date,
+        to_date
     } = req.query;
 
     const limit = Number(pageSize);
     const page = Number(pageNumber) > 0 ? Number(pageNumber) : 1;
     const offset = (page - 1) * limit;
 
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
     return withClient(async (client: any) => {
         try {
+
+            // ----- BOM LEVEL FILTERS -----
+            if (code) {
+                conditions.push(`b.code ILIKE $${paramIndex++}`);
+                values.push(`%${code}%`);
+            }
+            if (material_number) {
+                conditions.push(`b.material_number ILIKE $${paramIndex++}`);
+                values.push(`%${material_number}%`);
+            }
+            if (component_name) {
+                conditions.push(`b.component_name ILIKE $${paramIndex++}`);
+                values.push(`%${component_name}%`);
+            }
+            if (production_location) {
+                conditions.push(`b.production_location ILIKE $${paramIndex++}`);
+                values.push(`%${production_location}%`);
+            }
+            if (manufacturer) {
+                conditions.push(`b.manufacturer ILIKE $${paramIndex++}`);
+                values.push(`%${manufacturer}%`);
+            }
+            if (component_category) {
+                conditions.push(`b.component_category ILIKE $${paramIndex++}`);
+                values.push(`%${component_category}%`);
+            }
+
+            // ----- SUPPLIER FILTERS -----
+            if (supplier_code) {
+                conditions.push(`sd.code ILIKE $${paramIndex++}`);
+                values.push(`%${supplier_code}%`);
+            }
+            if (supplier_name) {
+                conditions.push(`sd.supplier_name ILIKE $${paramIndex++}`);
+                values.push(`%${supplier_name}%`);
+
+            }
+
+            // ----- MATERIAL EMISSION FILTER -----
+            if (material_type) {
+                conditions.push(`
+                    EXISTS (
+                        SELECT 1
+                        FROM bom_emission_material_calculation_engine mem
+                        WHERE mem.bom_id = b.id
+                          AND mem.material_type ILIKE $${paramIndex++}
+                    )
+                `);
+                values.push(`%${material_type}%`);
+            }
+
+            // ----- TRANSPORTATION FILTER -----
+            if (mode_of_transport) {
+                conditions.push(`
+                    EXISTS (
+                        SELECT 1
+                        FROM supplier_general_info_questions sgiq
+                        JOIN scope_three_other_indirect_emissions_questions stoie
+                            ON stoie.sgiq_id = sgiq.sgiq_id
+                        JOIN mode_of_transport_used_for_transportation_questions mt
+                            ON mt.stoie_id = stoie.stoie_id
+                        WHERE sgiq.sup_id = b.supplier_id
+                          AND mt.mode_of_transport ILIKE $${paramIndex++}
+                    )
+                `);
+                values.push(`%${mode_of_transport}%`);
+            }
+
+            // ----- SEARCH ACROSS MULTIPLE FIELDS -----
+            if (search) {
+                conditions.push(`
+                    (
+                        b.code ILIKE $${paramIndex}
+                        OR b.material_number ILIKE $${paramIndex}
+                        OR b.component_name ILIKE $${paramIndex}
+                        OR b.production_location ILIKE $${paramIndex}
+                        OR b.manufacturer ILIKE $${paramIndex}
+                        OR b.component_category ILIKE $${paramIndex}
+                        OR sd.code ILIKE $${paramIndex}
+                        OR sd.supplier_name ILIKE $${paramIndex}
+                    )
+                `);
+                values.push(`%${search}%`);
+                paramIndex++;
+            }
+
+
+            // ----- DATE RANGE -----
+            if (from_date) {
+                conditions.push(`b.created_date >= $${paramIndex++}::date`);
+                values.push(from_date);
+            }
+            if (to_date) {
+                conditions.push(`b.created_date < ($${paramIndex++}::date + INTERVAL '1 day')`);
+                values.push(to_date);
+            }
+
             const query = `
 SELECT
     b.id,
@@ -235,11 +354,14 @@ LEFT JOIN LATERAL (
 ) transport ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
+${conditions.length ? `AND ${conditions.join(' AND ')}` : ''}
 ORDER BY b.created_date DESC
-LIMIT $1 OFFSET $2;
+LIMIT $${paramIndex++} OFFSET $${paramIndex++};
 `;
 
-            const result = await client.query(query, [limit, offset]);
+            values.push(limit, offset);
+
+            const result = await client.query(query, values);
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
@@ -259,29 +381,127 @@ LIMIT $1 OFFSET $2;
     });
 }
 
-// in this below api need to add two more data emission factor and supplier emission need calrification from abhiram
 export async function getSupplierFootPrint(req: any, res: any) {
     const {
         pageNumber = 1,
-        pageSize = 20
+        pageSize = 20,
+
+        code,
+        material_number,
+        component_name,
+        production_location,
+        manufacturer,
+        component_category,
+        material_name, // Q52
+        supplier_code,
+        supplier_name,
+        search,
+
+        from_date,
+        to_date
     } = req.query;
 
     const limit = Number(pageSize);
     const page = Number(pageNumber) > 0 ? Number(pageNumber) : 1;
     const offset = (page - 1) * limit;
 
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
     return withClient(async (client: any) => {
         try {
+
+            if (code) {
+                conditions.push(`b.code ILIKE $${paramIndex++}`);
+                values.push(`%${code}%`);
+            }
+
+            if (material_number) {
+                conditions.push(`b.material_number ILIKE $${paramIndex++}`);
+                values.push(`%${material_number}%`);
+            }
+
+            if (component_name) {
+                conditions.push(`b.component_name ILIKE $${paramIndex++}`);
+                values.push(`%${component_name}%`);
+            }
+
+            if (production_location) {
+                conditions.push(`b.production_location ILIKE $${paramIndex++}`);
+                values.push(`%${production_location}%`);
+            }
+
+            if (manufacturer) {
+                conditions.push(`b.manufacturer ILIKE $${paramIndex++}`);
+                values.push(`%${manufacturer}%`);
+            }
+
+            if (component_category) {
+                conditions.push(`b.component_category ILIKE $${paramIndex++}`);
+                values.push(`%${component_category}%`);
+            }
+
+            if (material_name) {
+                conditions.push(`
+    EXISTS (
+      SELECT 1
+      FROM raw_materials_used_in_component_manufacturing_questions rm
+      WHERE rm.bom_id = b.id
+        AND rm.material_name ILIKE $${paramIndex++}
+    )
+  `);
+                values.push(`%${material_name}%`);
+            }
+
+            // ----- SUPPLIER FILTERS -----
+            if (supplier_code) {
+                conditions.push(`sd.code ILIKE $${paramIndex++}`);
+                values.push(`%${supplier_code}%`);
+            }
+            if (supplier_name) {
+                conditions.push(`sd.supplier_name ILIKE $${paramIndex++}`);
+                values.push(`%${supplier_name}%`);
+            }
+
+
+            if (search) {
+                conditions.push(`
+    (
+      b.material_number ILIKE $${paramIndex}
+      OR b.component_name ILIKE $${paramIndex}
+      OR b.production_location ILIKE $${paramIndex}
+      OR b.manufacturer ILIKE $${paramIndex}
+      OR b.component_category ILIKE $${paramIndex}
+    )
+  `);
+                values.push(`%${search}%`);
+                paramIndex++;
+            }
+
+
+            if (from_date) {
+                conditions.push(`b.created_date >= $${paramIndex++}::date`);
+                values.push(from_date);
+            }
+
+            if (to_date) {
+                conditions.push(
+                    `b.created_date < ($${paramIndex++}::date + INTERVAL '1 day')`
+                );
+                values.push(to_date);
+            }
+
             const query = `
 SELECT
     b.id,
     b.code,
+    b.bom_pcf_id,
     b.material_number,
     b.component_name,
     b.qunatity,
     b.production_location,
     b.manufacturer,
-    b.detail_description,
     b.weight_gms,
     b.total_weight_gms,
     b.component_category,
@@ -289,8 +509,11 @@ SELECT
     b.total_price,
     b.economic_ratio,
     b.supplier_id,
-    b.is_weight_gms,
     b.created_date,
+    arp.annual_reporting_period,
+    q56rm.percentage AS recycled_content_percentage,
+    COALESCE(spcf.supplier_total_pcf_emission, 0) 
+    AS supplier_total_pcf_emission,
 
     /* ---------- SUPPLIER DETAILS ---------- */
     jsonb_build_object(
@@ -300,6 +523,7 @@ SELECT
         'supplier_email', sd.supplier_email
     ) AS supplier_details,
 
+    
     /* ---------- Q13 : PRODUCTION SITE DETAILS ---------- */
     COALESCE(q13.q13_data, '[]'::jsonb) AS "Q13_data",
 
@@ -313,14 +537,48 @@ SELECT
     COALESCE(q51.q51_energy_type_and_energy_quantity, '[]'::jsonb) AS "Q51_energy_type_and_energy_quantity",
 
      /* ---------- Q67 : ENERGY CONSUMPTION ---------- */
-    COALESCE(q67.q67_energy_type_and_energy_quantity, '[]'::jsonb) AS "Q67_energy_type_and_energy_quantity",
+    COALESCE(q67.q67_energy_type_and_energy_quantity, '[]'::jsonb) AS "Q67_energy_type_and_energy_quantity"
 
-    /* ---------- Q56 : Recycled Material ---------- */
-    COALESCE(q56.q56_recycled_material_data, '[]'::jsonb) AS "q56_recycled_material_data"
 FROM bom b
 
 LEFT JOIN supplier_details sd
     ON sd.sup_id = b.supplier_id
+
+LEFT JOIN LATERAL (
+    SELECT *
+    FROM recycled_materials_with_percentage_questions q56rm
+    WHERE q56rm.bom_id = b.id
+    ORDER BY q56rm.created_date ASC   -- or DESC if you want latest
+    LIMIT 1
+) q56rm ON TRUE
+
+LEFT JOIN LATERAL (
+    SELECT
+        SUM(bece.total_pcf_value)::numeric AS supplier_total_pcf_emission
+    FROM bom b2
+    JOIN bom_emission_calculation_engine bece
+        ON bece.bom_id = b2.id
+    WHERE b2.supplier_id = b.supplier_id
+) spcf ON TRUE
+
+LEFT JOIN LATERAL (
+    SELECT sgiq.annual_reporting_period
+    FROM supplier_general_info_questions sgiq
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+      AND sgiq.sup_id = b.supplier_id
+    ORDER BY sgiq.created_date ASC
+    LIMIT 1
+) arp ON TRUE
+
+/* ---------- SINGLE LOCATION (FOR EMISSION FACTOR) ---------- */
+LEFT JOIN LATERAL (
+    SELECT psd.location
+    FROM production_site_details_questions psd
+    WHERE psd.bom_id = b.id
+    ORDER BY psd.created_date ASC
+    LIMIT 1
+) loc ON TRUE
+
 
 /* ---------- Q13 : PRODUCTION SITE DETAILS ---------- */
 LEFT JOIN LATERAL (
@@ -367,7 +625,42 @@ LEFT JOIN LATERAL (
             'quantity', pe.quantity,
             'unit', pe.unit,
             'sup_id', pe.sup_id,
-            'created_date', pe.created_date
+            'created_date', pe.created_date,
+
+            /* ---------- EMISSION FACTOR ---------- */
+           'emission_factor',
+COALESCE(
+    CASE
+        WHEN lower(split_part(pe.energy_source, ' ', 1)) IN
+             ('electricity', 'heating', 'steam', 'cooling')
+        THEN
+            CASE
+                WHEN lower(loc.location) = 'india' THEN
+                    CASE
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_india_region::numeric
+                    END
+                WHEN lower(loc.location) = 'europe' THEN
+                    CASE
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_eu_region::numeric
+                    END
+                ELSE
+                    CASE
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_global_region::numeric
+                    END
+            END
+        ELSE 0::numeric
+    END,
+0
+)
         )
     ) AS Q22_energy_type_and_energy_quantity
     FROM supplier_general_info_questions sgiq
@@ -375,8 +668,16 @@ LEFT JOIN LATERAL (
         ON stide.sgiq_id = sgiq.sgiq_id
     JOIN scope_two_indirect_emissions_from_purchased_energy_questions pe
         ON pe.stide_id = stide.stide_id
+
+    /* ---------- ELECTRICITY EMISSION FACTOR JOIN ---------- */
+    LEFT JOIN electricity_emission_factor ef
+        ON ef.type_of_energy = ('Electricity - ' || pe.energy_type)
+        AND ef.year = arp.annual_reporting_period
+        AND ef.unit = pe.unit
+
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id
 ) q22 ON TRUE
+
 
 /* ---------- Q51 : ENERGY CONSUMPTION ---------- */
 LEFT JOIN LATERAL (
@@ -388,7 +689,23 @@ LEFT JOIN LATERAL (
             'energy_type', ec.energy_type,
             'quantity', ec.quantity,
             'unit', ec.unit,
-            'created_date', ec.created_date
+            'created_date', ec.created_date,
+
+            /* ---------- EMISSION FACTOR ---------- */
+            'emission_factor',
+            COALESCE(
+                CASE
+                    WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
+                         ('electricity', 'heating', 'steam', 'cooling')
+                    THEN
+                        CASE
+                            WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
+                            WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
+                            ELSE ef.ef_global_region::numeric
+                        END
+                    ELSE 0::numeric
+                END,
+            0)
         )
     ) AS q51_energy_type_and_energy_quantity
     FROM supplier_general_info_questions sgiq
@@ -396,10 +713,19 @@ LEFT JOIN LATERAL (
         ON stide.sgiq_id = sgiq.sgiq_id
     JOIN energy_consumption_for_qfiftyone_questions ec
         ON ec.stide_id = stide.stide_id
+
+    /* ---------- EMISSION FACTOR JOIN ---------- */
+    LEFT JOIN electricity_emission_factor ef
+        ON ef.type_of_energy =
+           (initcap(split_part(ec.energy_purchased, ' ', 1)) || ' - ' || ec.energy_type)
+        AND ef.year = arp.annual_reporting_period
+        AND ef.unit = ec.unit
+
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id
 ) q51 ON TRUE
 
-/* ---------- Q67 join (NEW) ---------- */
+
+/* ---------- Q67 : ENERGY CONSUMPTION ---------- */
 LEFT JOIN LATERAL (
     SELECT jsonb_agg(
         jsonb_build_object(
@@ -409,7 +735,23 @@ LEFT JOIN LATERAL (
             'energy_type', ec.energy_type,
             'quantity', ec.quantity,
             'unit', ec.unit,
-            'created_date', ec.created_date
+            'created_date', ec.created_date,
+
+            /* ---------- EMISSION FACTOR ---------- */
+            'emission_factor',
+            COALESCE(
+                CASE
+                    WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
+                         ('electricity', 'heating', 'steam', 'cooling')
+                    THEN
+                        CASE
+                            WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
+                            WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
+                            ELSE ef.ef_global_region::numeric
+                        END
+                    ELSE 0::numeric
+                END,
+            0)
         )
     ) AS q67_energy_type_and_energy_quantity
     FROM supplier_general_info_questions sgiq
@@ -417,31 +759,25 @@ LEFT JOIN LATERAL (
         ON stoie.sgiq_id = sgiq.sgiq_id
     JOIN energy_consumption_for_qsixtyseven_questions ec
         ON ec.stoie_id = stoie.stoie_id
+
+    /* ---------- EMISSION FACTOR JOIN ---------- */
+    LEFT JOIN electricity_emission_factor ef
+        ON ef.type_of_energy =
+           (initcap(split_part(ec.energy_purchased, ' ', 1)) || ' - ' || ec.energy_type)
+        AND ef.year = arp.annual_reporting_period
+        AND ef.unit = ec.unit
+
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id
 ) q67 ON TRUE
 
-/* ---------- Q56 : Recycled materials with percentage ---------- */
-LEFT JOIN LATERAL (
-    SELECT jsonb_agg(
-        jsonb_build_object(
-            'rmwp_id', rmd.rmwp_id,
-            'stoie_id', rmd.stoie_id,
-            'bom_id', rmd.bom_id,
-            'material_number', rmd.material_number,
-            'material_name', rmd.material_name,
-            'percentage', rmd.percentage
-        )
-    ) AS q56_recycled_material_data
-    FROM recycled_materials_with_percentage_questions rmd
-    WHERE rmd.bom_id = b.id
-) q56 ON TRUE
-
 WHERE b.is_bom_calculated = TRUE
-ORDER BY b.created_date DESC
-LIMIT $1 OFFSET $2;
+${conditions.length ? `AND ${conditions.join(' AND ')}` : ''}
+LIMIT $${paramIndex++} OFFSET $${paramIndex++};
 `;
 
-            const result = await client.query(query, [limit, offset]);
+            values.push(limit);
+            values.push(offset);
+            const result = await client.query(query, values);
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {

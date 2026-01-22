@@ -2181,7 +2181,7 @@ export async function pcfCalculate(req: any, res: any) {
             const fetchAllBOM = `
                 SELECT id,bom_pcf_id,material_number,economic_ratio,
                 component_name,qunatity,production_location,
-                weight_gms,total_weight_gms,price,total_price
+                weight_gms,total_weight_gms,price,total_price,supplier_id
                 FROM bom
                 WHERE bom_pcf_id = $1 AND is_bom_calculated = FALSE;
             `;
@@ -2194,10 +2194,10 @@ export async function pcfCalculate(req: any, res: any) {
                 const fetchSGIQID = `
                 SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
                 FROM supplier_general_info_questions
-                WHERE bom_pcf_id = $1;
+                WHERE bom_pcf_id = $1 AND sup_id =$2;
             `;
 
-                const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id]);
+                const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id, BomData.supplier_id]);
 
                 let Total_Housing_Component_Emissions = 0;
                 //========> Phase one start
