@@ -7,6 +7,9 @@ Routes.post('/api/document-master/add', authService.authenticate, Controller.add
 Routes.post('/api/document-master/update', authService.authenticate, Controller.updateDocument);
 Routes.post('/api/document-master/delete', authService.authenticate, Controller.deleteDocument);
 Routes.get('/api/document-master/get-by-id', authService.authenticate, Controller.getDocumentById);
-Routes.get('/api/document-master/list', authService.authenticate, Controller.listDocumentMaster);
+// Routes.get('/api/document-master/list', authService.authenticate, Controller.listDocumentMaster);
+
+Routes.get('/api/document-master/list', authService.authenticate, Controller.getDocumentMasterList);
+Routes.post('/api/document-master/update-documents', authService.authenticate, Controller.updatePcfDocuments);
 
 export default Routes;

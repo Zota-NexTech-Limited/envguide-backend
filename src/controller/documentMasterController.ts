@@ -524,3 +524,240 @@ export async function listDocumentMaster(req: any, res: any) {
 }
 
 
+// In this below api based on PCF Bom Based Documenst are there
+export async function getDocumentMasterList(req: any, res: any) {
+    const {
+        pageNumber = 1,
+        pageSize = 20,
+        fromDate,
+        toDate,
+        productCategoryCode,
+        componentCategoryCode,
+        componentTypeCode,
+        manufacturerCode,
+        productCategoryName,
+        componentCategoryName,
+        componentTypeName,
+        manufacturerName,
+        createdBy,
+        pcfCode,
+        productCode,
+        requestTitle,
+        search,
+        pcf_status
+    } = req.query;
+
+    const limit = Number(pageSize);
+    const page = Number(pageNumber) > 0 ? Number(pageNumber) : 1;
+    const offset = (page - 1) * limit;
+
+    return withClient(async (client: any) => {
+        try {
+            const whereConditions: string[] = [];
+            const values: any[] = [];
+            let idx = 1;
+
+            /* ---------- BASE CONDITIONS ---------- */
+            whereConditions.push(`pcf.is_task_created = TRUE`);
+            whereConditions.push(`
+                EXISTS (
+                    SELECT 1 FROM bom b
+                    WHERE b.bom_pcf_id = pcf.id
+                    AND b.is_bom_calculated = TRUE
+                )
+            `);
+
+            /* ---------- DATE RANGE ---------- */
+            if (fromDate && toDate) {
+                whereConditions.push(`
+        pcf.created_date >= $${idx}
+        AND pcf.created_date < ($${idx + 1}::date + INTERVAL '1 day')
+    `);
+                values.push(fromDate, toDate);
+                idx += 2;
+            }
+
+            if (pcf_status) {
+                whereConditions.push(`pcf.status = $${idx}`);
+                values.push(pcf_status);
+                idx++;
+            }
+
+            /* ---------- EXACT FILTERS ---------- */
+            const exactFilters: any[] = [
+                { field: 'pc.code', value: productCategoryCode },
+                { field: 'pc.name', value: productCategoryName },
+                { field: 'cc.code', value: componentCategoryCode },
+                { field: 'cc.name', value: componentCategoryName },
+                { field: 'ct.code', value: componentTypeCode },
+                { field: 'ct.name', value: componentTypeName },
+                { field: 'mf.code', value: manufacturerCode },
+                { field: 'mf.name', value: manufacturerName },
+                { field: 'pcf.code', value: pcfCode },
+                { field: 'pcf.product_code', value: productCode },
+                { field: 'pcf.request_title', value: requestTitle },
+                { field: 'ucb.user_name', value: createdBy }
+            ];
+
+            exactFilters.forEach(f => {
+                if (f.value) {
+                    whereConditions.push(`${f.field} = $${idx++}`);
+                    values.push(f.value);
+                }
+            });
+
+            /* ---------- GLOBAL SEARCH ---------- */
+            if (search) {
+                whereConditions.push(`
+                    (
+                        pcf.code ILIKE $${idx}
+                        OR pcf.product_code ILIKE $${idx}
+                        OR pcf.request_title ILIKE $${idx}
+                        OR pc.name ILIKE $${idx}
+                        OR pc.code ILIKE $${idx}
+                        OR cc.name ILIKE $${idx}
+                        OR cc.code ILIKE $${idx}
+                        OR ct.name ILIKE $${idx}
+                        OR ct.code ILIKE $${idx}
+                        OR mf.name ILIKE $${idx}
+                        OR mf.code ILIKE $${idx}
+                        OR ucb.user_name ILIKE $${idx}
+                    )
+                `);
+                values.push(`%${search}%`);
+                idx++;
+            }
+
+            const whereClause = whereConditions.length
+                ? `WHERE ${whereConditions.join(' AND ')}`
+                : '';
+
+            const query = `
+SELECT
+    pcf.id,
+    pcf.code,
+    pcf.request_title,
+    pcf.priority,
+    pcf.request_organization,
+    pcf.due_date,
+    pcf.request_description,
+    pcf.product_code,
+    pcf.model_version,
+    pcf.status,
+    pcf.technical_specification_file,
+    pcf.product_images,
+    pcf.created_by,
+    pcf.updated_by,
+    pcf.update_date,
+    pcf.created_date,
+
+    jsonb_build_object('id', pc.id, 'code', pc.code, 'name', pc.name) AS product_category,
+    jsonb_build_object('id', cc.id, 'code', cc.code, 'name', cc.name) AS component_category,
+    jsonb_build_object('id', ct.id, 'code', ct.code, 'name', ct.name) AS component_type,
+    jsonb_build_object('id', mf.id, 'code', mf.code, 'name', mf.name) AS manufacturer,
+    jsonb_build_object('user_id', ucb.user_id, 'user_name', ucb.user_name) AS createdBy,
+
+    COALESCE(ps.specs, '[]'::jsonb) AS product_specifications
+
+FROM bom_pcf_request pcf
+LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
+LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
+LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
+LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
+
+LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
+LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
+
+LEFT JOIN LATERAL (
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'id', ps.id,
+            'specification_name', ps.specification_name,
+            'specification_value', ps.specification_value,
+            'specification_unit', ps.specification_unit
+        )
+    ) AS specs
+    FROM bom_pcf_request_product_specification ps
+    WHERE ps.bom_pcf_id = pcf.id
+) ps ON TRUE
+
+${whereClause}
+ORDER BY pcf.created_date DESC
+LIMIT $${idx++} OFFSET $${idx++};
+`;
+
+            values.push(limit, offset);
+
+            const result = await client.query(query, values);
+
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
+            return res.status(200).send(
+                generateResponse(true, "Success!", 200, {
+                    page,
+                    pageSize: limit,
+                    totalCount,
+                    data: result.rows
+                })
+            );
+
+        } catch (error: any) {
+            console.error("Error fetching PCF BOM list:", error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to fetch PCF BOM list"
+            });
+        }
+    });
+}
+
+export async function updatePcfDocuments(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query("BEGIN");
+        try {
+            const {
+                id, technical_specification_file, product_images
+            } = req.body;
+
+            const updated_by = req.user_id;
+
+            if (!id) {
+                return res.send(
+                    generateResponse(false, "id is required", 400, null)
+                );
+            }
+
+            const updatePCFQuery = `
+                UPDATE bom_pcf_request
+                SET
+                    technical_specification_file = $1,
+                    product_images = $2,
+                    updated_by = $3,
+                    update_date = CURRENT_TIMESTAMP
+                WHERE id = $4
+                RETURNING *;
+            `;
+
+            const result = await client.query(updatePCFQuery, [
+                technical_specification_file,
+                product_images,
+                updated_by,
+                id
+            ]);
+
+            await client.query("COMMIT");
+
+            return res.send(
+                generateResponse(true, "PCF documents updated successfully", 200, result.rows)
+            );
+
+        } catch (error: any) {
+            await client.query("ROLLBACK");
+            console.error("❌ Error updating PCF documents:", error);
+            return res.send(
+                generateResponse(false, error.message || "Update failed", 500, null)
+            );
+        }
+    });
+}
