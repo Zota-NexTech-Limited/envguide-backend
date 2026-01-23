@@ -180,10 +180,51 @@ export async function getSupplierDetailsList(req: any, res: any) {
         const limit = Number(req.query.pageSize) || 10;
         const offset = (page - 1) * limit;
 
+        const { search, bom_pcf_id } = req.query;
+
+        const conditions: string[] = [];
+        const values: any[] = [];
+        let idx = 1;
+
+        /* ---------- SEARCH ---------- */
+        if (search) {
+            conditions.push(`
+                (
+                    sgiq.organization_name ILIKE $${idx}
+                    OR sgiq.core_business_activitiy ILIKE $${idx}
+                    OR sd.supplier_name ILIKE $${idx}
+                    OR sd.supplier_email ILIKE $${idx}
+                )
+            `);
+            values.push(`%${search}%`);
+            idx++;
+        }
+
+
+        if (bom_pcf_id) {
+            conditions.push(`sgiq.bom_pcf_id = $${idx}`);
+            values.push(bom_pcf_id);
+            idx++;
+        }
+
+
+        const whereClause = conditions.length
+            ? `WHERE ${conditions.join(' AND ')}`
+            : '';
+
+
         return withClient(async (client: any) => {
+
             // Total count
             const countResult = await client.query(
-                `SELECT COUNT(*) FROM supplier_general_info_questions`
+                `
+                SELECT COUNT(*)
+                FROM supplier_general_info_questions sgiq
+                LEFT JOIN supplier_details sd
+                    ON sd.sup_id = sgiq.sup_id
+                ${whereClause}
+                `,
+                values
             );
 
             const totalRecords = Number(countResult.rows[0].count);
@@ -239,6 +280,7 @@ export async function getSupplierDetailsList(req: any, res: any) {
         ON sd.sup_id = sgiq.sup_id
     LEFT JOIN bom_pcf_request pcf 
         ON pcf.id = sgiq.bom_pcf_id
+        ${whereClause}
 )
 
 SELECT
@@ -265,11 +307,17 @@ SELECT
 
 FROM base_data bd
 ORDER BY bd.created_date DESC
-LIMIT $1 OFFSET $2;
+LIMIT $${idx} OFFSET $${idx + 1};
 
         `;
 
-            const result = await client.query(dataQuery, [limit, offset]);
+            const result = await client.query(
+                dataQuery,
+                [...values, limit, offset]
+            );
+
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
 
             return res.status(200).json({
                 status: true,
@@ -278,7 +326,8 @@ LIMIT $1 OFFSET $2;
                     page,
                     limit,
                     totalRecords,
-                    totalPages
+                    totalPages,
+                    totalCount: totalRecords
                 },
                 data: result.rows
             });

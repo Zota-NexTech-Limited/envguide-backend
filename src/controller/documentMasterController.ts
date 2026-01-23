@@ -358,7 +358,8 @@ export async function listDocumentMaster(req: any, res: any) {
                 status,
                 category,
                 sortBy = "created_date",
-                sortOrder = "DESC"
+                sortOrder = "DESC",
+                document_type
             } = req.query;
 
             const offset = (pageNumber - 1) * pageSize;
@@ -372,13 +373,19 @@ export async function listDocumentMaster(req: any, res: any) {
                 where += ` AND (
                     dm.document_title ILIKE $${values.length} OR
                     dm.code ILIKE $${values.length} OR
-                    dm.document_type ILIKE $${values.length}
+                    dm.document_type ILIKE $${values.length} OR
+                    dm.product_code ILIKE $${values.length}
                 )`;
             }
 
             if (status) {
                 values.push(status);
                 where += ` AND dm.status = $${values.length}`;
+            }
+
+            if (document_type) {
+                values.push(document_type);
+                where += ` AND dm.document_type = $${values.length}`;
             }
 
             if (category) {
@@ -486,11 +493,15 @@ export async function listDocumentMaster(req: any, res: any) {
                  AND created_date < date_trunc('year', CURRENT_DATE)`
             );
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
 
             return res.status(200).json({
                 message: "Document list fetched successfully",
                 currentPage: Number(pageNumber),
                 totalRecords: total.rows[0].total,
+                totalCount: totalCount,
                 totalPages: Math.ceil(total.rows[0].total / limit),
                 recentActivity: recentActivity.rows,
                 stats: {

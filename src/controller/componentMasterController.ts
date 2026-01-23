@@ -244,7 +244,8 @@ export async function getComponnetMasterList(req: any, res: any) {
         pcfCode,
         productCode,
         requestTitle,
-        search
+        search,
+        pcf_status
     } = req.query;
 
     const limit = Number(pageSize);
@@ -275,6 +276,12 @@ export async function getComponnetMasterList(req: any, res: any) {
     `);
                 values.push(fromDate, toDate);
                 idx += 2;
+            }
+
+            if (pcf_status) {
+                whereConditions.push(`pcf.status = $${idx}`);
+                values.push(pcf_status);
+                idx++;
             }
 
             /* ---------- EXACT FILTERS ---------- */
@@ -454,10 +461,14 @@ LIMIT $${idx++} OFFSET $${idx++};
 
             const result = await client.query(query, values);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );

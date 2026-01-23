@@ -584,10 +584,14 @@ LIMIT $${paramIndex++} OFFSET $${paramIndex++};
 
             const result = await client.query(query, values);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );
@@ -1000,10 +1004,14 @@ LIMIT $${paramIndex++} OFFSET $${paramIndex++};
             values.push(offset);
             const result = await client.query(query, values);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );
@@ -1269,10 +1277,14 @@ LIMIT $${idx++} OFFSET $${idx++};
             values.push(offset);
             const result = await client.query(query, values);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );
@@ -1852,10 +1864,14 @@ LIMIT $${paramIndex++} OFFSET $${paramIndex++};
             values.push(offset);
             const result = await client.query(query, values);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );
@@ -2146,10 +2162,14 @@ LIMIT $${idx++} OFFSET $${idx++};
             values.push(offset);
             const result = await client.query(query, values);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );
@@ -2537,10 +2557,14 @@ LIMIT $${idx++} OFFSET $${idx++};
 
             const result = await client.query(query, values);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );

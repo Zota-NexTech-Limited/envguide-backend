@@ -1394,11 +1394,15 @@ WHERE 1=1
                 values
             );
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+            
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     success: true,
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );
