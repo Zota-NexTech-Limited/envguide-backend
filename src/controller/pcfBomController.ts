@@ -1396,7 +1396,7 @@ WHERE 1=1
 
             const rows = result.rows;
             const totalCount = rows.length > 0 ? rows.length : 0;
-            
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     success: true,
@@ -1417,6 +1417,322 @@ WHERE 1=1
     });
 }
 
+// export async function getByIdPcfRequestWithBOMDetails(req: any, res: any) {
+//     const { bom_pcf_id } = req.query;
+
+//     return withClient(async (client: any) => {
+//         try {
+//             const result = await client.query(
+//                 `
+// WITH base_pcf AS (
+//     SELECT
+//         pcf.id,
+//         pcf.code,
+//         pcf.request_title,
+//         pcf.priority,
+//         pcf.request_organization,
+//         pcf.due_date,
+//         pcf.request_description,
+//         pcf.status,
+//         pcf.model_version,
+//         pcf.is_approved,
+//         pcf.is_rejected,
+//         pcf.reject_reason,
+//         pcf.rejected_by,
+//         pcf.is_draft,
+//         pcf.created_date,
+
+//         pcf.product_category_id,
+//         pcf.component_category_id,
+//         pcf.component_type_id,
+//         pcf.manufacturer_id
+
+//     FROM bom_pcf_request pcf
+//     WHERE pcf.id = $1
+// )
+
+// SELECT
+//     base_pcf.*,
+
+//     /* ---------------- Category Details ---------------- */
+//     jsonb_build_object(
+//         'id', pc.id,
+//         'code', pc.code,
+//         'name', pc.name
+//     ) AS product_category,
+
+//     jsonb_build_object(
+//         'id', cc.id,
+//         'code', cc.code,
+//         'name', cc.name
+//     ) AS component_category,
+
+//     jsonb_build_object(
+//         'id', ct.id,
+//         'code', ct.code,
+//         'name', ct.name
+//     ) AS component_type,
+
+//     jsonb_build_object(
+//         'id', m.id,
+//         'code', m.code,
+//         'name', m.name,
+//         'address', m.address,
+//         'lat', m.lat,
+//         'long', m.long
+//     ) AS manufacturer,
+
+//     jsonb_build_object(
+//         'user_id', urb.user_id,
+//         'user_role', urb.user_role,
+//         'user_name', urb.user_name
+//     ) AS rejectedBy,
+
+//     /* ---------------- Product Specifications ---------------- */
+//     COALESCE(
+//         jsonb_agg(
+//             DISTINCT jsonb_build_object(
+//                 'id', ps.id,
+//                 'specification_name', ps.specification_name,
+//                 'specification_value', ps.specification_value,
+//                 'specification_unit', ps.specification_unit
+//             )
+//         ) FILTER (WHERE ps.id IS NOT NULL),
+//         '[]'
+//     ) AS product_specifications,
+
+//     /* ---------------- BOM List ---------------- */
+//     COALESCE(
+//         jsonb_agg(
+//             DISTINCT jsonb_build_object(
+//                 'id', b.id,
+//                 'code', b.code,
+//                 'material_number', b.material_number,
+//                 'component_name', b.component_name,
+//                 'quantity', b.qunatity,
+//                 'price', b.price,
+//                 'total_price', b.total_price,
+//                 'weight_gms', b.weight_gms,
+//                 'economic_ratio', b.economic_ratio,
+//                 'total_weight_gms', b.total_weight_gms,
+//                 'production_location',b.production_location,
+//                 'manufacturer',b.manufacturer,
+//                 'detail_description',b.detail_description,
+//                 'component_category',b.component_category,
+//                 'supplier', jsonb_build_object(
+//                     'sup_id', s.sup_id,
+//                     'code', s.code,
+//                     'supplier_name', s.supplier_name,
+//                     'supplier_email', s.supplier_email,
+//                     'supplier_phone_number', s.supplier_phone_number
+//                 )
+//             )
+//         ) FILTER (WHERE b.id IS NOT NULL),
+//         '[]'
+//     ) AS bom_list,
+
+//     /* ---------------- PCF STAGES (1–1 OBJECT) ---------------- */
+//     jsonb_build_object(
+//         'id', st.id,
+//         'bom_pcf_id', st.bom_pcf_id,
+//         'is_pcf_request_created', st.is_pcf_request_created,
+//         'is_pcf_request_submitted', st.is_pcf_request_submitted,
+//         'is_bom_verified', st.is_bom_verified,
+//         'is_data_collected', st.is_data_collected,
+//         'is_dqr_completed', st.is_dqr_completed,
+//         'is_pcf_calculated', st.is_pcf_calculated,
+//         'is_result_validation_verified', st.is_result_validation_verified,
+//         'is_result_submitted', st.is_result_submitted,
+//         'pcf_request_created_by', st.pcf_request_created_by,
+//         'pcf_request_submitted_by', st.pcf_request_submitted_by,
+//         'bom_verified_by', st.bom_verified_by,
+//         'dqr_completed_by', st.dqr_completed_by,
+//         'pcf_calculated_by', st.pcf_calculated_by,
+//         'result_validation_verified_by', st.result_validation_verified_by,
+//         'result_submitted_by', st.result_submitted_by,
+//         'pcf_request_created_date', st.pcf_request_created_date,
+//         'pcf_request_submitted_date', st.pcf_request_submitted_date,
+//         'bom_verified_date', st.bom_verified_date,
+//         'dqr_completed_date', st.dqr_completed_date,
+//         'pcf_calculated_date', st.pcf_calculated_date,
+//         'result_validation_verified_date', st.result_validation_verified_date,
+//         'result_submitted_date', st.result_submitted_date,
+//         'update_date', st.update_date,
+//         'created_date', st.created_date,
+//         'pcf_request_created_by', jsonb_build_object(
+//             'user_id', ucb.user_id,
+//             'user_role', ucb.user_role,
+//             'user_name', ucb.user_name
+//         ),
+//         'pcf_request_submitted_by', jsonb_build_object(
+//             'user_id', usb.user_id,
+//             'user_role', usb.user_role,
+//             'user_name', usb.user_name
+//         ),
+//          'bom_verified_by', jsonb_build_object(
+//             'user_id', uvb.user_id,
+//             'user_role', uvb.user_role,
+//             'user_name', uvb.user_name
+//         )
+//     ) AS pcf_request_stages,
+
+// /* ---------------- PCF DATA COLLECTION STAGE ---------------- */
+// COALESCE(
+//     (
+//         SELECT jsonb_agg(
+//             jsonb_build_object(
+//                 'id', dcs.id,
+//                /*  'bom_id', dcs.bom_id,*/
+
+//                 /* ---------- Supplier ---------- */
+//                 'supplier', jsonb_build_object(
+//                     'sup_id', sd.sup_id,
+//                     'code', sd.code,
+//                     'supplier_name', sd.supplier_name,
+//                     'supplier_email', sd.supplier_email,
+//                     'supplier_phone_number', sd.supplier_phone_number
+//                 ),
+
+//                 /* ---------- BOM ARRAY (via bom_pcf_id + supplier) ---------- 
+//                 'bom',
+//                 COALESCE(
+//                     (
+//                         SELECT jsonb_agg(
+//                             jsonb_build_object(
+//                                 'id', b2.id,
+//                                 'code', b2.code,
+//                                 'material_number', b2.material_number,
+//                                 'component_name', b2.component_name
+//                             )
+//                             ORDER BY b2.created_date DESC
+//                         )
+//                         FROM bom b2
+//                         WHERE b2.bom_pcf_id = dcs.bom_pcf_id
+//                           AND b2.supplier_id = dcs.sup_id
+//                     ),
+//                     '[]'::jsonb
+//                 ),*/
+
+//                 'is_submitted', dcs.is_submitted,
+//                 'completed_date', dcs.completed_date,
+//                 'created_date', dcs.created_date,
+//                 'update_date', dcs.update_date
+//             )
+//         )
+//         FROM pcf_request_data_collection_stage dcs
+//         LEFT JOIN supplier_details sd ON sd.sup_id = dcs.sup_id
+//         WHERE dcs.bom_pcf_id = base_pcf.id
+//     ),
+//     '[]'::jsonb
+// ) AS pcf_data_collection_stage,
+
+
+// /* ---------------- PCF DQR DATA COLLECTION STAGE ---------------- */
+// COALESCE(
+//     (
+//         SELECT jsonb_agg(
+//             jsonb_build_object(
+//                 'id', dcsr.id,
+//                /*  'bom_id', dcsr.bom_id,*/
+//                 'submitted_by', dcsr.submitted_by,
+
+//                 'supplier', jsonb_build_object(
+//                     'sup_id', sd.sup_id,
+//                     'code', sd.code,
+//                     'supplier_name', sd.supplier_name,
+//                     'supplier_email', sd.supplier_email,
+//                     'supplier_phone_number', sd.supplier_phone_number
+//                 ),
+
+//               /*  'bom', jsonb_build_object(
+//                     'id', b2.id,
+//                     'code', b2.code,
+//                     'material_number', b2.material_number,
+//                     'component_name', b2.component_name
+//                 ),*/
+
+//                 'submittedBy', jsonb_build_object(
+//                     'user_id', usmb.user_id,
+//                     'user_role', usmb.user_role,
+//                     'user_name', usmb.user_name
+//                 ),
+
+//                 'is_submitted', dcsr.is_submitted,
+//                 'completed_date', dcsr.completed_date,
+//                 'created_date', dcsr.created_date,
+//                 'update_date', dcsr.update_date
+//             )
+//         )
+//         FROM pcf_request_data_rating_stage dcsr
+//         LEFT JOIN supplier_details sd ON sd.sup_id = dcsr.sup_id
+//         LEFT JOIN bom b2 ON b2.id = dcsr.bom_id
+//         LEFT JOIN users_table usmb ON usmb.user_id = dcsr.submitted_by
+//         WHERE dcsr.bom_pcf_id = base_pcf.id
+//     ),
+//     '[]'
+// ) AS pcf_data_dqr_rating_stage
+
+
+// FROM base_pcf
+// LEFT JOIN product_category pc ON pc.id = base_pcf.product_category_id
+// LEFT JOIN component_category cc ON cc.id = base_pcf.component_category_id
+// LEFT JOIN component_type ct ON ct.id = base_pcf.component_type_id
+// LEFT JOIN manufacturer m ON m.id = base_pcf.manufacturer_id
+// LEFT JOIN users_table urb ON urb.user_id = base_pcf.rejected_by
+// LEFT JOIN bom_pcf_request_product_specification ps ON ps.bom_pcf_id = base_pcf.id
+// LEFT JOIN bom b ON b.bom_pcf_id = base_pcf.id
+// LEFT JOIN supplier_details s ON s.sup_id = b.supplier_id
+// LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id
+// LEFT JOIN users_table ucb ON ucb.user_id = st.pcf_request_created_by
+// LEFT JOIN users_table usb ON usb.user_id = st.pcf_request_submitted_by
+// LEFT JOIN users_table uvb ON uvb.user_id = st.bom_verified_by
+// GROUP BY
+//     base_pcf.id,
+//     base_pcf.code,
+//     base_pcf.request_title,
+//     base_pcf.priority,
+//     base_pcf.request_organization,
+//     base_pcf.due_date,
+//     base_pcf.request_description,
+//     base_pcf.status,
+//     base_pcf.model_version,
+//     base_pcf.is_approved,
+//     base_pcf.is_rejected,
+//     base_pcf.is_draft,
+//     base_pcf.created_date,
+//     base_pcf.product_category_id,
+//     base_pcf.component_category_id,
+//     base_pcf.component_type_id,
+//     base_pcf.manufacturer_id,
+//     usb.user_id,
+//     ucb.user_id,
+//     uvb.user_id,
+//     base_pcf.reject_reason,
+//     base_pcf.rejected_by,
+//     urb.user_id,
+//     pc.id,
+//     cc.id,
+//     ct.id,
+//     m.id,
+//     st.id;
+
+// `,
+//                 [bom_pcf_id]
+//             );
+
+//             return res.status(200).send(
+//                 generateResponse(true, "PCF request AND BOM fetched Successfully!", 200, result.rows)
+//             );
+
+//         } catch (error: any) {
+//             console.error("Error fetching PCF BOM list:", error);
+//             return res.status(500).json({
+//                 success: false,
+//                 message: error.message || "Failed to fetch PCF BOM list"
+//             });
+//         }
+//     });
+// }
 export async function getByIdPcfRequestWithBOMDetails(req: any, res: any) {
     const { bom_pcf_id } = req.query;
 
@@ -1501,35 +1817,113 @@ SELECT
         '[]'
     ) AS product_specifications,
 
-    /* ---------------- BOM List ---------------- */
-    COALESCE(
-        jsonb_agg(
-            DISTINCT jsonb_build_object(
-                'id', b.id,
-                'code', b.code,
-                'material_number', b.material_number,
-                'component_name', b.component_name,
-                'quantity', b.qunatity,
-                'price', b.price,
-                'total_price', b.total_price,
-                'weight_gms', b.weight_gms,
-                'economic_ratio', b.economic_ratio,
-                'total_weight_gms', b.total_weight_gms,
-                'production_location',b.production_location,
-                'manufacturer',b.manufacturer,
-                'detail_description',b.detail_description,
-                'component_category',b.component_category,
-                'supplier', jsonb_build_object(
-                    'sup_id', s.sup_id,
-                    'code', s.code,
-                    'supplier_name', s.supplier_name,
-                    'supplier_email', s.supplier_email,
-                    'supplier_phone_number', s.supplier_phone_number
+/* ---------------- BOM List (FULL DETAILS) ---------------- */
+COALESCE(
+    jsonb_agg(
+        DISTINCT jsonb_build_object(
+            'id', b.id,
+            'code', b.code,
+            'material_number', b.material_number,
+            'component_name', b.component_name,
+            'quantity', b.qunatity,
+            'price', b.price,
+            'total_price', b.total_price,
+            'weight_gms', b.weight_gms,
+            'economic_ratio', b.economic_ratio,
+            'total_weight_gms', b.total_weight_gms,
+            'production_location', b.production_location,
+            'manufacturer', b.manufacturer,
+            'detail_description', b.detail_description,
+            'component_category', b.component_category,
+
+            /* ---------- Supplier ---------- */
+            'supplier', jsonb_build_object(
+                'sup_id', s.sup_id,
+                'code', s.code,
+                'supplier_name', s.supplier_name,
+                'supplier_email', s.supplier_email,
+                'supplier_phone_number', s.supplier_phone_number
+            ),
+
+            /* ---------- MATERIAL EMISSION ---------- */
+            'material_emission', (
+                SELECT jsonb_agg(to_jsonb(mem))
+                FROM bom_emission_material_calculation_engine mem
+                WHERE mem.bom_id = b.id
+            ),
+
+            /* ---------- PRODUCTION EMISSION ---------- */
+            'production_emission_calculation', (
+                SELECT to_jsonb(mep)
+                FROM bom_emission_production_calculation_engine mep
+                WHERE mep.bom_id = b.id
+                LIMIT 1
+            ),
+
+            /* ---------- PACKAGING EMISSION ---------- */
+            'packaging_emission_calculation', (
+                SELECT to_jsonb(mpk)
+                FROM bom_emission_packaging_calculation_engine mpk
+                WHERE mpk.bom_id = b.id
+                LIMIT 1
+            ),
+
+            /* ---------- WASTE EMISSION ---------- */
+            'waste_emission_calculation', (
+                SELECT to_jsonb(mw)
+                FROM bom_emission_waste_calculation_engine mw
+                WHERE mw.bom_id = b.id
+                LIMIT 1
+            ),
+
+            /* ---------- LOGISTIC EMISSION ---------- */
+            'logistic_emission_calculation', (
+                SELECT to_jsonb(ml)
+                FROM bom_emission_logistic_calculation_engine ml
+                WHERE ml.bom_id = b.id
+                LIMIT 1
+            ),
+
+            /* ---------- TOTAL PCF ---------- */
+            'pcf_total_emission_calculation', (
+                SELECT to_jsonb(pcfe)
+                FROM bom_emission_calculation_engine pcfe
+                WHERE pcfe.bom_id = b.id
+                LIMIT 1
+            ),
+
+            /* ---------- TRANSPORTATION DETAILS ---------- */
+            'transportation_details', COALESCE((
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'motuft_id', mt.motuft_id,
+                        'mode_of_transport', mt.mode_of_transport,
+                        'weight_transported', mt.weight_transported,
+                        'source_point', mt.source_point,
+                        'drop_point', mt.drop_point,
+                        'distance', mt.distance,
+                        'created_date', mt.created_date
+                    )
                 )
+                FROM supplier_general_info_questions sgiq
+                JOIN scope_three_other_indirect_emissions_questions stoie
+                    ON stoie.sgiq_id = sgiq.sgiq_id
+                JOIN mode_of_transport_used_for_transportation_questions mt
+                    ON mt.stoie_id = stoie.stoie_id
+                WHERE sgiq.sup_id = b.supplier_id
+            ), '[]'::jsonb),
+
+            /* ---------- ALLOCATION METHODOLOGY ---------- */
+            'allocation_methodology', (
+                SELECT to_jsonb(am)
+                FROM allocation_methodology am
+                WHERE am.bom_id = b.id
+                LIMIT 1
             )
-        ) FILTER (WHERE b.id IS NOT NULL),
-        '[]'
-    ) AS bom_list,
+        )
+    ) FILTER (WHERE b.id IS NOT NULL),
+    '[]'
+) AS bom_list,
 
     /* ---------------- PCF STAGES (1–1 OBJECT) ---------------- */
     jsonb_build_object(

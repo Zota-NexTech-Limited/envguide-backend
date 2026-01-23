@@ -271,6 +271,20 @@ export const DQR_CONFIG: Record<string, { table: string; pk: string }> = {
     q80: { table: 'dqr_scope_three_other_indirect_emissions_qeighty', pk: 'stoieqe_id' },
 };
 
+function buildDqrCompletenessQuery() {
+    return `
+        SELECT EXISTS (
+            ${Object.values(DQR_CONFIG)
+            .map(cfg => `
+                    SELECT 1
+                    FROM ${cfg.table}
+                    WHERE sgiq_id = $1
+                      AND pds_tag_type IS NULL
+                `)
+            .join(" UNION ALL ")}
+        ) AS has_incomplete;
+    `;
+}
 
 export async function updateDqrRatingService(
     type: string,
@@ -325,7 +339,7 @@ export async function updateDqrRatingService(
                 if (rows[0]) results.push(rows[0]);
             }
 
-            // Update DQR Rating
+            // Update DQR Rating old using bom id will update later
             // if (type === "q80" && sgiqId) {
             //     const fetchIdsQuery = `
             //             SELECT
@@ -351,29 +365,69 @@ export async function updateDqrRatingService(
 
             //     await client.query(updatePCFDataRating, [bom_pcf_id, bom_id, sup_id, updated_by]);
             // }
-            if (type === "q80" && sgiqId) {
+
+            // if (type === "q80" && sgiqId) {
+            //     const fetchIdsQuery = `
+            //             SELECT
+            //                  bom_pcf_id,
+            //                  sup_id
+            //             FROM supplier_general_info_questions
+            //             WHERE sgiq_id = $1
+            //             LIMIT 1;
+            //     `;
+
+            //     const idsResult = await client.query(fetchIdsQuery, [sgiqId]);
+
+            //     const { bom_pcf_id, sup_id } = idsResult.rows[0];
+
+            //     const updatePCFDataRating = `
+            //          UPDATE pcf_request_data_rating_stage
+            //          SET is_submitted = TRUE,
+            //             completed_date = NOW(),
+            //             submitted_by = $3
+            //          WHERE bom_pcf_id = $1 AND sup_id=$2;
+            //         `;
+
+            //     await client.query(updatePCFDataRating, [bom_pcf_id, sup_id, updated_by]);
+            // }
+
+            const completenessQuery = buildDqrCompletenessQuery();
+
+            const { rows } = await client.query(completenessQuery, [sgiqId]);
+
+            const hasIncomplete = rows[0]?.has_incomplete === true;
+
+            // ❌ If ANY row is incomplete → stop
+            if (!hasIncomplete) {
+                // ✅ ALL rows across ALL tables are complete
                 const fetchIdsQuery = `
-                        SELECT
-                             bom_pcf_id,
-                             sup_id
-                        FROM supplier_general_info_questions
-                        WHERE sgiq_id = $1
-                        LIMIT 1;
-                `;
+        SELECT bom_pcf_id, sup_id
+        FROM supplier_general_info_questions
+        WHERE sgiq_id = $1
+        LIMIT 1;
+    `;
 
                 const idsResult = await client.query(fetchIdsQuery, [sgiqId]);
 
-                const { bom_pcf_id, sup_id } = idsResult.rows[0];
+                if (idsResult.rows[0]) {
 
-                const updatePCFDataRating = `
-                     UPDATE pcf_request_data_rating_stage
-                     SET is_submitted = TRUE,
-                        completed_date = NOW(),
-                        submitted_by = $3
-                     WHERE bom_pcf_id = $1 AND sup_id=$2;
-                    `;
+                    const { bom_pcf_id, sup_id } = idsResult.rows[0];
 
-                await client.query(updatePCFDataRating, [bom_pcf_id, sup_id, updated_by]);
+                    const updatePCFDataRating = `
+        UPDATE pcf_request_data_rating_stage
+        SET is_submitted = TRUE,
+            completed_date = NOW(),
+            submitted_by = $3
+        WHERE bom_pcf_id = $1
+          AND sup_id = $2;
+    `;
+
+                    await client.query(updatePCFDataRating, [
+                        bom_pcf_id,
+                        sup_id,
+                        updated_by
+                    ]);
+                }
             }
 
             await client.query("COMMIT");
