@@ -493,11 +493,15 @@ export async function listDocumentMaster(req: any, res: any) {
                  AND created_date < date_trunc('year', CURRENT_DATE)`
             );
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
 
             return res.status(200).json({
                 message: "Document list fetched successfully",
                 currentPage: Number(pageNumber),
                 totalRecords: total.rows[0].total,
+                totalCount: totalCount,
                 totalPages: Math.ceil(total.rows[0].total / limit),
                 recentActivity: recentActivity.rows,
                 stats: {

@@ -278,12 +278,12 @@ export async function getComponnetMasterList(req: any, res: any) {
                 idx += 2;
             }
 
-             if (pcf_status) {
+            if (pcf_status) {
                 whereConditions.push(`pcf.status = $${idx}`);
                 values.push(pcf_status);
                 idx++;
             }
-            
+
             /* ---------- EXACT FILTERS ---------- */
             const exactFilters: any[] = [
                 { field: 'pc.code', value: productCategoryCode },
@@ -461,10 +461,14 @@ LIMIT $${idx++} OFFSET $${idx++};
 
             const result = await client.query(query, values);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
+                    totalCount,
                     data: result.rows
                 })
             );
