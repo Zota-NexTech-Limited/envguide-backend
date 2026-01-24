@@ -9,5 +9,6 @@ Routes.get('/api/report/material-foot-print-list', authService.authenticate, Con
 Routes.get('/api/report/electricity-foot-print-list', authService.authenticate, Controller.getElectricityFootPrint);
 Routes.get('/api/report/transporation-foot-print-list', authService.authenticate, Controller.getTransportationFootPrint);
 Routes.get('/api/report/packaging-foot-print-list', authService.authenticate, Controller.getPackagingFootPrint);
+Routes.get('/api/report/supplier-dqr-rating-report', authService.authenticate, Controller.getSupplierDqrRatingReport);
 
 export default Routes;
