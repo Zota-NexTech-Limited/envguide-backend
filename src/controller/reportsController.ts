@@ -2580,7 +2580,14 @@ LIMIT $${idx++} OFFSET $${idx++};
 }
 
 export async function getSupplierDqrRatingReport(req: any, res: any) {
+    const { pageNumber = 1, pageSize = 20 } = req.query;
+
     return withClient(async (client: any) => {
+
+        const page = Number(pageNumber) > 0 ? Number(pageNumber) : 1;
+        const limit = Number(pageSize) > 0 ? Number(pageSize) : 20;
+        const offset = (page - 1) * limit;
+
         try {
             const query = `
                WITH supplier_sgiq AS (
@@ -3245,20 +3252,24 @@ SELECT
     END AS meaning_description
 FROM dqr_scores ds
 JOIN supplier_sgiq ss ON ss.sup_id = ds.sup_id
-ORDER BY ds.overall_dqr_score DESC;
+ORDER BY ds.overall_dqr_score DESC 
+LIMIT ${limit} OFFSET ${offset};
 
 
             `;
 
             const result = await client.query(query);
 
+            const rows = result.rows;
+            const totalCount = rows.length > 0 ? rows.length : 0;
+
             return res.send(
-                generateResponse(
-                    true,
-                    "Supplier DQR rating fetched successfully",
-                    200,
-                    result.rows
-                )
+                generateResponse(true, "Success!", 200, {
+                    page,
+                    pageSize: limit,
+                    totalCount,
+                    data: result.rows
+                })
             );
 
         } catch (error: any) {
