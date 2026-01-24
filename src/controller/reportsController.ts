@@ -2578,3 +2578,694 @@ LIMIT $${idx++} OFFSET $${idx++};
         }
     });
 }
+
+export async function getSupplierDqrRatingReport(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `
+               WITH supplier_sgiq AS (
+    SELECT
+        sgiq.sgiq_id,
+        sgiq.sup_id,
+        sup.supplier_name,
+        sup.code AS supplier_code,
+        sup.supplier_email
+    FROM supplier_general_info_questions sgiq
+    JOIN pcf_request_data_rating_stage prdrs
+        ON prdrs.bom_pcf_id = sgiq.bom_pcf_id
+       AND prdrs.sup_id = sgiq.sup_id
+    JOIN supplier_details sup
+        ON sup.sup_id = sgiq.sup_id
+    WHERE prdrs.is_submitted = TRUE
+),
+
+dqr_union AS (
+
+    /* ================= Q9 ================= */
+    SELECT
+        ss.sup_id,
+        CASE WHEN q9.ter_tag_value IN ('1','2','3','4','5') THEN q9.ter_tag_value::int ELSE 0 END AS ter,
+        CASE WHEN q9.tir_tag_value IN ('1','2','3','4','5') THEN q9.tir_tag_value::int ELSE 0 END AS tir,
+        CASE WHEN q9.gr_tag_value  IN ('1','2','3','4','5') THEN q9.gr_tag_value::int  ELSE 0 END AS gr,
+        CASE WHEN q9.c_tag_value   IN ('1','2','3','4','5') THEN q9.c_tag_value::int   ELSE 0 END AS c,
+        CASE WHEN q9.pds_tag_value IN ('1','2','3','4','5') THEN q9.pds_tag_value::int ELSE 0 END AS pds
+    FROM dqr_emission_data_rating_qnine q9
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q9.sgiq_id
+
+    UNION ALL
+
+    /* ================= Q11 ================= */
+    SELECT
+        ss.sup_id,
+        CASE WHEN q11.ter_tag_value IN ('1','2','3','4','5') THEN q11.ter_tag_value::int ELSE 0 END,
+        CASE WHEN q11.tir_tag_value IN ('1','2','3','4','5') THEN q11.tir_tag_value::int ELSE 0 END,
+        CASE WHEN q11.gr_tag_value  IN ('1','2','3','4','5') THEN q11.gr_tag_value::int  ELSE 0 END,
+        CASE WHEN q11.c_tag_value   IN ('1','2','3','4','5') THEN q11.c_tag_value::int   ELSE 0 END,
+        CASE WHEN q11.pds_tag_value IN ('1','2','3','4','5') THEN q11.pds_tag_value::int ELSE 0 END
+    FROM dqr_supplier_product_questions_rating_qeleven q11
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q11.sgiq_id
+
+    UNION ALL
+
+    /* ================= Q12 ================= */
+    SELECT
+        ss.sup_id,
+        CASE WHEN q12.ter_tag_value IN ('1','2','3','4','5') THEN q12.ter_tag_value::int ELSE 0 END,
+        CASE WHEN q12.tir_tag_value IN ('1','2','3','4','5') THEN q12.tir_tag_value::int ELSE 0 END,
+        CASE WHEN q12.gr_tag_value  IN ('1','2','3','4','5') THEN q12.gr_tag_value::int  ELSE 0 END,
+        CASE WHEN q12.c_tag_value   IN ('1','2','3','4','5') THEN q12.c_tag_value::int   ELSE 0 END,
+        CASE WHEN q12.pds_tag_value IN ('1','2','3','4','5') THEN q12.pds_tag_value::int ELSE 0 END
+    FROM dqr_supplier_product_questions_rating_qtwelve q12
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q12.sgiq_id
+
+    UNION ALL
+
+    /* ================= Q13 ================= */
+    SELECT
+        ss.sup_id,
+        CASE WHEN q13.ter_tag_value IN ('1','2','3','4','5') THEN q13.ter_tag_value::int ELSE 0 END,
+        CASE WHEN q13.tir_tag_value IN ('1','2','3','4','5') THEN q13.tir_tag_value::int ELSE 0 END,
+        CASE WHEN q13.gr_tag_value  IN ('1','2','3','4','5') THEN q13.gr_tag_value::int  ELSE 0 END,
+        CASE WHEN q13.c_tag_value   IN ('1','2','3','4','5') THEN q13.c_tag_value::int   ELSE 0 END,
+        CASE WHEN q13.pds_tag_value IN ('1','2','3','4','5') THEN q13.pds_tag_value::int ELSE 0 END
+    FROM dqr_production_site_detail_rating_qthirteen q13
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q13.sgiq_id
+
+    UNION ALL
+
+    /* ================= Q15 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q15.ter_tag_value IN ('1','2','3','4','5') THEN q15.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q15.tir_tag_value IN ('1','2','3','4','5') THEN q15.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q15.gr_tag_value  IN ('1','2','3','4','5') THEN q15.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q15.c_tag_value   IN ('1','2','3','4','5') THEN q15.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q15.pds_tag_value IN ('1','2','3','4','5') THEN q15.pds_tag_value::int ELSE 0 END
+    FROM dqr_product_component_manufactured_rating_qfiften q15
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q15.sgiq_id
+
+    UNION ALL
+    /* ================= Q15.1 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q151.ter_tag_value IN ('1','2','3','4','5') THEN q151.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q151.tir_tag_value IN ('1','2','3','4','5') THEN q151.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q151.gr_tag_value  IN ('1','2','3','4','5') THEN q151.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q151.c_tag_value   IN ('1','2','3','4','5') THEN q151.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q151.pds_tag_value IN ('1','2','3','4','5') THEN q151.pds_tag_value::int ELSE 0 END
+    FROM dqr_co_product_component_manufactured_rating_qfiftenone q151
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q151.sgiq_id
+
+    UNION ALL
+    /* ================= Q16 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q16.ter_tag_value IN ('1','2','3','4','5') THEN q16.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q16.tir_tag_value IN ('1','2','3','4','5') THEN q16.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q16.gr_tag_value  IN ('1','2','3','4','5') THEN q16.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q16.c_tag_value   IN ('1','2','3','4','5') THEN q16.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q16.pds_tag_value IN ('1','2','3','4','5') THEN q16.pds_tag_value::int ELSE 0 END
+    FROM dqr_stationary_combustion_on_site_energy_rating_qsixten q16
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q16.sgiq_id
+
+    UNION ALL
+    /* ================= Q17 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q17.ter_tag_value IN ('1','2','3','4','5') THEN q17.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q17.tir_tag_value IN ('1','2','3','4','5') THEN q17.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q17.gr_tag_value  IN ('1','2','3','4','5') THEN q17.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q17.c_tag_value   IN ('1','2','3','4','5') THEN q17.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q17.pds_tag_value IN ('1','2','3','4','5') THEN q17.pds_tag_value::int ELSE 0 END
+    FROM dqr_mobile_combustion_company_owned_vehicles_rating_qseventen q17
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q17.sgiq_id
+
+    UNION ALL
+    /* ================= Q19 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q19.ter_tag_value IN ('1','2','3','4','5') THEN q19.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q19.tir_tag_value IN ('1','2','3','4','5') THEN q19.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q19.gr_tag_value  IN ('1','2','3','4','5') THEN q19.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q19.c_tag_value   IN ('1','2','3','4','5') THEN q19.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q19.pds_tag_value IN ('1','2','3','4','5') THEN q19.pds_tag_value::int ELSE 0 END
+    FROM dqr_refrigerants_rating_qnineten q19
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q19.sgiq_id
+
+    UNION ALL
+    /* ================= Q21 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q21.ter_tag_value IN ('1','2','3','4','5') THEN q21.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q21.tir_tag_value IN ('1','2','3','4','5') THEN q21.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q21.gr_tag_value  IN ('1','2','3','4','5') THEN q21.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q21.c_tag_value   IN ('1','2','3','4','5') THEN q21.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q21.pds_tag_value IN ('1','2','3','4','5') THEN q21.pds_tag_value::int ELSE 0 END
+    FROM dqr_process_emissions_sources_qtwentyone q21
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q21.sgiq_id
+
+    UNION ALL
+    /* ================= Q22 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q22.ter_tag_value IN ('1','2','3','4','5') THEN q22.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q22.tir_tag_value IN ('1','2','3','4','5') THEN q22.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q22.gr_tag_value  IN ('1','2','3','4','5') THEN q22.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q22.c_tag_value   IN ('1','2','3','4','5') THEN q22.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q22.pds_tag_value IN ('1','2','3','4','5') THEN q22.pds_tag_value::int ELSE 0 END
+    FROM dqr_scope_two_indirect_emis_from_pur_energy_qtwentytwo q22
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q22.sgiq_id
+
+    UNION ALL
+    /* ================= Q24 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q24.ter_tag_value IN ('1','2','3','4','5') THEN q24.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q24.tir_tag_value IN ('1','2','3','4','5') THEN q24.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q24.gr_tag_value  IN ('1','2','3','4','5') THEN q24.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q24.c_tag_value   IN ('1','2','3','4','5') THEN q24.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q24.pds_tag_value IN ('1','2','3','4','5') THEN q24.pds_tag_value::int ELSE 0 END
+    FROM dqr_scope_two_indirect_emissions_certificates_qtwentyfour q24
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q24.sgiq_id
+
+    UNION ALL
+    /* ================= Q26 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q26.ter_tag_value IN ('1','2','3','4','5') THEN q26.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q26.tir_tag_value IN ('1','2','3','4','5') THEN q26.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q26.gr_tag_value  IN ('1','2','3','4','5') THEN q26.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q26.c_tag_value   IN ('1','2','3','4','5') THEN q26.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q26.pds_tag_value IN ('1','2','3','4','5') THEN q26.pds_tag_value::int ELSE 0 END
+    FROM dqr_scope_two_indirect_emissions_qtwentysix q26
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q26.sgiq_id
+
+    UNION ALL
+    /* ================= Q27 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q27.ter_tag_value IN ('1','2','3','4','5') THEN q27.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q27.tir_tag_value IN ('1','2','3','4','5') THEN q27.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q27.gr_tag_value  IN ('1','2','3','4','5') THEN q27.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q27.c_tag_value   IN ('1','2','3','4','5') THEN q27.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q27.pds_tag_value IN ('1','2','3','4','5') THEN q27.pds_tag_value::int ELSE 0 END
+    FROM dqr_energy_intensity_of_pro_est_kwhor_mj_qtwentyseven q27
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q27.sgiq_id
+
+    UNION ALL
+    /* ================= Q28 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q28.ter_tag_value IN ('1','2','3','4','5') THEN q28.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q28.tir_tag_value IN ('1','2','3','4','5') THEN q28.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q28.gr_tag_value  IN ('1','2','3','4','5') THEN q28.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q28.c_tag_value   IN ('1','2','3','4','5') THEN q28.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q28.pds_tag_value IN ('1','2','3','4','5') THEN q28.pds_tag_value::int ELSE 0 END
+    FROM dqr_process_specific_energy_usage_qtwentyeight q28
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q28.sgiq_id
+
+
+     UNION ALL
+    /* ================= Q30 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q30.ter_tag_value IN ('1','2','3','4','5') THEN q30.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q30.tir_tag_value IN ('1','2','3','4','5') THEN q30.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q30.gr_tag_value  IN ('1','2','3','4','5') THEN q30.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q30.c_tag_value   IN ('1','2','3','4','5') THEN q30.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q30.pds_tag_value IN ('1','2','3','4','5') THEN q30.pds_tag_value::int ELSE 0 END
+    FROM dqr_abatement_systems_used_qthirty q30
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q30.sgiq_id
+
+    UNION ALL
+    /* ================= Q31 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q31.ter_tag_value IN ('1','2','3','4','5') THEN q31.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q31.tir_tag_value IN ('1','2','3','4','5') THEN q31.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q31.gr_tag_value  IN ('1','2','3','4','5') THEN q31.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q31.c_tag_value   IN ('1','2','3','4','5') THEN q31.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q31.pds_tag_value IN ('1','2','3','4','5') THEN q31.pds_tag_value::int ELSE 0 END
+    FROM dqr_scope_two_indirect_emissions_qthirtyone q31
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q31.sgiq_id
+
+    UNION ALL
+    /* ================= Q32 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q32.ter_tag_value IN ('1','2','3','4','5') THEN q32.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q32.tir_tag_value IN ('1','2','3','4','5') THEN q32.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q32.gr_tag_value  IN ('1','2','3','4','5') THEN q32.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q32.c_tag_value   IN ('1','2','3','4','5') THEN q32.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q32.pds_tag_value IN ('1','2','3','4','5') THEN q32.pds_tag_value::int ELSE 0 END
+    FROM dqr_type_of_quality_control_equipment_usage_qthirtytwo q32
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q32.sgiq_id
+
+    UNION ALL
+    /* ================= Q33 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q33.ter_tag_value IN ('1','2','3','4','5') THEN q33.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q33.tir_tag_value IN ('1','2','3','4','5') THEN q33.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q33.gr_tag_value  IN ('1','2','3','4','5') THEN q33.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q33.c_tag_value   IN ('1','2','3','4','5') THEN q33.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q33.pds_tag_value IN ('1','2','3','4','5') THEN q33.pds_tag_value::int ELSE 0 END
+    FROM dqr_electricity_consumed_for_quality_control_qthirtythree q33
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q33.sgiq_id
+
+
+     UNION ALL
+    /* ================= Q34 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q34.ter_tag_value IN ('1','2','3','4','5') THEN q34.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q34.tir_tag_value IN ('1','2','3','4','5') THEN q34.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q34.gr_tag_value  IN ('1','2','3','4','5') THEN q34.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q34.c_tag_value   IN ('1','2','3','4','5') THEN q34.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q34.pds_tag_value IN ('1','2','3','4','5') THEN q34.pds_tag_value::int ELSE 0 END
+    FROM dqr_quality_control_process_usage_qthirtyfour q34
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q34.sgiq_id
+
+    UNION ALL
+    /* ================= Q341 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q341.ter_tag_value IN ('1','2','3','4','5') THEN q341.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q341.tir_tag_value IN ('1','2','3','4','5') THEN q341.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q341.gr_tag_value  IN ('1','2','3','4','5') THEN q341.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q341.c_tag_value   IN ('1','2','3','4','5') THEN q341.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q341.pds_tag_value IN ('1','2','3','4','5') THEN q341.pds_tag_value::int ELSE 0 END
+    FROM dqr_quality_control_process_usage_pressure_or_flow_qthirtyfour q341
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q341.sgiq_id
+
+    UNION ALL
+    /* ================= Q35 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q35.ter_tag_value IN ('1','2','3','4','5') THEN q35.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q35.tir_tag_value IN ('1','2','3','4','5') THEN q35.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q35.gr_tag_value  IN ('1','2','3','4','5') THEN q35.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q35.c_tag_value   IN ('1','2','3','4','5') THEN q35.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q35.pds_tag_value IN ('1','2','3','4','5') THEN q35.pds_tag_value::int ELSE 0 END
+    FROM dqr_quality_control_use_any_consumables_qthirtyfive q35
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q35.sgiq_id
+
+
+    UNION ALL
+    /* ================= Q37 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q37.ter_tag_value IN ('1','2','3','4','5') THEN q37.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q37.tir_tag_value IN ('1','2','3','4','5') THEN q37.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q37.gr_tag_value  IN ('1','2','3','4','5') THEN q37.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q37.c_tag_value   IN ('1','2','3','4','5') THEN q37.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q37.pds_tag_value IN ('1','2','3','4','5') THEN q37.pds_tag_value::int ELSE 0 END
+    FROM dqr_weight_of_samples_destroyed_qthirtyseven q37
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q37.sgiq_id
+
+    UNION ALL
+    /* ================= Q38 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q38.ter_tag_value IN ('1','2','3','4','5') THEN q38.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q38.tir_tag_value IN ('1','2','3','4','5') THEN q38.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q38.gr_tag_value  IN ('1','2','3','4','5') THEN q38.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q38.c_tag_value   IN ('1','2','3','4','5') THEN q38.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q38.pds_tag_value IN ('1','2','3','4','5') THEN q38.pds_tag_value::int ELSE 0 END
+    FROM dqr_defect_or_rej_rate_identified_by_quality_control_qthirtyeight q38
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q38.sgiq_id
+
+
+     UNION ALL
+    /* ================= Q39 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q39.ter_tag_value IN ('1','2','3','4','5') THEN q39.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q39.tir_tag_value IN ('1','2','3','4','5') THEN q39.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q39.gr_tag_value  IN ('1','2','3','4','5') THEN q39.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q39.c_tag_value   IN ('1','2','3','4','5') THEN q39.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q39.pds_tag_value IN ('1','2','3','4','5') THEN q39.pds_tag_value::int ELSE 0 END
+    FROM dqr_rework_rate_due_to_quality_control_qthirtynine q39
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q39.sgiq_id
+
+    UNION ALL
+    /* ================= Q40 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q40.ter_tag_value IN ('1','2','3','4','5') THEN q40.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q40.tir_tag_value IN ('1','2','3','4','5') THEN q40.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q40.gr_tag_value  IN ('1','2','3','4','5') THEN q40.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q40.c_tag_value   IN ('1','2','3','4','5') THEN q40.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q40.pds_tag_value IN ('1','2','3','4','5') THEN q40.pds_tag_value::int ELSE 0 END
+    FROM dqr_weight_of_quality_control_waste_generated_qforty q40
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q40.sgiq_id
+
+    UNION ALL
+    /* ================= Q41 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q41.ter_tag_value IN ('1','2','3','4','5') THEN q41.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q41.tir_tag_value IN ('1','2','3','4','5') THEN q41.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q41.gr_tag_value  IN ('1','2','3','4','5') THEN q41.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q41.c_tag_value   IN ('1','2','3','4','5') THEN q41.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q41.pds_tag_value IN ('1','2','3','4','5') THEN q41.pds_tag_value::int ELSE 0 END
+    FROM dqr_scope_two_indirect_emissions_qfortyone q41
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q41.sgiq_id
+
+
+     UNION ALL
+    /* ================= Q44 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q44.ter_tag_value IN ('1','2','3','4','5') THEN q44.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q44.tir_tag_value IN ('1','2','3','4','5') THEN q44.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q44.gr_tag_value  IN ('1','2','3','4','5') THEN q44.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q44.c_tag_value   IN ('1','2','3','4','5') THEN q44.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q44.pds_tag_value IN ('1','2','3','4','5') THEN q44.pds_tag_value::int ELSE 0 END
+    FROM dqr_energy_consumption_for_qfortyfour_qfortyfour q44
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q44.sgiq_id
+
+
+     UNION ALL
+    /* ================= Q46 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q46.ter_tag_value IN ('1','2','3','4','5') THEN q46.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q46.tir_tag_value IN ('1','2','3','4','5') THEN q46.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q46.gr_tag_value  IN ('1','2','3','4','5') THEN q46.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q46.c_tag_value   IN ('1','2','3','4','5') THEN q46.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q46.pds_tag_value IN ('1','2','3','4','5') THEN q46.pds_tag_value::int ELSE 0 END
+    FROM dqr_cloud_provider_details_qfortysix q46
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q46.sgiq_id
+
+    UNION ALL
+    /* ================= Q47 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q47.ter_tag_value IN ('1','2','3','4','5') THEN q47.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q47.tir_tag_value IN ('1','2','3','4','5') THEN q47.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q47.gr_tag_value  IN ('1','2','3','4','5') THEN q47.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q47.c_tag_value   IN ('1','2','3','4','5') THEN q47.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q47.pds_tag_value IN ('1','2','3','4','5') THEN q47.pds_tag_value::int ELSE 0 END
+    FROM dqr_dedicated_monitoring_sensor_usage_qfortyseven q47
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q47.sgiq_id
+
+    UNION ALL
+    /* ================= Q48 ================= */
+    SELECT ss.sup_id,
+           CASE WHEN q48.ter_tag_value IN ('1','2','3','4','5') THEN q48.ter_tag_value::int ELSE 0 END,
+           CASE WHEN q48.tir_tag_value IN ('1','2','3','4','5') THEN q48.tir_tag_value::int ELSE 0 END,
+           CASE WHEN q48.gr_tag_value  IN ('1','2','3','4','5') THEN q48.gr_tag_value::int  ELSE 0 END,
+           CASE WHEN q48.c_tag_value   IN ('1','2','3','4','5') THEN q48.c_tag_value::int   ELSE 0 END,
+           CASE WHEN q48.pds_tag_value IN ('1','2','3','4','5') THEN q48.pds_tag_value::int ELSE 0 END
+    FROM dqr_annual_replacement_rate_of_sensor_qfortyeight q48
+    JOIN supplier_sgiq ss ON ss.sgiq_id = q48.sgiq_id
+
+    UNION ALL
+    /* ================= Q51 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q51.ter_tag_value IN ('1','2','3','4','5') THEN q51.ter_tag_value::int ELSE 0 END AS ter,
+    CASE WHEN q51.tir_tag_value IN ('1','2','3','4','5') THEN q51.tir_tag_value::int ELSE 0 END AS tir,
+    CASE WHEN q51.gr_tag_value  IN ('1','2','3','4','5') THEN q51.gr_tag_value::int  ELSE 0 END AS gr,
+    CASE WHEN q51.c_tag_value   IN ('1','2','3','4','5') THEN q51.c_tag_value::int   ELSE 0 END AS c,
+    CASE WHEN q51.pds_tag_value IN ('1','2','3','4','5') THEN q51.pds_tag_value::int ELSE 0 END AS pds
+FROM dqr_energy_consumption_for_qfiftyone_qfiftyone q51
+JOIN supplier_sgiq ss ON ss.sgiq_id = q51.sgiq_id
+
+UNION ALL
+
+/* ================= Q52 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q52.ter_tag_value IN ('1','2','3','4','5') THEN q52.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q52.tir_tag_value IN ('1','2','3','4','5') THEN q52.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q52.gr_tag_value  IN ('1','2','3','4','5') THEN q52.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q52.c_tag_value   IN ('1','2','3','4','5') THEN q52.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q52.pds_tag_value IN ('1','2','3','4','5') THEN q52.pds_tag_value::int ELSE 0 END
+FROM dqr_raw_materials_used_in_component_manufacturing_qfiftytwo q52
+JOIN supplier_sgiq ss ON ss.sgiq_id = q52.sgiq_id
+
+UNION ALL
+
+/* ================= Q53 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q53.ter_tag_value IN ('1','2','3','4','5') THEN q53.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q53.tir_tag_value IN ('1','2','3','4','5') THEN q53.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q53.gr_tag_value  IN ('1','2','3','4','5') THEN q53.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q53.c_tag_value   IN ('1','2','3','4','5') THEN q53.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q53.pds_tag_value IN ('1','2','3','4','5') THEN q53.pds_tag_value::int ELSE 0 END
+FROM dqr_scope_three_other_indirect_emissions_qfiftythree q53
+JOIN supplier_sgiq ss ON ss.sgiq_id = q53.sgiq_id
+
+UNION ALL
+
+/* ================= Q54 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q54.ter_tag_value IN ('1','2','3','4','5') THEN q54.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q54.tir_tag_value IN ('1','2','3','4','5') THEN q54.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q54.gr_tag_value  IN ('1','2','3','4','5') THEN q54.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q54.c_tag_value   IN ('1','2','3','4','5') THEN q54.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q54.pds_tag_value IN ('1','2','3','4','5') THEN q54.pds_tag_value::int ELSE 0 END
+FROM dqr_scope_three_other_indirect_emissions_qfiftyfour q54
+JOIN supplier_sgiq ss ON ss.sgiq_id = q54.sgiq_id
+
+UNION ALL
+
+/* ================= Q56 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q56.ter_tag_value IN ('1','2','3','4','5') THEN q56.ter_tag_value::int ELSE 0 END AS ter,
+    CASE WHEN q56.tir_tag_value IN ('1','2','3','4','5') THEN q56.tir_tag_value::int ELSE 0 END AS tir,
+    CASE WHEN q56.gr_tag_value  IN ('1','2','3','4','5') THEN q56.gr_tag_value::int  ELSE 0 END AS gr,
+    CASE WHEN q56.c_tag_value   IN ('1','2','3','4','5') THEN q56.c_tag_value::int   ELSE 0 END AS c,
+    CASE WHEN q56.pds_tag_value IN ('1','2','3','4','5') THEN q56.pds_tag_value::int ELSE 0 END AS pds
+FROM dqr_recycled_materials_with_percentage_qfiftysix q56
+JOIN supplier_sgiq ss ON ss.sgiq_id = q56.sgiq_id
+
+UNION ALL
+
+/* ================= Q58 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q58.ter_tag_value IN ('1','2','3','4','5') THEN q58.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q58.tir_tag_value IN ('1','2','3','4','5') THEN q58.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q58.gr_tag_value  IN ('1','2','3','4','5') THEN q58.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q58.c_tag_value   IN ('1','2','3','4','5') THEN q58.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q58.pds_tag_value IN ('1','2','3','4','5') THEN q58.pds_tag_value::int ELSE 0 END
+FROM dqr_pre_post_consumer_reutilization_percentage_qfiftyeight q58
+JOIN supplier_sgiq ss ON ss.sgiq_id = q58.sgiq_id
+
+UNION ALL
+
+/* ================= Q59 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q59.ter_tag_value IN ('1','2','3','4','5') THEN q59.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q59.tir_tag_value IN ('1','2','3','4','5') THEN q59.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q59.gr_tag_value  IN ('1','2','3','4','5') THEN q59.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q59.c_tag_value   IN ('1','2','3','4','5') THEN q59.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q59.pds_tag_value IN ('1','2','3','4','5') THEN q59.pds_tag_value::int ELSE 0 END
+FROM dqr_pir_pcr_material_percentage_qfiftynine q59
+JOIN supplier_sgiq ss ON ss.sgiq_id = q59.sgiq_id
+
+UNION ALL
+
+/* ================= Q60 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q60.ter_tag_value IN ('1','2','3','4','5') THEN q60.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q60.tir_tag_value IN ('1','2','3','4','5') THEN q60.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q60.gr_tag_value  IN ('1','2','3','4','5') THEN q60.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q60.c_tag_value   IN ('1','2','3','4','5') THEN q60.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q60.pds_tag_value IN ('1','2','3','4','5') THEN q60.pds_tag_value::int ELSE 0 END
+FROM dqr_type_of_pack_mat_used_for_delivering_qsixty q60
+JOIN supplier_sgiq ss ON ss.sgiq_id = q60.sgiq_id
+
+UNION ALL
+
+/* ================= Q61 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q61.ter_tag_value IN ('1','2','3','4','5') THEN q61.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q61.tir_tag_value IN ('1','2','3','4','5') THEN q61.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q61.gr_tag_value  IN ('1','2','3','4','5') THEN q61.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q61.c_tag_value   IN ('1','2','3','4','5') THEN q61.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q61.pds_tag_value IN ('1','2','3','4','5') THEN q61.pds_tag_value::int ELSE 0 END
+FROM dqr_weight_of_packaging_per_unit_product_qsixtyone q61
+JOIN supplier_sgiq ss ON ss.sgiq_id = q61.sgiq_id
+
+UNION ALL
+
+/* ================= Q64 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q64.ter_tag_value IN ('1','2','3','4','5') THEN q64.ter_tag_value::int ELSE 0 END AS ter,
+    CASE WHEN q64.tir_tag_value IN ('1','2','3','4','5') THEN q64.tir_tag_value::int ELSE 0 END AS tir,
+    CASE WHEN q64.gr_tag_value  IN ('1','2','3','4','5') THEN q64.gr_tag_value::int  ELSE 0 END AS gr,
+    CASE WHEN q64.c_tag_value   IN ('1','2','3','4','5') THEN q64.c_tag_value::int   ELSE 0 END AS c,
+    CASE WHEN q64.pds_tag_value IN ('1','2','3','4','5') THEN q64.pds_tag_value::int ELSE 0 END AS pds
+FROM dqr_scope_three_other_indirect_emissions_qsixtyfour q64
+JOIN supplier_sgiq ss ON ss.sgiq_id = q64.sgiq_id
+
+UNION ALL
+
+/* ================= Q67 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q67.ter_tag_value IN ('1','2','3','4','5') THEN q67.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q67.tir_tag_value IN ('1','2','3','4','5') THEN q67.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q67.gr_tag_value  IN ('1','2','3','4','5') THEN q67.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q67.c_tag_value   IN ('1','2','3','4','5') THEN q67.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q67.pds_tag_value IN ('1','2','3','4','5') THEN q67.pds_tag_value::int ELSE 0 END
+FROM dqr_energy_consumption_for_qsixtyseven_qsixtyseven q67
+JOIN supplier_sgiq ss ON ss.sgiq_id = q67.sgiq_id
+
+UNION ALL
+
+/* ================= Q68 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q68.ter_tag_value IN ('1','2','3','4','5') THEN q68.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q68.tir_tag_value IN ('1','2','3','4','5') THEN q68.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q68.gr_tag_value  IN ('1','2','3','4','5') THEN q68.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q68.c_tag_value   IN ('1','2','3','4','5') THEN q68.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q68.pds_tag_value IN ('1','2','3','4','5') THEN q68.pds_tag_value::int ELSE 0 END
+FROM dqr_weight_of_pro_packaging_waste_qsixtyeight q68
+JOIN supplier_sgiq ss ON ss.sgiq_id = q68.sgiq_id
+
+UNION ALL
+
+/* ================= Q69 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q69.ter_tag_value IN ('1','2','3','4','5') THEN q69.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q69.tir_tag_value IN ('1','2','3','4','5') THEN q69.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q69.gr_tag_value  IN ('1','2','3','4','5') THEN q69.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q69.c_tag_value   IN ('1','2','3','4','5') THEN q69.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q69.pds_tag_value IN ('1','2','3','4','5') THEN q69.pds_tag_value::int ELSE 0 END
+FROM dqr_scope_three_other_indirect_emissions_qsixtynine q69
+JOIN supplier_sgiq ss ON ss.sgiq_id = q69.sgiq_id
+
+UNION ALL
+/* ================= Q71 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q71.ter_tag_value IN ('1','2','3','4','5') THEN q71.ter_tag_value::int ELSE 0 END AS ter,
+    CASE WHEN q71.tir_tag_value IN ('1','2','3','4','5') THEN q71.tir_tag_value::int ELSE 0 END AS tir,
+    CASE WHEN q71.gr_tag_value  IN ('1','2','3','4','5') THEN q71.gr_tag_value::int  ELSE 0 END AS gr,
+    CASE WHEN q71.c_tag_value   IN ('1','2','3','4','5') THEN q71.c_tag_value::int   ELSE 0 END AS c,
+    CASE WHEN q71.pds_tag_value IN ('1','2','3','4','5') THEN q71.pds_tag_value::int ELSE 0 END AS pds
+FROM dqr_type_of_by_product_qseventyone q71
+JOIN supplier_sgiq ss ON ss.sgiq_id = q71.sgiq_id
+
+UNION ALL
+
+/* ================= Q73 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q73.ter_tag_value IN ('1','2','3','4','5') THEN q73.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q73.tir_tag_value IN ('1','2','3','4','5') THEN q73.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q73.gr_tag_value  IN ('1','2','3','4','5') THEN q73.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q73.c_tag_value   IN ('1','2','3','4','5') THEN q73.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q73.pds_tag_value IN ('1','2','3','4','5') THEN q73.pds_tag_value::int ELSE 0 END
+FROM dqr_co_two_emission_of_raw_material_qseventythree q73
+JOIN supplier_sgiq ss ON ss.sgiq_id = q73.sgiq_id
+
+UNION ALL
+
+/* ================= Q74 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q74.ter_tag_value IN ('1','2','3','4','5') THEN q74.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q74.tir_tag_value IN ('1','2','3','4','5') THEN q74.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q74.gr_tag_value  IN ('1','2','3','4','5') THEN q74.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q74.c_tag_value   IN ('1','2','3','4','5') THEN q74.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q74.pds_tag_value IN ('1','2','3','4','5') THEN q74.pds_tag_value::int ELSE 0 END
+FROM dqr_mode_of_transport_used_for_transportation_qseventyfour q74
+JOIN supplier_sgiq ss ON ss.sgiq_id = q74.sgiq_id
+
+UNION ALL
+
+/* ================= Q75 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q75.ter_tag_value IN ('1','2','3','4','5') THEN q75.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q75.tir_tag_value IN ('1','2','3','4','5') THEN q75.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q75.gr_tag_value  IN ('1','2','3','4','5') THEN q75.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q75.c_tag_value   IN ('1','2','3','4','5') THEN q75.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q75.pds_tag_value IN ('1','2','3','4','5') THEN q75.pds_tag_value::int ELSE 0 END
+FROM dqr_destination_plant_component_transportation_qseventyfive q75
+JOIN supplier_sgiq ss ON ss.sgiq_id = q75.sgiq_id
+
+UNION ALL
+
+/* ================= Q79 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q79.ter_tag_value IN ('1','2','3','4','5') THEN q79.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q79.tir_tag_value IN ('1','2','3','4','5') THEN q79.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q79.gr_tag_value  IN ('1','2','3','4','5') THEN q79.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q79.c_tag_value   IN ('1','2','3','4','5') THEN q79.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q79.pds_tag_value IN ('1','2','3','4','5') THEN q79.pds_tag_value::int ELSE 0 END
+FROM dqr_scope_three_other_indirect_emissions_qseventynine q79
+JOIN supplier_sgiq ss ON ss.sgiq_id = q79.sgiq_id
+
+UNION ALL
+
+/* ================= Q80 ================= */
+SELECT
+    ss.sup_id,
+    CASE WHEN q80.ter_tag_value IN ('1','2','3','4','5') THEN q80.ter_tag_value::int ELSE 0 END,
+    CASE WHEN q80.tir_tag_value IN ('1','2','3','4','5') THEN q80.tir_tag_value::int ELSE 0 END,
+    CASE WHEN q80.gr_tag_value  IN ('1','2','3','4','5') THEN q80.gr_tag_value::int  ELSE 0 END,
+    CASE WHEN q80.c_tag_value   IN ('1','2','3','4','5') THEN q80.c_tag_value::int   ELSE 0 END,
+    CASE WHEN q80.pds_tag_value IN ('1','2','3','4','5') THEN q80.pds_tag_value::int ELSE 0 END
+FROM dqr_scope_three_other_indirect_emissions_qeighty q80
+JOIN supplier_sgiq ss ON ss.sgiq_id = q80.sgiq_id
+
+
+),
+ dqr_scores AS (
+    SELECT
+        du.sup_id,
+        ROUND(AVG(du.ter)::numeric, 2) AS total_average_value_ter,
+        ROUND(AVG(du.tir)::numeric, 2) AS total_average_value_tir,
+        ROUND(AVG(du.gr)::numeric, 2)  AS total_average_value_gr,
+        ROUND(AVG(du.c)::numeric, 2)   AS total_average_value_c,
+        ROUND(AVG(du.pds)::numeric, 2) AS total_average_value_pds,
+        ROUND(
+            (AVG(du.ter) + AVG(du.tir) + AVG(du.gr) + AVG(du.c) + AVG(du.pds)) / 5,
+            2
+        ) AS overall_dqr_score
+    FROM dqr_union du
+    GROUP BY du.sup_id
+)
+
+SELECT
+    ds.sup_id,
+    ss.supplier_name,
+    ss.supplier_code,
+    ss.supplier_email,
+    ds.total_average_value_ter,
+    ds.total_average_value_tir,
+    ds.total_average_value_gr,
+    ds.total_average_value_c,
+    ds.total_average_value_pds,
+    ds.overall_dqr_score,
+    CASE
+        WHEN ds.overall_dqr_score <= 1.5 THEN '1 (Very Good)'
+        WHEN ds.overall_dqr_score <= 2.5 THEN '2 (Good)'
+        WHEN ds.overall_dqr_score <= 3.5 THEN '3 (Fair)'
+        WHEN ds.overall_dqr_score <= 4.5 THEN '4 (Poor)'
+        ELSE '5 (Very Poor)'
+    END AS criterion,
+    CASE
+        WHEN ds.overall_dqr_score <= 1.5 THEN 'Fully representative, verified, recent, primary data'
+        WHEN ds.overall_dqr_score <= 2.5 THEN 'High representativeness, partly verified'
+        WHEN ds.overall_dqr_score <= 3.5 THEN 'Moderate accuracy, based on industry averages'
+        WHEN ds.overall_dqr_score <= 4.5 THEN 'Outdated, estimated, or incomplete data'
+        ELSE 'Non-representative / missing key data'
+    END AS meaning_description
+FROM dqr_scores ds
+JOIN supplier_sgiq ss ON ss.sup_id = ds.sup_id
+ORDER BY ds.overall_dqr_score DESC;
+
+
+            `;
+
+            const result = await client.query(query);
+
+            return res.send(
+                generateResponse(
+                    true,
+                    "Supplier DQR rating fetched successfully",
+                    200,
+                    result.rows
+                )
+            );
+
+        } catch (error: any) {
+            console.error("❌ Error fetching supplier DQR rating:", error);
+            return res.send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
