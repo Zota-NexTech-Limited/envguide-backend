@@ -234,7 +234,8 @@ export async function createTables() {
             steam_heat_cooling_id VARCHAR(255),
             steam_heat_cooling_value VARCHAR(255),
             additional_notes TEXT,    
-            supporting_document_ids VARCHAR(255)[],   
+            supporting_document_ids VARCHAR(255)[], 
+            own_emission_status VARCHAR(255),  
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -297,6 +298,102 @@ export async function createTables() {
             ed_life_cycle_stage_id VARCHAR(255), 
             ed_renewable_energy DOUBLE PRECISION,
             pcf_status VARCHAR(255) DEFAULT 'Not Available',
+            product_status VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS product_pcf (
+            id VARCHAR(255) PRIMARY KEY,
+            product_id VARCHAR(255),
+            product_name VARCHAR(255),  
+            pcf_name VARCHAR(255), 
+            version DOUBLE PRECISION, 
+            data_model VARCHAR(255), 
+            calculation_method VARCHAR(255),
+            production_location VARCHAR(255),
+            functional_unit DOUBLE PRECISION,
+            functional_unit_type VARCHAR(255),
+            reference_year VARCHAR(255),
+            validity_period VARCHAR(255),
+            description TEXT,
+            storage_duration VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS product_pcf_raw_material_component (
+            pprmc_id VARCHAR(255) PRIMARY KEY,
+            product_id VARCHAR(255),
+            material_type VARCHAR(255),  
+            quantity DOUBLE PRECISION, 
+            unit VARCHAR(255),
+            co2e_factor VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS product_pcf_energy_consumption (
+            ppec_id VARCHAR(255) PRIMARY KEY,
+            product_id VARCHAR(255),
+            electricity_consumption DOUBLE PRECISION, 
+            electricity_consumption_type VARCHAR(255), 
+            energy_source VARCHAR(255),
+            heat_consumption DOUBLE PRECISION, 
+            heat_consumption_type VARCHAR(255), 
+            fuel_type VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS product_pcf_manufacturing_process (
+            ppmp_id VARCHAR(255) PRIMARY KEY,
+            product_id VARCHAR(255),
+            process_type VARCHAR(255), 
+            processing_time VARCHAR(255), 
+            processing_time_type VARCHAR(255),
+            waste_generated DOUBLE PRECISION,
+            waste_generated_type VARCHAR(255), 
+            recyclable VARCHAR(255), 
+            treatment_method VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS product_pcf_transportation (
+            ppt_id VARCHAR(255) PRIMARY KEY,
+            product_id VARCHAR(255),
+            transport_mode VARCHAR(255), 
+            vehicle_type VARCHAR(255), 
+            distance DOUBLE PRECISION,
+            distance_type VARCHAR(255), 
+            load_factor DOUBLE PRECISION,
+            load_factor_type VARCHAR(255),
+            fuel_type VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS product_pcf_packaging (
+            ppp_id VARCHAR(255) PRIMARY KEY,
+            product_id VARCHAR(255),
+            packaging_type VARCHAR(255), 
+            material VARCHAR(255), 
+            weight DOUBLE PRECISION,
+            weight_type VARCHAR(255), 
+            recyclability VARCHAR(255), 
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -3004,8 +3101,8 @@ export async function createTables() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
-  
-          `CREATE TABLE IF NOT EXISTS sub_fuel_types (
+
+        `CREATE TABLE IF NOT EXISTS sub_fuel_types (
             sft_id VARCHAR(255) PRIMARY KEY,
             ft_id VARCHAR(255),
             code VARCHAR(255) NOT NULL, 
