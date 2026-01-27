@@ -26,7 +26,8 @@ export async function addOwnEmission(req: any, res: any) {
                 steam_heat_cooling_id,
                 steam_heat_cooling_value,
                 additional_notes,
-                supporting_documents // array of docs
+                supporting_documents, // array of docs,
+                own_emission_status
             } = req.body;
 
             const id = ulid();
@@ -57,9 +58,9 @@ export async function addOwnEmission(req: any, res: any) {
                 electicity_location_based_id, electicity_location_based_value,
                 electicity_market_based_id, electicity_market_based_value,
                 steam_heat_cooling_id, steam_heat_cooling_value,
-                additional_notes, created_by,product_id
+                additional_notes, created_by,product_id,own_emission_status
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
             ) RETURNING *;
         `;
             const result = await client.query(query, [
@@ -70,7 +71,7 @@ export async function addOwnEmission(req: any, res: any) {
                 electicity_location_based_id, electicity_location_based_value,
                 electicity_market_based_id, electicity_market_based_value,
                 steam_heat_cooling_id, steam_heat_cooling_value,
-                additional_notes, created_by, product_id
+                additional_notes, created_by, product_id, own_emission_status
             ]);
 
             if (Array.isArray(supporting_documents) && supporting_documents.length > 0) {
@@ -249,7 +250,8 @@ export async function updateOwnEmission(req: any, res: any) {
                 steam_heat_cooling_id,
                 steam_heat_cooling_value,
                 additional_notes,
-                supporting_documents // array of docs (optional)
+                supporting_documents, // array of docs (optional)
+                own_emission_status
             } = req.body;
 
             const updated_by = req.user_id;
@@ -274,7 +276,8 @@ export async function updateOwnEmission(req: any, res: any) {
           additional_notes = $16,
           updated_by = $17,
           update_date = NOW(),
-          product_id = $19
+          product_id = $19,
+          own_emission_status = $20
       WHERE id = $18
       RETURNING *;
     `;
@@ -298,7 +301,8 @@ export async function updateOwnEmission(req: any, res: any) {
                 additional_notes,
                 updated_by,
                 id,
-                product_id
+                product_id,
+                own_emission_status
             ]);
 
             if (result.rows.length === 0) {
