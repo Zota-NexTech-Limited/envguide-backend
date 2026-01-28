@@ -2077,7 +2077,7 @@ ORDER BY sd.supplier_name;
 // }
 
 export async function secondaryDataEntriesById(req: any, res: any) {
-    const { bom_pcf_id } = req.query;
+    const { bom_pcf_id, product_code } = req.query;
 
     return withClient(async (client: any) => {
         try {
@@ -2099,6 +2099,18 @@ base_pcf AS (
         pcf.created_date
     FROM bom_pcf_request pcf
     WHERE pcf.id = $1
+),
+
+/* ================= PRODUCT LIFE CYCLE STAGE ================= */
+product_life_cycle AS (
+    SELECT
+        p.product_code,
+        p.ed_life_cycle_stage_id,
+        lcsp.name AS life_cycle_stage_name
+    FROM product p
+    LEFT JOIN life_cycle_stages_of_product lcsp 
+        ON lcsp.lcsp_id = p.ed_life_cycle_stage_id
+    WHERE p.product_code = $2
 ),
 
 /* ================= BOM + SUPPLIER ================= */
@@ -2891,6 +2903,9 @@ dqr_summary AS (
 /* ================= FINAL RESPONSE ================= */
 SELECT
     bp.*,
+    plc.product_code,         
+    plc.ed_life_cycle_stage_id,
+    plc.life_cycle_stage_name, 
 
     COALESCE(
         jsonb_agg(
@@ -2982,10 +2997,12 @@ SELECT
 
 FROM base_pcf bp
 LEFT JOIN bom_supplier bs ON TRUE
+LEFT JOIN product_life_cycle plc ON TRUE
 GROUP BY bp.id, bp.code, bp.request_title, bp.status, bp.model_version, 
-         bp.overall_pcf, bp.is_approved, bp.is_rejected, bp.is_draft, bp.created_date;
+         bp.overall_pcf, bp.is_approved, bp.is_rejected, bp.is_draft, bp.created_date,
+           plc.product_code, plc.ed_life_cycle_stage_id, plc.life_cycle_stage_name;
                 `,
-                [bom_pcf_id]
+                [bom_pcf_id, product_code]
             );
 
             return res.status(200).send(
