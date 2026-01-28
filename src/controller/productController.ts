@@ -3018,6 +3018,70 @@ GROUP BY bp.id, bp.code, bp.request_title, bp.status, bp.model_version,
     });
 }
 
+export async function getLinkedPCFsUsingProductCode(req: any, res: any) {
+    const { product_code } = req.query;
+
+    return withClient(async (client: any) => {
+        try {
+            const result = await client.query(
+`WITH base_pcf AS (
+    SELECT
+        pcf.id,
+        pcf.code,
+        pcf.product_code,
+        pcf.request_title,
+        pcf.priority,
+        pcf.request_organization,
+        pcf.due_date,
+        pcf.request_description,
+        pcf.status,
+        pcf.model_version,
+        pcf.overall_pcf,
+        pcf.created_date
+    FROM bom_pcf_request pcf
+    WHERE pcf.product_code = $1
+)
+
+SELECT
+    base_pcf.*,
+
+    /* ✅ Total components used */
+    COUNT(DISTINCT b.id) AS total_component_used_count
+
+FROM base_pcf
+LEFT JOIN bom b
+    ON b.bom_pcf_id = base_pcf.id
+
+GROUP BY
+    base_pcf.id,
+    base_pcf.code,
+    base_pcf.product_code,
+    base_pcf.request_title,
+    base_pcf.priority,
+    base_pcf.request_organization,
+    base_pcf.due_date,
+    base_pcf.request_description,
+    base_pcf.status,
+    base_pcf.model_version,
+    base_pcf.overall_pcf,
+    base_pcf.created_date;
+`,
+                [product_code]
+            );
+
+            return res.status(200).send(
+                generateResponse(true, "PCF request AND BOM fetched Successfully!", 200, result.rows)
+            );
+
+        } catch (error: any) {
+            console.error("Error fetching PCF BOM list:", error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to fetch PCF BOM list"
+            });
+        }
+    });
+}
 
 // async function bulkInsert(client: any, tableName: string, columns: string[], rows: any[][]) {
 //     if (!rows || rows.length === 0) return;
