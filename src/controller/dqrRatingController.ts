@@ -207,10 +207,11 @@ export async function getSupplierDetailsList(req: any, res: any) {
             idx++;
         }
 
+        const baseCondition = 'client_id IS NULL';
 
         const whereClause = conditions.length
-            ? `WHERE ${conditions.join(' AND ')}`
-            : '';
+            ? `WHERE ${baseCondition} AND ${conditions.join(' AND ')}`
+            : `WHERE ${baseCondition}`;
 
 
         return withClient(async (client: any) => {

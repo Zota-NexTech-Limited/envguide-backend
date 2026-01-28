@@ -637,7 +637,7 @@ COALESCE(
                     ON stoie.sgiq_id = sgiq.sgiq_id
                 JOIN mode_of_transport_used_for_transportation_questions mt
                     ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id
+                WHERE sgiq.sup_id = b.supplier_id AND sgiq.client_id IS NULL
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -1034,7 +1034,7 @@ COALESCE(
                     ON stoie.sgiq_id = sgiq.sgiq_id
                 JOIN mode_of_transport_used_for_transportation_questions mt
                     ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id
+                WHERE sgiq.sup_id = b.supplier_id AND sgiq.client_id IS NULL
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -2159,7 +2159,7 @@ supplier_sgiq AS (
     JOIN supplier_details sup
         ON sup.sup_id = sgiq.sup_id
     WHERE prdrs.is_submitted = TRUE
-      AND sgiq.bom_pcf_id = $1
+      AND sgiq.bom_pcf_id = $1 AND sgiq.client_id IS NULL
 ),
 
 /* ================= DQR UNION (ALL QUESTIONS) ================= */

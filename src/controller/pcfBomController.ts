@@ -1921,7 +1921,7 @@ COALESCE(
                     ON stoie.sgiq_id = sgiq.sgiq_id
                 JOIN mode_of_transport_used_for_transportation_questions mt
                     ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id
+                WHERE sgiq.sup_id = b.supplier_id AND sgiq.client_id = NULL
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -2710,7 +2710,7 @@ export async function pcfCalculate(req: any, res: any) {
                 const fetchSGIQID = `
                 SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
                 FROM supplier_general_info_questions
-                WHERE bom_pcf_id = $1 AND sup_id =$2;
+                WHERE bom_pcf_id = $1 AND sup_id =$2 AND supplier_general_info_questions.client_id = NULL;
             `;
 
                 const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id, BomData.supplier_id]);
