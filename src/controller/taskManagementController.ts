@@ -704,3 +704,24 @@ export async function deleteTask(req: any, res: any) {
         }
     });
 }
+
+export async function sampleEmailTest(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const payload = {
+                email: "chethan@zotanextech.com",
+                bom_pcf_id: "01KADE43VDJRKCMGFTAPYK17M7",
+                bom_id: "01KADE43VDJRKCMGFTAPYK17M7",
+                supplier_id: "01KADE43VDJRKCMGFTAPYK17M7",
+            }
+            sendSupplierTaskEmail(payload);
+        } catch (error) {
+            await client.query("ROLLBACK");
+            console.error("❌ Error in deleteTask:", error);
+
+            return res.status(500).json(
+                generateResponse(false, "Failed to delete task", 500, error)
+            );
+        }
+    });
+}

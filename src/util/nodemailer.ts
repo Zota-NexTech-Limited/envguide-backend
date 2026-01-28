@@ -5,8 +5,8 @@ import nodemailer from 'nodemailer';
       port: 587,
       secure: false,
       auth: {
-        user: 'info@zotanextech.com',
-        pass: 'QDdbi470',
+        user: 'saisanjan.kethamreddy@enviguide.com',
+        pass: 'Saisanjanreddy1@',
       },
       tls: { minVersion: 'TLSv1.2', rejectUnauthorized: true },
   
