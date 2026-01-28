@@ -496,14 +496,14 @@ SELECT
     (
         SELECT jsonb_agg(to_jsonb(mem))
         FROM bom_emission_material_calculation_engine mem
-        WHERE mem.bom_id = b.id
+        WHERE mem.bom_id = b.id AND mem.product_id IS NULL
     ) AS material_emission,
 
     /* ---------- PRODUCTION EMISSION ---------- */
     (
         SELECT to_jsonb(mep)
         FROM bom_emission_production_calculation_engine mep
-        WHERE mep.bom_id = b.id
+        WHERE mep.bom_id = b.id AND mep.product_id IS NULL
         LIMIT 1
     ) AS production_emission_calculation,
 
@@ -511,7 +511,7 @@ SELECT
     (
         SELECT to_jsonb(mpk)
         FROM bom_emission_packaging_calculation_engine mpk
-        WHERE mpk.bom_id = b.id
+        WHERE mpk.bom_id = b.id AND mpk.product_id IS NULL
         LIMIT 1
     ) AS packaging_emission_calculation,
 
@@ -519,7 +519,7 @@ SELECT
     (
         SELECT to_jsonb(mw)
         FROM bom_emission_waste_calculation_engine mw
-        WHERE mw.bom_id = b.id
+        WHERE mw.bom_id = b.id AND mw.product_id IS NULL
         LIMIT 1
     ) AS waste_emission_calculation,
 
@@ -527,7 +527,7 @@ SELECT
     (
         SELECT to_jsonb(ml)
         FROM bom_emission_logistic_calculation_engine ml
-        WHERE ml.bom_id = b.id
+        WHERE ml.bom_id = b.id AND ml.product_id IS NULL
         LIMIT 1
     ) AS logistic_emission_calculation,
 
@@ -535,7 +535,7 @@ SELECT
     (
         SELECT to_jsonb(pcfe)
         FROM bom_emission_calculation_engine pcfe
-        WHERE pcfe.bom_id = b.id
+        WHERE pcfe.bom_id = b.id AND pcfe.product_id IS NULL
         LIMIT 1
     ) AS pcf_total_emission_calculation,
 
@@ -783,7 +783,7 @@ LEFT JOIN LATERAL (
         SUM(bece.total_pcf_value)::numeric AS supplier_total_pcf_emission
     FROM bom b2
     JOIN bom_emission_calculation_engine bece
-        ON bece.bom_id = b2.id
+        ON bece.bom_id = b2.id AND bece.product_id IS NULL
     WHERE b2.supplier_id = b.supplier_id
 ) spcf ON TRUE
 
@@ -1598,7 +1598,7 @@ LEFT JOIN LATERAL (
         SUM(bece.total_pcf_value)::numeric AS supplier_total_pcf_emission
     FROM bom b2
     JOIN bom_emission_calculation_engine bece
-        ON bece.bom_id = b2.id
+        ON bece.bom_id = b2.id AND bece.product_id IS NULL
     WHERE b2.supplier_id = b.supplier_id
 ) spcf ON TRUE
 

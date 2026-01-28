@@ -576,14 +576,14 @@ COALESCE(
             'material_emission', (
                 SELECT jsonb_agg(to_jsonb(mem))
                 FROM bom_emission_material_calculation_engine mem
-                WHERE mem.bom_id = b.id
+                WHERE mem.bom_id = b.id AND mem.product_id IS NULL
             ),
 
             /* ---------- PRODUCTION EMISSION ---------- */
             'production_emission_calculation', (
                 SELECT to_jsonb(mep)
                 FROM bom_emission_production_calculation_engine mep
-                WHERE mep.bom_id = b.id
+                WHERE mep.bom_id = b.id AND mep.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -591,7 +591,7 @@ COALESCE(
             'packaging_emission_calculation', (
                 SELECT to_jsonb(mpk)
                 FROM bom_emission_packaging_calculation_engine mpk
-                WHERE mpk.bom_id = b.id
+                WHERE mpk.bom_id = b.id AND mpk.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -599,7 +599,7 @@ COALESCE(
             'waste_emission_calculation', (
                 SELECT to_jsonb(mw)
                 FROM bom_emission_waste_calculation_engine mw
-                WHERE mw.bom_id = b.id
+                WHERE mw.bom_id = b.id AND mw.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -607,7 +607,7 @@ COALESCE(
             'logistic_emission_calculation', (
                 SELECT to_jsonb(ml)
                 FROM bom_emission_logistic_calculation_engine ml
-                WHERE ml.bom_id = b.id
+                WHERE ml.bom_id = b.id AND ml.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -615,7 +615,7 @@ COALESCE(
             'pcf_total_emission_calculation', (
                 SELECT to_jsonb(pcfe)
                 FROM bom_emission_calculation_engine pcfe
-                WHERE pcfe.bom_id = b.id
+                WHERE pcfe.bom_id = b.id AND pcfe.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -973,14 +973,14 @@ COALESCE(
             'material_emission', (
                 SELECT jsonb_agg(to_jsonb(mem))
                 FROM bom_emission_material_calculation_engine mem
-                WHERE mem.bom_id = b.id
+                WHERE mem.bom_id = b.id AND mem.product_id IS NULL
             ),
 
             /* ---------- PRODUCTION EMISSION ---------- */
             'production_emission_calculation', (
                 SELECT to_jsonb(mep)
                 FROM bom_emission_production_calculation_engine mep
-                WHERE mep.bom_id = b.id
+                WHERE mep.bom_id = b.id AND mep.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -988,7 +988,7 @@ COALESCE(
             'packaging_emission_calculation', (
                 SELECT to_jsonb(mpk)
                 FROM bom_emission_packaging_calculation_engine mpk
-                WHERE mpk.bom_id = b.id
+                WHERE mpk.bom_id = b.id AND mpk.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -996,7 +996,7 @@ COALESCE(
             'waste_emission_calculation', (
                 SELECT to_jsonb(mw)
                 FROM bom_emission_waste_calculation_engine mw
-                WHERE mw.bom_id = b.id
+                WHERE mw.bom_id = b.id AND mw.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -1004,7 +1004,7 @@ COALESCE(
             'logistic_emission_calculation', (
                 SELECT to_jsonb(ml)
                 FROM bom_emission_logistic_calculation_engine ml
-                WHERE ml.bom_id = b.id
+                WHERE ml.bom_id = b.id AND ml.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -1012,7 +1012,7 @@ COALESCE(
             'pcf_total_emission_calculation', (
                 SELECT to_jsonb(pcfe)
                 FROM bom_emission_calculation_engine pcfe
-                WHERE pcfe.bom_id = b.id
+                WHERE pcfe.bom_id = b.id AND pcfe.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -1112,6 +1112,148 @@ GROUP BY
     });
 }
 
+export async function getPCFOwnEmissionHistoryDetails(req: any, res: any) {
+    const { product_code } = req.query;
+
+    return withClient(async (client: any) => {
+        try {
+
+            const productCheckQuery = `
+    SELECT id
+    FROM product
+    WHERE product_code = $1
+    LIMIT 1;
+`;
+
+            const productCheck = await client.query(productCheckQuery, [product_code]);
+
+            if (productCheck.rowCount === 0) {
+                return res.status(404).json(
+                    generateResponse(false, "Product code not found", 404, null)
+                );
+            }
+
+            console.log(productCheck.rows[0]);
+            
+            const result = await client.query(
+                `
+WITH base_pcf AS (
+    SELECT
+        pcf.id,
+        pcf.code,
+        pr.id AS product_id, --from product table
+        pcf.request_title,
+        pcf.priority,
+        pcf.request_organization,
+        pcf.due_date,
+        pcf.request_description,
+        pcf.status,
+        pcf.model_version,
+        pcf.overall_pcf,
+        pcf.created_date,
+        oe.bom_pcf_id AS own_bom_pcf_id
+    FROM bom_pcf_request pcf
+    INNER JOIN own_emission oe
+        ON oe.bom_pcf_id = pcf.id
+       AND oe.is_own_emission_calculated = TRUE
+    INNER JOIN product pr
+        ON pr.product_code = pcf.product_code
+    WHERE pcf.product_code = $1
+)
+
+
+SELECT
+    base_pcf.*,
+
+ /* ---------- MATERIAL EMISSION ---------- */
+    (
+        SELECT jsonb_agg(to_jsonb(mem))
+        FROM bom_emission_material_calculation_engine mem
+        WHERE mem.product_id = base_pcf.product_id
+          AND mem.product_bom_pcf_id = base_pcf.own_bom_pcf_id
+    ) AS material_emission,
+
+    /* ---------- PRODUCTION EMISSION ---------- */
+    (
+        SELECT to_jsonb(mep)
+        FROM bom_emission_production_calculation_engine mep
+        WHERE mep.product_id = base_pcf.product_id
+          AND mep.product_bom_pcf_id = base_pcf.own_bom_pcf_id
+        LIMIT 1
+    ) AS production_emission_calculation,
+
+    /* ---------- PACKAGING EMISSION ---------- */
+    (
+        SELECT to_jsonb(mpk)
+        FROM bom_emission_packaging_calculation_engine mpk
+        WHERE mpk.product_id = base_pcf.product_id
+          AND mpk.product_bom_pcf_id = base_pcf.own_bom_pcf_id
+        LIMIT 1
+    ) AS packaging_emission_calculation,
+
+    /* ---------- WASTE EMISSION ---------- */
+    (
+        SELECT to_jsonb(mw)
+        FROM bom_emission_waste_calculation_engine mw
+        WHERE mw.product_id = base_pcf.product_id
+          AND mw.product_bom_pcf_id = base_pcf.own_bom_pcf_id
+        LIMIT 1
+    ) AS waste_emission_calculation,
+
+    /* ---------- LOGISTIC EMISSION ---------- */
+    (
+        SELECT to_jsonb(ml)
+        FROM bom_emission_logistic_calculation_engine ml
+        WHERE ml.product_id = base_pcf.product_id
+          AND ml.product_bom_pcf_id = base_pcf.own_bom_pcf_id
+        LIMIT 1
+    ) AS logistic_emission_calculation,
+
+    /* ---------- TOTAL PCF ---------- */
+    (
+        SELECT to_jsonb(pcfe)
+        FROM bom_emission_calculation_engine pcfe
+        WHERE pcfe.product_id = base_pcf.product_id
+          AND pcfe.product_bom_pcf_id = base_pcf.own_bom_pcf_id
+        LIMIT 1
+    ) AS pcf_total_emission_calculation
+
+
+FROM base_pcf
+
+GROUP BY
+    base_pcf.id,
+    base_pcf.code,
+    base_pcf.product_id,
+    base_pcf.request_title,
+    base_pcf.priority,
+    base_pcf.request_organization,
+    base_pcf.due_date,
+    base_pcf.request_description,
+    base_pcf.status,
+    base_pcf.model_version,
+    base_pcf.overall_pcf,
+    base_pcf.created_date,
+    base_pcf.own_bom_pcf_id
+
+`,
+                [product_code]
+            );
+
+            return res.status(200).send(
+                generateResponse(true, "PCF request AND BOM fetched Successfully!", 200, result.rows)
+            );
+
+        } catch (error: any) {
+            console.error("Error fetching PCF BOM list:", error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to fetch PCF BOM list"
+            });
+        }
+    });
+}
+
 export async function productPCFBomSupplierDetails(req: any, res: any) {
     const { product_code } = req.query;
 
@@ -1157,7 +1299,7 @@ SELECT
     JOIN bom_pcf_request p2
         ON p2.id = b2.bom_pcf_id
     JOIN bom_emission_calculation_engine pcfe
-        ON pcfe.bom_id = b2.id
+        ON pcfe.bom_id = b2.id AND pcfe.product_id IS NULL
     WHERE b2.supplier_id = sd.sup_id
       AND p2.product_code = $1
 ) AS supplier_pcf_value
@@ -2948,14 +3090,14 @@ SELECT
                 'material_emission', (
                     SELECT COALESCE(jsonb_agg(to_jsonb(mem)), '[]'::jsonb)
                     FROM bom_emission_material_calculation_engine mem
-                    WHERE mem.bom_id = bs.bom_id
+                    WHERE mem.bom_id = bs.bom_id AND mem.product_id IS NULL
                 ),
 
                 /* ---------- PRODUCTION ---------- */
                 'production_emission_calculation', (
                     SELECT to_jsonb(mep)
                     FROM bom_emission_production_calculation_engine mep
-                    WHERE mep.bom_id = bs.bom_id
+                    WHERE mep.bom_id = bs.bom_id AND mep.product_id IS NULL
                     LIMIT 1
                 ),
 
@@ -2963,7 +3105,7 @@ SELECT
                 'packaging_emission_calculation', (
                     SELECT to_jsonb(mpk)
                     FROM bom_emission_packaging_calculation_engine mpk
-                    WHERE mpk.bom_id = bs.bom_id
+                    WHERE mpk.bom_id = bs.bom_id AND mpk.product_id IS NULL
                     LIMIT 1
                 ),
 
@@ -2971,7 +3113,7 @@ SELECT
                 'waste_emission_calculation', (
                     SELECT to_jsonb(mw)
                     FROM bom_emission_waste_calculation_engine mw
-                    WHERE mw.bom_id = bs.bom_id
+                    WHERE mw.bom_id = bs.bom_id AND mw.product_id IS NULL
                     LIMIT 1
                 ),
 
@@ -2979,7 +3121,7 @@ SELECT
                 'logistic_emission_calculation', (
                     SELECT to_jsonb(ml)
                     FROM bom_emission_logistic_calculation_engine ml
-                    WHERE ml.bom_id = bs.bom_id
+                    WHERE ml.bom_id = bs.bom_id AND ml.product_id IS NULL
                     LIMIT 1
                 ),
 
@@ -2987,7 +3129,7 @@ SELECT
                 'pcf_total_emission_calculation', (
                     SELECT to_jsonb(pcfe)
                     FROM bom_emission_calculation_engine pcfe
-                    WHERE pcfe.bom_id = bs.bom_id
+                    WHERE pcfe.bom_id = bs.bom_id AND pcfe.product_id IS NULL
                     LIMIT 1
                 )
             )
@@ -3024,7 +3166,7 @@ export async function getLinkedPCFsUsingProductCode(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const result = await client.query(
-`WITH base_pcf AS (
+                `WITH base_pcf AS (
     SELECT
         pcf.id,
         pcf.code,
@@ -3083,2015 +3225,3083 @@ GROUP BY
     });
 }
 
-// async function bulkInsert(client: any, tableName: string, columns: string[], rows: any[][]) {
-//     if (!rows || rows.length === 0) return;
-
-//     const values: any[] = [];
-//     const placeholders: string[] = [];
-//     let index = 1;
-
-//     for (const row of rows) {
-//         const rowPlaceholders = row.map(() => `$${index++}`).join(', ');
-//         placeholders.push(`(${rowPlaceholders})`);
-//         values.push(...row);
-//     }
-
-//     const query = `
-//         INSERT INTO ${tableName} (${columns.join(', ')})
-//         VALUES ${placeholders.join(', ')}
-//     `;
-
-//     await client.query(query, values);
-// }
-
-// // MAIN API FUNCTION
-// export async function addSupplierSustainabilityData(req: any, res: any) {
-//     return withClient(async (client: any) => {
-//         await client.query("BEGIN");
-
-//         try {
-//             const {
-//                 supplier_general_info_questions,
-//                 supplier_product_questions,
-//                 scope_one_direct_emissions_questions,
-//                 scope_two_indirect_emissions_questions,
-//                 scope_three_other_indirect_emissions_questions,
-//                 scope_four_avoided_emissions_questions
-//             } = req.body;
-
-//             // Validation
-//             if (!supplier_general_info_questions?.bom_pcf_id ||
-//                 !supplier_general_info_questions?.client_id) {
-//                 return res.send(generateResponse(false, "bom_pcf_id and client_id are required", 400, null));
-//             }
-
-//             const client_id = supplier_general_info_questions.client_id;
-//             const bom_pcf_id = supplier_general_info_questions.bom_pcf_id;
-//             const bom_id = supplier_general_info_questions.bom_id;
-//             const sgiq_id = ulid();
-//             const allDQRConfigs: any[] = [];
-
-//             scope_two_indirect_emissions_questions.client_id = client_id;
-
-//             // ============================================
-//             // STEP 1: Insert General Info (REQUIRED FIRST)
-//             // ============================================
-//             const generalInsert = `
-//                 INSERT INTO supplier_general_info_questions (
-//                     sgiq_id, bom_pcf_id, ere_acknowledge, repm_acknowledge, dc_acknowledge,
-//                     organization_name, core_business_activitiy, specify_other_activity, designation,
-//                     email_address, no_of_employees, specify_other_no_of_employees, annual_revenue,
-//                     specify_other_annual_revenue, annual_reporting_period,
-//                     availability_of_scope_one_two_three_emissions_data, client_id
-//                 )
-//                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-//                 RETURNING *;
-//             `;
-
-//             const generalResult = await client.query(generalInsert, [
-//                 sgiq_id, bom_pcf_id,
-//                 supplier_general_info_questions.ere_acknowledge ?? false,
-//                 supplier_general_info_questions.repm_acknowledge ?? false,
-//                 supplier_general_info_questions.dc_acknowledge ?? false,
-//                 supplier_general_info_questions.organization_name,
-//                 supplier_general_info_questions.core_business_activitiy,
-//                 supplier_general_info_questions.specify_other_activity,
-//                 supplier_general_info_questions.designation,
-//                 supplier_general_info_questions.email_address,
-//                 supplier_general_info_questions.no_of_employees,
-//                 supplier_general_info_questions.specify_other_no_of_employees,
-//                 supplier_general_info_questions.annual_revenue,
-//                 supplier_general_info_questions.specify_other_annual_revenue,
-//                 supplier_general_info_questions.annual_reporting_period,
-//                 supplier_general_info_questions.availability_of_scope_one_two_three_emissions_data ?? false,
-//                 client_id
-//             ]);
-
-//             // Insert scope questions (nested in general info) - BULK
-//             const scopeGeneralQuestions = supplier_general_info_questions.availability_of_scope_one_two_three_emissions_questions;
-//             if (Array.isArray(scopeGeneralQuestions) && scopeGeneralQuestions.length > 0) {
-//                 const dqrRecordsNine: any[] = [];
-
-//                 const insertRows = scopeGeneralQuestions.map(scope => {
-//                     const aosotte_id = ulid(); // Unique ID for each
-
-//                     // Store for DQR
-//                     dqrRecordsNine.push({
-//                         childId: aosotte_id,
-//                         data: {
-//                             country_iso_three: scope.country_iso_three,
-//                             scope_one: scope.scope_one,
-//                             scope_two: scope.scope_two,
-//                             scope_three: scope.scope_three
-//                         }
-//                     });
-
-//                     // Return row for bulk insert
-//                     return [aosotte_id, sgiq_id, scope.country_iso_three, scope.scope_one, scope.scope_two, scope.scope_three];
-//                 });
-
-//                 // Bulk insert
-//                 await bulkInsert(
-//                     client,
-//                     'availability_of_scope_one_two_three_emissions_questions',
-//                     ['aosotte_id', 'sgiq_id', 'country_iso_three', 'scope_one', 'scope_two', 'scope_three'],
-//                     insertRows
-//                 );
-
-//                 // Add to DQR configs
-//                 allDQRConfigs.push({
-//                     tableName: 'dqr_emission_data_rating_qnine',
-//                     columns: ['edrqn_id', 'sgiq_id', 'aosotte_id', 'data'],
-//                     parentId: sgiq_id,
-//                     records: dqrRecordsNine
-//                 });
-
-
-//             }
-
-//             // ============================================
-//             // STEP 2: Process all sections IN PARALLEL
-//             // ============================================
-//             const insertPromises = [];
-
-//             // SUPPLIER PRODUCT QUESTIONS
-//             if (supplier_product_questions) {
-//                 insertPromises.push(insertSupplierProduct(client, supplier_product_questions, sgiq_id));
-//             }
-
-//             // SCOPE ONE
-//             if (scope_one_direct_emissions_questions) {
-//                 insertPromises.push(insertScopeOne(client, scope_one_direct_emissions_questions, sgiq_id));
-//             }
-
-//             // SCOPE TWO
-//             if (scope_two_indirect_emissions_questions) {
-//                 insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id));
-//             }
-
-//             // SCOPE THREE
-//             if (scope_three_other_indirect_emissions_questions) {
-//                 insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id));
-//             }
-
-//             // SCOPE FOUR
-//             if (scope_four_avoided_emissions_questions) {
-//                 insertPromises.push(insertScopeFour(client, scope_four_avoided_emissions_questions, sgiq_id));
-//             }
-
-//             // Execute all inserts in parallel
-//             await Promise.all(insertPromises);
-
-//             // ============================================
-//             // STEP 3: Update PCF stages
-//             // ============================================
-
-//             await client.query(
-//                 `UPDATE pcf_request_data_collection_stage SET is_submitted = true,completed_date=NOW()
-//                  WHERE bom_pcf_id = $1 AND client_id=$2;`,
-//                 [bom_pcf_id, client_id]
-//             );
-
-//             console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
-//             await createDQRRecords(client, allDQRConfigs);
-
-//             await client.query("COMMIT");
-
-//             return res.send(
-//                 generateResponse(true, "Supplier sustainability data added successfully", 200,
-//                     "Supplier sustainability data added successfully")
-//             );
-//         } catch (error: any) {
-//             await client.query("ROLLBACK");
-//             console.error("Error adding supplier sustainability data:", error);
-//             return res.send(generateResponse(false, error.message, 400, null));
-//         }
-//     });
-// }
-
-// // HELPER FUNCTIONS - Each section in separate function
-// async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
-//     const spq_id = ulid();
-//     const dqrQ11: any[] = [];
-//     const allDQRConfigs: any[] = [];
-
-//     // Insert parent
-//     await client.query(
-//         `INSERT INTO supplier_product_questions (
-//             spq_id, sgiq_id, do_you_have_an_existing_pcf_report, pcf_methodology_used,
-//             upload_pcf_report, required_environmental_impact_methods, any_co_product_have_economic_value
-//         ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-//         [spq_id, sgiq_id, data.do_you_have_an_existing_pcf_report, data.pcf_methodology_used,
-//             data.upload_pcf_report, data.required_environmental_impact_methods, data.any_co_product_have_economic_value]
-//     );
-
-//     // Q11
-//     dqrQ11.push({
-//         childId: spq_id,
-//         data: data.pcf_methodology_used
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_supplier_product_questions_rating_qeleven',
-//         columns: ['spqrqe_id', 'sgiq_id', 'spq_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ11
-//     });
-
-//     const dqrQ12: any[] = [];
-//     // Q12
-//     dqrQ12.push({
-//         childId: spq_id,
-//         data: data.upload_pcf_report
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_supplier_product_questions_rating_qtwelve',
-//         columns: ['spqrqt_id', 'sgiq_id', 'spq_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ12
-//     });
-
-//     const childInserts = [];
-
-//     // Production site details - BULK
-//     if (Array.isArray(data.production_site_details_questions) && data.production_site_details_questions.length > 0) {
-
-//         const dqrQ13: any[] = [];
-//         // Q13
-//         const insertRows = data.production_site_details_questions.map((p: any) => {
-//             const psd_id = ulid(); // correct child id
-
-//             // Store DQR data
-//             dqrQ13.push({
-//                 childId: psd_id,
-//                 data: {
-//                     bom_id: p.bom_id,
-//                     material_number: p.material_number,
-//                     product_name: p.product_name,
-//                     location: p.location
-//                 }
-//             });
-
-//             // Row for bulk insert
-//             return [psd_id, spq_id, p.bom_id, p.material_number, p.product_name, p.location];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'production_site_details_questions',
-//             ['psd_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'location'],
-//             insertRows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_production_site_detail_rating_qthirteen',
-//             columns: ['psdrqt_id', 'sgiq_id', 'psd_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ13
-//         });
-//     }
-
-//     // Product component manufactured - BULK
-//     if (Array.isArray(data.product_component_manufactured_questions) && data.product_component_manufactured_questions.length > 0) {
-//         const dqrQ15: any[] = [];
-
-//         // Q15
-//         const insertRows = data.product_component_manufactured_questions.map((p: any) => {
-//             const pcm_id = ulid(); //unique child id
-
-//             // Store DQR payload
-//             dqrQ15.push({
-//                 childId: pcm_id,
-//                 data: {
-//                     bom_id: p.bom_id,
-//                     material_number: p.material_number,
-//                     product_name: p.product_name,
-//                     production_period: p.production_period,
-//                     weight_per_unit: p.weight_per_unit,
-//                     unit: p.unit,
-//                     price: p.price,
-//                     quantity: p.quantity
-//                 }
-//             });
-
-//             // Return row for bulk insert
-//             return [
-//                 pcm_id, spq_id, p.bom_id, p.material_number, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity
-//             ];
-//         });
-
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'product_component_manufactured_questions',
-//             ['pcm_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity'],
-//             insertRows
-//             // data.product_component_manufactured_questions.map((p: any) =>
-//             //     [ulid(), spq_id, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity]
-//             // )
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_product_component_manufactured_rating_qfiften',
-//             columns: ['pcmrqf_id', 'sgiq_id', 'pcm_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ15
-//         });
-//     }
-
-//     // Co-product component - BULK
-//     if (Array.isArray(data.co_product_component_economic_value_questions) && data.co_product_component_economic_value_questions.length > 0) {
-//         const dqrQ15Point2: any[] = [];
-//         const bomGroups: Record<string, any[]> = {};
-//         // Q15
-//         const insertRows = data.co_product_component_economic_value_questions.map((p: any) => {
-//             const cpcev_id = ulid(); //unique child id
-
-//             // Store DQR payload
-//             dqrQ15Point2.push({
-//                 childId: cpcev_id,
-//                 data: {
-//                     bom_id: p.bom_id,
-//                     material_number: p.material_number,
-//                     product_name: p.product_name,
-//                     co_product_name: p.co_product_name,
-//                     weight: p.weight,
-//                     price_per_product: p.price_per_product,
-//                     quantity: p.quantity
-//                 }
-//             });
-
-//             if (!bomGroups[p.bom_id]) bomGroups[p.bom_id] = [];
-//             bomGroups[p.bom_id].push(p);
-
-//             // Return row for bulk insert
-//             return [
-//                 cpcev_id, spq_id, p.bom_id, p.material_number, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
-//             ];
-//         });
-
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'co_product_component_economic_value_questions',
-//             ['cpcev_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity'],
-//             insertRows
-//             // data.co_product_component_economic_value_questions.map((c: any) =>
-//             //     [ulid(), spq_id, c.product_name, c.co_product_name, c.weight, c.price_per_product, c.quantity]
-//             // )
-//         ));
-
-
-//         for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
-//             //  Fetch BOM price
-
-//             const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1`, [bom_id]);
-//             const bomPrice = bomRes.rows[0]?.price || 0;
-
-//             //  Calculate average price_per_product
-//             const totalPrice = coProducts.reduce((sum, p) => sum + (p.price_per_product || 0), 0);
-//             const avgPricePerProduct = totalPrice / (coProducts.length || 1);
-
-//             // Compute ER safely
-//             const ER = bomPrice / (avgPricePerProduct || 1);
-
-//             // Update BOM table
-//             await client.query(
-//                 `UPDATE bom SET economic_ratio = $1 WHERE id = $2`,
-//                 [ER, bom_id]
-//             );
-
-//             let econAllocation = 'NA';
-//             let phyMassAllocation = 'Physical';
-//             let checkER = 'Physical';
-
-//             if (ER > 5) {
-//                 econAllocation = 'Economic';
-//             }
-
-//             await client.query(
-//                 `
-//     INSERT INTO allocation_methodology (
-//         id,
-//         bom_id,
-//         econ_allocation_er_greater_than_five,
-//         phy_mass_allocation_er_less_than_five,
-//         check_er_less_than_five
-//     )
-//     SELECT
-//         $1,
-//         $2::VARCHAR(255),
-//         $3,
-//         $4,
-//         $5
-//     WHERE NOT EXISTS (
-//         SELECT 1
-//         FROM allocation_methodology
-//         WHERE bom_id = $2::VARCHAR(255)
-//     )
-//     `,
-//                 [
-//                     ulid(),
-//                     bom_id,
-//                     econAllocation,
-//                     phyMassAllocation,
-//                     checkER
-//                 ]
-//             );
-
-
-
-//             console.log(`BOM ID ${bom_id} | BOM Price: ${bomPrice} | Avg Co-Product Price: ${avgPricePerProduct} | ER: ${ER}`);
-//         }
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_co_product_component_manufactured_rating_qfiftenone',
-//             columns: ['pcmrqfo_id', 'sgiq_id', 'cpcev_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ15Point2
-//         });
-//     }
-
-//     console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
-//     await createDQRRecords(client, allDQRConfigs);
-//     await Promise.all(childInserts);
-// }
-
-// async function insertScopeOne(client: any, data: any, sgiq_id: string) {
-//     const sode_id = ulid();
-//     const allDQRConfigs: any[] = [];
-
-//     // Insert parent
-//     await client.query(
-//         `INSERT INTO scope_one_direct_emissions_questions
-//          (sode_id, sgiq_id, refrigerant_top_ups_performed, industrial_process_emissions_present)
-//          VALUES ($1, $2, $3, $4)`,
-//         [sode_id, sgiq_id, data.refrigerant_top_ups_performed ?? false, data.industrial_process_emissions_present ?? false]
-//     );
-
-//     const childInserts = [];
-
-//     // Stationary combustion - needs nested handling
-//     const stationaryCombustionQuestions = data.stationary_combustion_on_site_energy_use_questions;
-
-//     if (Array.isArray(stationaryCombustionQuestions) && stationaryCombustionQuestions.length > 0) {
-//         const dqrQ16: any[] = [];
-//         const scoseuRows: any[] = [];
-//         const subFuelRows: any[] = [];
-
-//         for (const item of stationaryCombustionQuestions) {
-//             const scoseu_id = ulid();
-
-//             //Parent row
-//             scoseuRows.push([
-//                 scoseu_id,
-//                 sode_id,
-//                 item.fuel_type
-//             ]);
-
-//             // DQR payload (Q16)
-//             dqrQ16.push({
-//                 childId: scoseu_id,
-//                 data: JSON.stringify({
-//                     fuel_type: item.fuel_type
-//                 })
-//             });
-
-//             // Sub fuel types (bulk collected)
-//             if (Array.isArray(item.scoseu_sub_fuel_type_questions) && item.scoseu_sub_fuel_type_questions.length > 0) {
-//                 for (const s of item.scoseu_sub_fuel_type_questions) {
-//                     subFuelRows.push([
-//                         ulid(),
-//                         scoseu_id,
-//                         s.sub_fuel_type,
-//                         s.consumption_quantity,
-//                         s.unit
-//                     ]);
-//                 }
-//             }
-//         }
-
-//         // Bulk insert parent table
-//         childInserts.push(
-//             bulkInsert(
-//                 client,
-//                 'stationary_combustion_on_site_energy_use_questions',
-//                 ['scoseu_id', 'sode_id', 'fuel_type'],
-//                 scoseuRows
-//             )
-//         );
-
-//         // Bulk insert sub fuel types (if any)
-//         if (subFuelRows.length > 0) {
-//             childInserts.push(
-//                 bulkInsert(
-//                     client,
-//                     'scoseu_sub_fuel_type_questions',
-//                     ['ssft_id', 'scoseu_id', 'sub_fuel_type', 'consumption_quantity', 'unit'],
-//                     subFuelRows
-//                 )
-//             );
-//         }
-
-//         //Register DQR Q16
-//         allDQRConfigs.push({
-//             tableName: 'dqr_stationary_combustion_on_site_energy_rating_qsixten',
-//             columns: ['scoserqs_id', 'sgiq_id', 'scoseu_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ16
-//         });
-//     }
-
-//     // Mobile combustion - BULK
-//     if (Array.isArray(data.mobile_combustion_company_owned_vehicles_questions) && data.mobile_combustion_company_owned_vehicles_questions.length > 0) {
-//         const dqrQ17: any[] = [];
-
-//         const insertRows = data.mobile_combustion_company_owned_vehicles_questions.map((p: any) => {
-//             const mccov_id = ulid(); // correct child id
-
-//             // Store DQR data
-//             dqrQ17.push({
-//                 childId: mccov_id,
-//                 data: {
-//                     fuel_type: p.fuel_type,
-//                     quantity: p.quantity,
-//                     unit: p.unit
-//                 }
-//             });
-
-//             // Row for bulk insert
-//             return [mccov_id, sode_id, p.fuel_type, p.quantity, p.unit];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'mobile_combustion_company_owned_vehicles_questions',
-//             ['mccov_id', 'sode_id', 'fuel_type', 'quantity', 'unit'],
-//             insertRows
-//             // data.mobile_combustion_company_owned_vehicles_questions.map((v: any) =>
-//             //     [mccov_id, sode_id, v.fuel_type, v.quantity, v.unit]
-//             // )
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_mobile_combustion_company_owned_vehicles_rating_qseventen',
-//             columns: ['mccoqrqs_id', 'sgiq_id', 'mccov_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ17
-//         });
-//     }
-
-//     // Refrigerants - BULK
-//     if (Array.isArray(data.refrigerants_questions) && data.refrigerants_questions.length > 0) {
-
-//         const dqrQ19: any[] = [];
-
-//         const insertRows = data.refrigerants_questions.map((p: any) => {
-//             const refr_id = ulid(); // correct child id
-
-//             // Store DQR data
-//             dqrQ19.push({
-//                 childId: refr_id,
-//                 data: {
-//                     refrigerant_type: p.refrigerant_type,
-//                     quantity: p.quantity,
-//                     unit: p.unit
-//                 }
-//             });
-
-//             // Row for bulk insert
-//             return [refr_id, sode_id, p.refrigerant_type, p.quantity, p.unit];
-//         });
-
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'refrigerants_questions',
-//             ['refr_id', 'sode_id', 'refrigerant_type', 'quantity', 'unit'],
-//             insertRows
-//             // data.refrigerants_questions.map((r: any) => [ulid(), sode_id, r.refrigerant_type, r.quantity, r.unit])
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_refrigerants_rating_qnineten',
-//             columns: ['refrqn_id', 'sgiq_id', 'refr_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ19
-//         });
-//     }
-
-//     // Process emissions - BULK
-//     if (Array.isArray(data.process_emissions_sources_questions) && data.process_emissions_sources_questions.length > 0) {
-
-//         const dqrQ21: any[] = [];
-
-//         const insertRows = data.process_emissions_sources_questions.map((p: any) => {
-//             const pes_id = ulid(); // correct child id
-
-//             // Store DQR data
-//             dqrQ21.push({
-//                 childId: pes_id,
-//                 data: {
-//                     source: p.source,
-//                     gas_type: p.gas_type,
-//                     quantity: p.quantity,
-//                     unit: p.unit
-//                 }
-//             });
-
-//             // Row for bulk insert
-//             return [pes_id, sode_id, p.source, p.gas_type, p.quantity, p.unit];
-//         });
-
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'process_emissions_sources_questions',
-//             ['pes_id', 'sode_id', 'source', 'gas_type', 'quantity', 'unit'],
-//             insertRows
-//             // data.process_emissions_sources_questions.map((e: any) =>
-//             //     [ulid(), sode_id, e.source, e.gas_type, e.quantity, e.unit]
-//             // )
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_process_emissions_sources_qtwentyone',
-//             columns: ['pesqto_id', 'sgiq_id', 'pes_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ21
-//         });
-//     }
-
-//     await Promise.all(childInserts);
-
-//     console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
-//     await createDQRRecords(client, allDQRConfigs);
-// }
-
-// async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
-//     const stide_id = ulid();
-//     const allDQRConfigs: any[] = [];
-
-//     // Insert parent
-//     await client.query(
-//         `INSERT INTO scope_two_indirect_emissions_questions (
-//             stide_id, sgiq_id, do_you_acquired_standardized_re_certificates,
-//             methodology_to_allocate_factory_energy_to_product_level, methodology_details_document_url,
-//             energy_intensity_of_production_estimated_kwhor_mj, process_specific_energy_usage,
-//             do_you_use_any_abatement_systems, water_consumption_and_treatment_details,
-//             do_you_perform_destructive_testing, it_system_use_for_production_control,
-//             total_energy_consumption_of_it_hardware_production, energy_con_included_total_energy_pur_sec_two_qfortythree,
-//             do_you_use_cloud_based_system_for_production, do_you_use_any_cooling_sysytem_for_server,
-//             energy_con_included_total_energy_pur_sec_two_qfifty
-//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-//         [
-//             stide_id, sgiq_id,
-//             data.do_you_acquired_standardized_re_certificates ?? false,
-//             data.methodology_to_allocate_factory_energy_to_product_level ?? false,
-//             data.methodology_details_document_url,
-//             data.energy_intensity_of_production_estimated_kwhor_mj ?? false,
-//             data.process_specific_energy_usage ?? false,
-//             data.do_you_use_any_abatement_systems ?? false,
-//             data.water_consumption_and_treatment_details,
-//             data.do_you_perform_destructive_testing ?? false,
-//             data.it_system_use_for_production_control,
-//             data.total_energy_consumption_of_it_hardware_production ?? false,
-//             data.energy_con_included_total_energy_pur_sec_two_qfortythree ?? false,
-//             data.do_you_use_cloud_based_system_for_production ?? false,
-//             data.do_you_use_any_cooling_sysytem_for_server ?? false,
-//             data.energy_con_included_total_energy_pur_sec_two_qfifty ?? false
-//         ]
-//     );
-
-//     const dqrQ26: any[] = [];
-//     dqrQ26.push({
-//         childId: stide_id,
-//         data: data.methodology_details_document_url
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_two_indirect_emissions_qtwentysix',
-//         columns: ['stieqts_id', 'sgiq_id', 'stide_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ26
-//     });
-
-//     const dqrQ31: any[] = [];
-//     dqrQ31.push({
-//         childId: stide_id,
-//         data: data.water_consumption_and_treatment_details
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_two_indirect_emissions_qthirtyone',
-//         columns: ['stideqto_id', 'sgiq_id', 'stide_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ31
-//     });
-
-//     const dqrQ41: any[] = [];
-//     dqrQ41.push({
-//         childId: stide_id,
-//         data: data.it_system_use_for_production_control
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_two_indirect_emissions_qfortyone',
-//         columns: ['stideqfo_id', 'sgiq_id', 'stide_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ41
-//     });
-
-//     const childInserts = [];
-
-//     if (Array.isArray(data.scope_two_indirect_emissions_from_purchased_energy_questions)) {
-//         console.log(data.client_id, "data.client_iddata.client_id");
-
-//         // data.scope_two_indirect_emissions_from_purchased_energy_questions = data.client_id;
-
-//         const dqrQ22: any[] = [];
-
-//         const rows = data.scope_two_indirect_emissions_from_purchased_energy_questions.map((e: any) => {
-//             const stidefpe_id = ulid();
-
-//             e = data.client_id;
-//             prepareDQR({
-//                 records: dqrQ22,
-//                 childId: stidefpe_id,
-//                 payload: {
-//                     energy_source: e.energy_source,
-//                     energy_type: e.energy_type,
-//                     quantity: e.quantity,
-//                     unit: e.unit,
-//                     client_id: data.client_id
-//                 }
-//             });
-
-//             return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.client_id];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'scope_two_indirect_emissions_from_purchased_energy_questions',
-//             ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'client_id'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_scope_two_indirect_emis_from_pur_energy_qtwentytwo',
-//             columns: ['stidefpeqtt_id', 'sgiq_id', 'stidefpe_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ22
-//         });
-//     }
-
-//     if (Array.isArray(data.scope_two_indirect_emissions_certificates_questions)) {
-//         const dqrQ24: any[] = [];
-
-//         const rows = data.scope_two_indirect_emissions_certificates_questions.map((c: any) => {
-//             const stidec_id = ulid();
-
-//             prepareDQR({
-//                 records: dqrQ24,
-//                 childId: stidec_id,
-//                 payload: c
-//             });
-
-//             return [
-//                 stidec_id, stide_id,
-//                 c.certificate_name, c.mechanism, c.serial_id,
-//                 c.generator_id, c.generator_name,
-//                 c.generator_location, c.date_of_generation, c.issuance_date
-//             ];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'scope_two_indirect_emissions_certificates_questions',
-//             ['stidec_id', 'stide_id', 'certificate_name', 'mechanism', 'serial_id', 'generator_id', 'generator_name', 'generator_location', 'date_of_generation', 'issuance_date'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_scope_two_indirect_emissions_certificates_qtwentyfour',
-//             columns: ['stiecqtf_id', 'sgiq_id', 'stidec_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ24
-//         });
-//     }
-
-//     if (Array.isArray(data.energy_intensity_of_production_estimated_kwhor_mj_questions)) {
-//         const dqrQ27: any[] = [];
-
-//         const rows = data.energy_intensity_of_production_estimated_kwhor_mj_questions.map((i: any) => {
-//             const eiopekm_id = ulid();
-
-//             prepareDQR({
-//                 records: dqrQ27,
-//                 childId: eiopekm_id,
-//                 payload: i
-//             });
-
-//             return [eiopekm_id, stide_id, i.bom_id, i.material_number, i.product_name, i.energy_intensity, i.unit];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'energy_intensity_of_production_estimated_kwhor_mj_questions',
-//             ['eiopekm_id', 'stide_id', 'bom_id', 'material_number', 'product_name', 'energy_intensity', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_energy_intensity_of_pro_est_kwhor_mj_qtwentyseven',
-//             columns: ['eiopekmqts_id', 'sgiq_id', 'eiopekm_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ27
-//         });
-
-//     }
-
-//     if (Array.isArray(data.process_specific_energy_usage_questions)) {
-//         const dqrQ28: any[] = [];
-
-//         const rows = data.process_specific_energy_usage_questions.map((p: any) => {
-//             const pseu_id = ulid();
-
-//             prepareDQR({
-//                 records: dqrQ28,
-//                 childId: pseu_id,
-//                 payload: p
-//             });
-
-//             return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'process_specific_energy_usage_questions',
-//             ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_process_specific_energy_usage_qtwentyeight',
-//             columns: ['pseuqte_id', 'sgiq_id', 'pseu_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ28
-//         });
-
-//     }
-
-//     if (Array.isArray(data.abatement_systems_used_questions) && data.abatement_systems_used_questions.length > 0) {
-
-//         const dqrQ30: any[] = [];
-
-//         const rows = data.abatement_systems_used_questions.map((a: any) => {
-//             const asu_id = ulid();
-
-//             dqrQ30.push({
-//                 childId: asu_id,
-//                 data: JSON.stringify(a)
-//             });
-
-//             return [asu_id, stide_id, a.source, a.quantity, a.unit];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'abatement_systems_used_questions',
-//             ['asu_id', 'stide_id', 'source', 'quantity', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_abatement_systems_used_qthirty',
-//             columns: ['asuqt_id', 'sgiq_id', 'asu_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ30
-//         });
-//     }
-
-//     if (Array.isArray(data.type_of_quality_control_equipment_usage_questions)) {
-
-//         const dqrQ32: any[] = [];
-
-//         const rows = data.type_of_quality_control_equipment_usage_questions.map((q: any) => {
-//             const toqceu_id = ulid();
-
-//             dqrQ32.push({
-//                 childId: toqceu_id,
-//                 data: JSON.stringify(q)
-//             });
-
-//             return [toqceu_id, stide_id, q.equipment_name, q.quantity, q.unit, q.avg_operating_hours_per_month];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'type_of_quality_control_equipment_usage_questions',
-//             ['toqceu_id', 'stide_id', 'equipment_name', 'quantity', 'unit', 'avg_operating_hours_per_month'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_type_of_quality_control_equipment_usage_qthirtytwo',
-//             columns: ['toqceuqto_id', 'sgiq_id', 'toqceu_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ32
-//         });
-//     }
-
-//     if (Array.isArray(data.electricity_consumed_for_quality_control_questions)) {
-
-//         const dqrQ33: any[] = [];
-
-//         const rows = data.electricity_consumed_for_quality_control_questions.map((e: any) => {
-//             const ecfqc_id = ulid();
-
-//             dqrQ33.push({
-//                 childId: ecfqc_id,
-//                 data: JSON.stringify(e)
-//             });
-
-//             return [ecfqc_id, stide_id, e.energy_type, e.quantity, e.unit, e.period];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'electricity_consumed_for_quality_control_questions',
-//             ['ecfqc_id', 'stide_id', 'energy_type', 'quantity', 'unit', 'period'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_electricity_consumed_for_quality_control_qthirtythree',
-//             columns: ['ecfqcqtt_id', 'sgiq_id', 'ecfqc_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ33
-//         });
-//     }
-
-//     if (Array.isArray(data.quality_control_process_usage_questions)) {
-
-//         const dqrQ34: any[] = [];
-
-//         const rows = data.quality_control_process_usage_questions.map((q: any) => {
-//             const qcpu_id = ulid();
-
-//             dqrQ34.push({
-//                 childId: qcpu_id,
-//                 data: JSON.stringify(q)
-//             });
-
-//             return [qcpu_id, stide_id, q.process_name, q.quantity, q.unit, q.period];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'quality_control_process_usage_questions',
-//             ['qcpu_id', 'stide_id', 'process_name', 'quantity', 'unit', 'period'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_quality_control_process_usage_qthirtyfour',
-//             columns: ['qcpuqtf_id', 'sgiq_id', 'qcpu_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ34
-//         });
-//     }
-
-//     if (Array.isArray(data.quality_control_process_usage_pressure_or_flow_questions)) {
-
-//         const dqrQ341: any[] = [];
-
-//         const rows = data.quality_control_process_usage_pressure_or_flow_questions.map((p: any) => {
-//             const qcpupf_id = ulid();
-
-//             dqrQ341.push({
-//                 childId: qcpupf_id,
-//                 data: JSON.stringify(p)
-//             });
-
-//             return [qcpupf_id, stide_id, p.flow_name, p.quantity, p.unit, p.period];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'quality_control_process_usage_pressure_or_flow_questions',
-//             ['qcpupf_id', 'stide_id', 'flow_name', 'quantity', 'unit', 'period'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_quality_control_process_usage_pressure_or_flow_qthirtyfour',
-//             columns: ['qcpupfqtf_id', 'sgiq_id', 'qcpupf_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ341
-//         });
-//     }
-
-//     if (Array.isArray(data.quality_control_use_any_consumables_questions)) {
-
-//         const dqrQ35: any[] = [];
-
-//         const rows = data.quality_control_use_any_consumables_questions.map((c: any) => {
-//             const qcuac_id = ulid();
-
-//             dqrQ35.push({
-//                 childId: qcuac_id,
-//                 data: JSON.stringify(c)
-//             });
-
-//             return [qcuac_id, stide_id, c.consumable_name, c.mass_of_consumables, c.unit, c.period];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'quality_control_use_any_consumables_questions',
-//             ['qcuac_id', 'stide_id', 'consumable_name', 'mass_of_consumables', 'unit', 'period'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_quality_control_use_any_consumables_qthirtyfive',
-//             columns: ['qcuacqtf_id', 'sgiq_id', 'qcuac_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ35
-//         });
-//     }
-
-//     if (Array.isArray(data.weight_of_samples_destroyed_questions)) {
-
-//         const dqrQ37: any[] = [];
-
-//         const rows = data.weight_of_samples_destroyed_questions.map((w: any) => {
-//             const wosd_id = ulid();
-
-//             dqrQ37.push({
-//                 childId: wosd_id,
-//                 data: JSON.stringify(w)
-//             });
-
-//             return [wosd_id, stide_id, w.bom_id, w.material_number, w.component_name, w.weight, w.unit, w.period];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'weight_of_samples_destroyed_questions',
-//             ['wosd_id', 'stide_id', 'bom_id', 'material_number', 'component_name', 'weight', 'unit', 'period'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_weight_of_samples_destroyed_qthirtyseven',
-//             columns: ['wosdqts_id', 'sgiq_id', 'wosd_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ37
-//         });
-//     }
-
-//     if (Array.isArray(data.defect_or_rejection_rate_identified_by_quality_control_questions)) {
-
-//         const dqrQ38: any[] = [];
-
-//         const rows = data.defect_or_rejection_rate_identified_by_quality_control_questions.map((d: any) => {
-//             const dorriqc_id = ulid();
-
-//             dqrQ38.push({
-//                 childId: dorriqc_id,
-//                 data: JSON.stringify(d)
-//             });
-
-//             return [dorriqc_id, stide_id, d.bom_id, d.material_number, d.component_name, d.percentage];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'defect_or_rejection_rate_identified_by_quality_control_questions',
-//             ['dorriqc_id', 'stide_id', 'bom_id', 'material_number', 'component_name', 'percentage'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_defect_or_rej_rate_identified_by_quality_control_qthirtyeight',
-//             columns: ['dorriqcqte_id', 'sgiq_id', 'dorriqc_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ38
-//         });
-//     }
-
-//     if (Array.isArray(data.rework_rate_due_to_quality_control_questions)) {
-
-//         const dqrQ39: any[] = [];
-
-//         const rows = data.rework_rate_due_to_quality_control_questions.map((r: any) => {
-//             const rrdqc_id = ulid();
-
-//             dqrQ39.push({
-//                 childId: rrdqc_id,
-//                 data: JSON.stringify(r)
-//             });
-
-//             return [rrdqc_id, stide_id, r.bom_id, r.material_number, r.component_name, r.processes_involved, r.percentage];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'rework_rate_due_to_quality_control_questions',
-//             ['rrdqc_id', 'stide_id', 'bom_id', 'material_number', 'component_name', 'processes_involved', 'percentage'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_rework_rate_due_to_quality_control_qthirtynine',
-//             columns: ['rrdqcqtn_id', 'sgiq_id', 'rrdqc_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ39
-//         });
-//     }
-
-//     if (Array.isArray(data.weight_of_quality_control_waste_generated_questions)) {
-
-//         const dqrQ40: any[] = [];
-
-//         const rows = data.weight_of_quality_control_waste_generated_questions.map((w: any) => {
-//             const woqcwg_id = ulid();
-
-//             dqrQ40.push({
-//                 childId: woqcwg_id,
-//                 data: JSON.stringify(w)
-//             });
-
-//             return [woqcwg_id, stide_id, w.bom_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'weight_of_quality_control_waste_generated_questions',
-//             ['woqcwg_id', 'stide_id', 'bom_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_weight_of_quality_control_waste_generated_qforty',
-//             columns: ['woqcwgqf_id', 'sgiq_id', 'woqcwg_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ40
-//         });
-//     }
-
-//     if (Array.isArray(data.energy_consumption_for_qfortyfour_questions) && data.energy_consumption_for_qfortyfour_questions.length > 0) {
-
-//         const dqrQ44: any[] = [];
-
-//         const rows = data.energy_consumption_for_qfortyfour_questions.map((e: any) => {
-//             const ecfqff_id = ulid();
-
-//             dqrQ44.push({
-//                 childId: ecfqff_id,
-//                 data: JSON.stringify({
-//                     energy_purchased: e.energy_purchased,
-//                     energy_type: e.energy_type,
-//                     quantity: e.quantity,
-//                     unit: e.unit
-//                 })
-//             });
-
-//             return [
-//                 ecfqff_id,
-//                 stide_id,
-//                 e.energy_purchased,
-//                 e.energy_type,
-//                 e.quantity,
-//                 e.unit
-//             ];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'energy_consumption_for_qfortyfour_questions',
-//             ['ecfqff_id', 'stide_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_energy_consumption_for_qfortyfour_qfortyfour',
-//             columns: ['ecfqffqff_id', 'sgiq_id', 'ecfqff_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ44
-//         });
-//     }
-
-//     if (Array.isArray(data.cloud_provider_details_questions) && data.cloud_provider_details_questions.length > 0) {
-
-//         const dqrQ46: any[] = [];
-
-//         const rows = data.cloud_provider_details_questions.map((c: any) => {
-//             const cpd_id = ulid();
-
-//             dqrQ46.push({
-//                 childId: cpd_id,
-//                 data: JSON.stringify({
-//                     cloud_provider_name: c.cloud_provider_name,
-//                     virtual_machines: c.virtual_machines,
-//                     data_storage: c.data_storage,
-//                     data_transfer: c.data_transfer
-//                 })
-//             });
-
-//             return [
-//                 cpd_id,
-//                 stide_id,
-//                 c.cloud_provider_name,
-//                 c.virtual_machines,
-//                 c.data_storage,
-//                 c.data_transfer
-//             ];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'cloud_provider_details_questions',
-//             ['cpd_id', 'stide_id', 'cloud_provider_name', 'virtual_machines', 'data_storage', 'data_transfer'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_cloud_provider_details_qfortysix',
-//             columns: ['cpdqfs_id', 'sgiq_id', 'cpd_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ46
-//         });
-//     }
-
-//     if (Array.isArray(data.dedicated_monitoring_sensor_usage_questions) && data.dedicated_monitoring_sensor_usage_questions.length > 0) {
-
-//         const dqrQ47: any[] = [];
-
-//         const rows = data.dedicated_monitoring_sensor_usage_questions.map((d: any) => {
-//             const dmsu_id = ulid();
-
-//             dqrQ47.push({
-//                 childId: dmsu_id,
-//                 data: JSON.stringify({
-//                     type_of_sensor: d.type_of_sensor,
-//                     sensor_quantity: d.sensor_quantity,
-//                     energy_consumption: d.energy_consumption,
-//                     unit: d.unit
-//                 })
-//             });
-
-//             return [
-//                 dmsu_id,
-//                 stide_id,
-//                 d.type_of_sensor,
-//                 d.sensor_quantity,
-//                 d.energy_consumption,
-//                 d.unit
-//             ];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'dedicated_monitoring_sensor_usage_questions',
-//             ['dmsu_id', 'stide_id', 'type_of_sensor', 'sensor_quantity', 'energy_consumption', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_dedicated_monitoring_sensor_usage_qfortyseven',
-//             columns: ['dmsuqfs_id', 'sgiq_id', 'dmsu_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ47
-//         });
-//     }
-
-
-//     if (Array.isArray(data.annual_replacement_rate_of_sensor_questions) && data.annual_replacement_rate_of_sensor_questions.length > 0) {
-
-//         const dqrQ48: any[] = [];
-
-//         const rows = data.annual_replacement_rate_of_sensor_questions.map((a: any) => {
-//             const arros_id = ulid();
-
-//             dqrQ48.push({
-//                 childId: arros_id,
-//                 data: JSON.stringify({
-//                     consumable_name: a.consumable_name,
-//                     quantity: a.quantity,
-//                     unit: a.unit
-//                 })
-//             });
-
-//             return [
-//                 arros_id,
-//                 stide_id,
-//                 a.consumable_name,
-//                 a.quantity,
-//                 a.unit
-//             ];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'annual_replacement_rate_of_sensor_questions',
-//             ['arros_id', 'stide_id', 'consumable_name', 'quantity', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_annual_replacement_rate_of_sensor_qfortyeight',
-//             columns: ['arrosqfe_id', 'sgiq_id', 'arros_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ48
-//         });
-//     }
-
-//     if (Array.isArray(data.energy_consumption_for_qfiftyone_questions) && data.energy_consumption_for_qfiftyone_questions.length > 0) {
-
-//         const dqrQ51: any[] = [];
-
-//         const rows = data.energy_consumption_for_qfiftyone_questions.map((e: any) => {
-//             const ecfqfo_id = ulid();
-
-//             dqrQ51.push({
-//                 childId: ecfqfo_id,
-//                 data: JSON.stringify({
-//                     energy_purchased: e.energy_purchased,
-//                     energy_type: e.energy_type,
-//                     quantity: e.quantity,
-//                     unit: e.unit
-//                 })
-//             });
-
-//             return [
-//                 ecfqfo_id,
-//                 stide_id,
-//                 e.energy_purchased,
-//                 e.energy_type,
-//                 e.quantity,
-//                 e.unit
-//             ];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'energy_consumption_for_qfiftyone_questions',
-//             ['ecfqfo_id', 'stide_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_energy_consumption_for_qfiftyone_qfiftyone',
-//             columns: ['ecfqfoqfo_id', 'sgiq_id', 'ecfqfo_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqrQ51
-//         });
-//     }
-
-
-//     await Promise.all(childInserts);
-
-//     console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
-//     await createDQRRecords(client, allDQRConfigs);
-// }
-
-// async function insertScopeThree(client: any, data: any, sgiq_id: string) {
-//     const stoie_id = ulid();
-//     const allDQRConfigs: any[] = [];
-
-//     // Insert parent
-//     await client.query(
-//         `INSERT INTO scope_three_other_indirect_emissions_questions (
-//             stoie_id, sgiq_id, raw_materials_contact_enviguide_support,
-//             grade_of_metal_used, msds_link_or_upload_document,
-//             use_of_recycled_secondary_materials, percentage_of_pre_post_consumer_material_used_in_product,
-//             do_you_use_recycle_mat_for_packaging, percentage_of_recycled_content_used_in_packaging,
-//             do_you_use_electricity_for_packaging, energy_con_included_total_energy_pur_sec_two_qsixtysix,
-//             internal_or_external_waste_material_per_recycling, any_by_product_generated,
-//             do_you_track_emission_from_transport, mode_of_transport_used_for_transportation,
-//             mode_of_transport_enviguide_support, iso_14001_or_iso_50001_certified,
-//             standards_followed_iso_14067_GHG_catena_etc, do_you_report_to_cdp_sbti_or_other,
-//             measures_to_reduce_carbon_emissions_in_production, renewable_energy_initiatives_or_recycling_programs,
-//             your_company_info
-//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
-//         [
-//             stoie_id, sgiq_id,
-//             data.raw_materials_contact_enviguide_support ?? false,
-//             data.grade_of_metal_used,
-//             data.msds_link_or_upload_document,
-//             data.use_of_recycled_secondary_materials ?? false,
-//             data.percentage_of_pre_post_consumer_material_used_in_product ?? false,
-//             data.do_you_use_recycle_mat_for_packaging ?? false,
-//             data.percentage_of_recycled_content_used_in_packaging,
-//             data.do_you_use_electricity_for_packaging ?? false,
-//             data.energy_con_included_total_energy_pur_sec_two_qsixtysix ?? false,
-//             data.internal_or_external_waste_material_per_recycling,
-//             data.any_by_product_generated ?? false,
-//             data.do_you_track_emission_from_transport ?? false,
-//             data.mode_of_transport_used_for_transportation ?? false,
-//             data.mode_of_transport_enviguide_support ?? false,
-//             data.iso_14001_or_iso_50001_certified ?? false,
-//             data.standards_followed_iso_14067_GHG_catena_etc ?? false,
-//             data.do_you_report_to_cdp_sbti_or_other ?? false,
-//             data.measures_to_reduce_carbon_emissions_in_production,
-//             data.renewable_energy_initiatives_or_recycling_programs,
-//             data.your_company_info
-//         ]
-//     );
-
-//     const dqrQ53: any[] = [];
-//     dqrQ53.push({
-//         childId: stoie_id,
-//         data: data.grade_of_metal_used
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_three_other_indirect_emissions_qfiftythree',
-//         columns: ['stoieqft_id', 'sgiq_id', 'stoie_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ53
-//     });
-
-//     const dqrQ54: any[] = [];
-//     dqrQ54.push({
-//         childId: stoie_id,
-//         data: data.msds_link_or_upload_document
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_three_other_indirect_emissions_qfiftyfour',
-//         columns: ['stoieqff_id', 'sgiq_id', 'stoie_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ54
-//     });
-
-//     const dqrQ64: any[] = [];
-//     dqrQ64.push({
-//         childId: stoie_id,
-//         data: data.percentage_of_recycled_content_used_in_packaging
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_three_other_indirect_emissions_qsixtyfour',
-//         columns: ['stoieqsf_id', 'sgiq_id', 'stoie_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ64
-//     });
-
-//     const dqrQ69: any[] = [];
-//     dqrQ69.push({
-//         childId: stoie_id,
-//         data: data.internal_or_external_waste_material_per_recycling
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_three_other_indirect_emissions_qsixtynine',
-//         columns: ['stoieqsn_id', 'sgiq_id', 'stoie_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ69
-//     });
-
-
-//     const dqrQ79: any[] = [];
-//     dqrQ79.push({
-//         childId: stoie_id,
-//         data: data.measures_to_reduce_carbon_emissions_in_production
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_three_other_indirect_emissions_qseventynine',
-//         columns: ['stoieqsn_id', 'sgiq_id', 'stoie_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ79
-//     });
-
-//     const dqrQ80: any[] = [];
-//     dqrQ80.push({
-//         childId: stoie_id,
-//         data: data.renewable_energy_initiatives_or_recycling_programs
-//     });
-//     allDQRConfigs.push({
-//         tableName: 'dqr_scope_three_other_indirect_emissions_qeighty',
-//         columns: ['stoieqe_id', 'sgiq_id', 'stoie_id', 'data'],
-//         parentId: sgiq_id,
-//         records: dqrQ80
-//     });
-
-//     const childInserts = [];
-
-
-//     if (Array.isArray(data.raw_materials_used_in_component_manufacturing_questions)) {
-
-//         const dqr52: any[] = [];
-
-//         const rows = data.raw_materials_used_in_component_manufacturing_questions.map((m: any) => {
-//             const rmuicm_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr52,
-//                 childId: rmuicm_id,
-//                 payload: {
-//                     bom_id: m.bom_id,
-//                     material_number: m.material_number,
-//                     material_name: m.material_name,
-//                     percentage: m.percentage
-//                 }
-//             });
-
-//             return [rmuicm_id, stoie_id, m.bom_id, m.material_number, m.material_name, m.percentage];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'raw_materials_used_in_component_manufacturing_questions',
-//             ['rmuicm_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_raw_materials_used_in_component_manufacturing_qfiftytwo',
-//             columns: ['rmuicmqft_id', 'sgiq_id', 'rmuicm_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr52
-//         });
-//     }
-
-//     if (Array.isArray(data.recycled_materials_with_percentage_questions)) {
-
-//         const dqr56: any[] = [];
-
-//         const rows = data.recycled_materials_with_percentage_questions.map((r: any) => {
-//             const rmwp_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr56,
-//                 childId: rmwp_id,
-//                 payload: {
-//                     bom_id: r.bom_id,
-//                     material_number: r.material_number,
-//                     material_name: r.material_name,
-//                     percentage: r.percentage
-//                 }
-//             });
-
-//             return [rmwp_id, stoie_id, r.bom_id, r.material_number, r.material_name, r.percentage];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'recycled_materials_with_percentage_questions',
-//             ['rmwp_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_recycled_materials_with_percentage_qfiftysix',
-//             columns: ['rmwpqfs_id', 'sgiq_id', 'rmwp_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr56
-//         });
-//     }
-
-//     if (Array.isArray(data.pre_post_consumer_reutilization_percentage_questions)) {
-
-//         const dqr58: any[] = [];
-
-//         const rows = data.pre_post_consumer_reutilization_percentage_questions.map((p: any) => {
-//             const ppcrp_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr58,
-//                 childId: ppcrp_id,
-//                 payload: {
-//                     material_type: p.material_type,
-//                     percentage: p.percentage
-//                 }
-//             });
-
-//             return [ppcrp_id, stoie_id, p.material_type, p.percentage];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'pre_post_consumer_reutilization_percentage_questions',
-//             ['ppcrp_id', 'stoie_id', 'material_type', 'percentage'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_pre_post_consumer_reutilization_percentage_qfiftyeight',
-//             columns: ['ppcrpqfe_id', 'sgiq_id', 'ppcrp_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr58
-//         });
-//     }
-
-//     if (Array.isArray(data.pir_pcr_material_percentage_questions)) {
-
-//         const dqr59: any[] = [];
-
-//         const rows = data.pir_pcr_material_percentage_questions.map((p: any) => {
-//             const ppmp_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr59,
-//                 childId: ppmp_id,
-//                 payload: {
-//                     material_type: p.material_type,
-//                     percentage: p.percentage
-//                 }
-//             });
-
-//             return [ppmp_id, stoie_id, p.material_type, p.percentage];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'pir_pcr_material_percentage_questions',
-//             ['ppmp_id', 'stoie_id', 'material_type', 'percentage'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_pir_pcr_material_percentage_qfiftynine',
-//             columns: ['ppmpqfn_id', 'sgiq_id', 'ppmp_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr59
-//         });
-//     }
-
-//     if (Array.isArray(data.type_of_pack_mat_used_for_delivering_questions)) {
-
-//         const dqr60: any[] = [];
-
-//         const rows = data.type_of_pack_mat_used_for_delivering_questions.map((p: any) => {
-//             const topmudp_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr60,
-//                 childId: topmudp_id,
-//                 payload: p
-//             });
-
-//             return [topmudp_id, stoie_id, p.bom_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'type_of_pack_mat_used_for_delivering_questions',
-//             ['topmudp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_type_of_pack_mat_used_for_delivering_qsixty',
-//             columns: ['topmudpqs_id', 'sgiq_id', 'topmudp_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr60
-//         });
-//     }
-
-//     if (Array.isArray(data.weight_of_packaging_per_unit_product_questions)) {
-
-//         const dqr61: any[] = [];
-
-//         const rows = data.weight_of_packaging_per_unit_product_questions.map((w: any) => {
-//             const woppup_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr61,
-//                 childId: woppup_id,
-//                 payload: w
-//             });
-
-//             return [woppup_id, stoie_id, w.bom_id, w.material_number, w.component_name, w.packagin_weight, w.unit];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'weight_of_packaging_per_unit_product_questions',
-//             ['woppup_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_weight', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_weight_of_packaging_per_unit_product_qsixtyone',
-//             columns: ['woppupqso_id', 'sgiq_id', 'woppup_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr61
-//         });
-//     }
-
-//     if (Array.isArray(data.energy_consumption_for_qsixtyseven_questions)) {
-
-//         const dqr67: any[] = [];
-
-//         const rows = data.energy_consumption_for_qsixtyseven_questions.map((e: any) => {
-//             const ecfqss_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr67,
-//                 childId: ecfqss_id,
-//                 payload: e
-//             });
-
-//             return [ecfqss_id, stoie_id, e.energy_purchased, e.energy_type, e.quantity, e.unit];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'energy_consumption_for_qsixtyseven_questions',
-//             ['ecfqss_id', 'stoie_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_energy_consumption_for_qsixtyseven_qsixtyseven',
-//             columns: ['ecfqssqss_id', 'sgiq_id', 'ecfqss_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr67
-//         });
-//     }
-
-//     if (Array.isArray(data.weight_of_pro_packaging_waste_questions)) {
-
-//         const dqr68: any[] = [];
-
-//         const rows = data.weight_of_pro_packaging_waste_questions.map((w: any) => {
-//             const woppw_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr68,
-//                 childId: woppw_id,
-//                 payload: {
-//                     bom_id: w.bom_id,
-//                     material_number: w.material_number,
-//                     component_name: w.component_name,
-//                     waste_type: w.waste_type,
-//                     waste_weight: w.waste_weight,
-//                     unit: w.unit,
-//                     treatment_type: w.treatment_type
-//                 }
-//             });
-
-//             return [woppw_id, stoie_id, w.bom_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'weight_of_pro_packaging_waste_questions',
-//             ['woppw_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_weight_of_pro_packaging_waste_qsixtyeight',
-//             columns: ['woppwqse_id', 'sgiq_id', 'woppw_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr68
-//         });
-//     }
-
-//     if (Array.isArray(data.type_of_by_product_questions)) {
-
-//         const dqr71: any[] = [];
-
-//         const rows = data.type_of_by_product_questions.map((b: any) => {
-//             const topbp_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr71,
-//                 childId: topbp_id,
-//                 payload: {
-//                     bom_id: b.bom_id,
-//                     material_number: b.material_number,
-//                     component_name: b.component_name,
-//                     by_product: b.by_product,
-//                     price_per_product: b.price_per_product,
-//                     quantity: b.quantity
-//                 }
-//             });
-
-//             return [topbp_id, stoie_id, b.bom_id, b.material_number, b.component_name, b.by_product, b.price_per_product, b.quantity];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'type_of_by_product_questions',
-//             ['topbp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'by_product', 'price_per_product', 'quantity'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_type_of_by_product_qseventyone',
-//             columns: ['topbpqso_id', 'sgiq_id', 'topbp_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr71
-//         });
-//     }
-
-//     if (Array.isArray(data.co_two_emission_of_raw_material_questions)) {
-
-//         const dqr73: any[] = [];
-
-//         const rows = data.co_two_emission_of_raw_material_questions.map((c: any) => {
-//             const coteorm_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr73,
-//                 childId: coteorm_id,
-//                 payload: {
-//                     bom_id: c.bom_id,
-//                     material_number: c.material_number,
-//                     component_name: c.component_name,
-//                     raw_material_name: c.raw_material_name,
-//                     transport_mode: c.transport_mode,
-//                     source_location: c.source_location,
-//                     destination_location: c.destination_location,
-//                     co_two_emission: c.co_two_emission
-//                 }
-//             });
-
-//             return [
-//                 coteorm_id,
-//                 stoie_id,
-//                 c.bom_id,
-//                 c.material_number,
-//                 c.component_name,
-//                 c.raw_material_name,
-//                 c.transport_mode,
-//                 c.source_location,
-//                 c.destination_location,
-//                 c.co_two_emission
-//             ];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'co_two_emission_of_raw_material_questions',
-//             ['coteorm_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_co_two_emission_of_raw_material_qseventythree',
-//             columns: ['coteormqst_id', 'sgiq_id', 'coteorm_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr73
-//         });
-//     }
-
-//     if (Array.isArray(data.mode_of_transport_used_for_transportation_questions)) {
-
-//         const dqr74: any[] = [];
-
-//         const rows = data.mode_of_transport_used_for_transportation_questions.map((t: any) => {
-//             const motuft_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr74,
-//                 childId: motuft_id,
-//                 payload: {
-//                     bom_id: t.bom_id,
-//                     material_number: t.material_number,
-//                     component_name: t.component_name,
-//                     mode_of_transport: t.mode_of_transport,
-//                     weight_transported: t.weight_transported,
-//                     source_point: t.source_point,
-//                     drop_point: t.drop_point,
-//                     distance: t.distance
-//                 }
-//             });
-
-//             return [
-//                 motuft_id,
-//                 stoie_id,
-//                 t.bom_id,
-//                 t.material_number,
-//                 t.component_name,
-//                 t.mode_of_transport,
-//                 t.weight_transported,
-//                 t.source_point,
-//                 t.drop_point,
-//                 t.distance
-//             ];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'mode_of_transport_used_for_transportation_questions',
-//             ['motuft_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_mode_of_transport_used_for_transportation_qseventyfour',
-//             columns: ['motuftqsf_id', 'sgiq_id', 'motuft_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr74
-//         });
-//     }
-
-//     if (Array.isArray(data.destination_plant_component_transportation_questions)) {
-
-//         const dqr75: any[] = [];
-
-//         const rows = data.destination_plant_component_transportation_questions.map((d: any) => {
-//             const dpct_id = ulid();
-
-//             prepareDQR({
-//                 records: dqr75,
-//                 childId: dpct_id,
-//                 payload: {
-//                     country: d.country,
-//                     state: d.state,
-//                     city: d.city,
-//                     pincode: d.pincode
-//                 }
-//             });
-
-//             return [dpct_id, stoie_id, d.country, d.state, d.city, d.pincode];
-//         });
-
-//         childInserts.push(bulkInsert(
-//             client,
-//             'destination_plant_component_transportation_questions',
-//             ['dpct_id', 'stoie_id', 'country', 'state', 'city', 'pincode'],
-//             rows
-//         ));
-
-//         allDQRConfigs.push({
-//             tableName: 'dqr_destination_plant_component_transportation_qseventyfive',
-//             columns: ['dpctqsf_id', 'sgiq_id', 'dpct_id', 'data'],
-//             parentId: sgiq_id,
-//             records: dqr75
-//         });
-//     }
-
-//     await Promise.all(childInserts);
-//     console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
-//     await createDQRRecords(client, allDQRConfigs);
-// }
-
-// async function insertScopeFour(client: any, data: any, sgiq_id: string) {
-//     const sfae_id = ulid();
-
-//     await client.query(
-//         `INSERT INTO scope_four_avoided_emissions_questions (
-//             sfae_id, sgiq_id, products_or_services_that_help_reduce_customer_emissions,
-//             circular_economy_practices_reuse_take_back_epr_refurbishment,
-//             renewable_energy_carbon_offset_projects_implemented
-//         ) VALUES ($1, $2, $3, $4, $5)`,
-//         [
-//             sfae_id, sgiq_id,
-//             data.products_or_services_that_help_reduce_customer_emissions ?? false,
-//             data.circular_economy_practices_reuse_take_back_epr_refurbishment,
-//             data.renewable_energy_carbon_offset_projects_implemented
-//         ]
-//     );
-// }
-
-// // DQR HELPER FUNCTION
-// async function createDQRRecords(client: any, dqrConfigs: any[]) {
-//     const insertPromises = [];
-
-//     for (const config of dqrConfigs) {
-//         if (config.records && config.records.length > 0) {
-//             const values: any[] = [];
-//             const placeholders: string[] = [];
-//             let index = 1;
-
-//             for (const record of config.records) {
-//                 placeholders.push(`($${index++}, $${index++}, $${index++}, $${index++})`);
-//                 values.push(
-//                     ulid(),                    // dqr_id
-//                     config.parentId,           // parent FK (sgiq_id, sode_id, etc.)
-//                     record.childId,            // child FK (aosotte_id, etc.)
-//                     JSON.stringify(record.data)
-//                 );
-//             }
-
-//             const query = `
-//                 INSERT INTO ${config.tableName}
-//                 (${config.columns.join(', ')})
-//                 VALUES ${placeholders.join(', ')}
-//             `;
-
-//             insertPromises.push(client.query(query, values));
-//         }
-//     }
-
-//     if (insertPromises.length > 0) {
-//         await Promise.all(insertPromises);
-//     }
-// }
-
-// function prepareDQR({
-//     records,
-//     childId,
-//     payload
-// }: {
-//     records: any[],
-//     childId: string,
-//     payload: any
-// }) {
-//     records.push({
-//         childId,
-//         data: JSON.stringify(payload)
-//     });
-// }
-// // it will end here
+// Create Cleint Input Questions
+async function bulkInsert(client: any, tableName: string, columns: string[], rows: any[][]) {
+    if (!rows || rows.length === 0) return;
+
+    const values: any[] = [];
+    const placeholders: string[] = [];
+    let index = 1;
+
+    for (const row of rows) {
+        const rowPlaceholders = row.map(() => `$${index++}`).join(', ');
+        placeholders.push(`(${rowPlaceholders})`);
+        values.push(...row);
+    }
+
+    const query = `
+        INSERT INTO ${tableName} (${columns.join(', ')})
+        VALUES ${placeholders.join(', ')}
+    `;
+
+    await client.query(query, values);
+}
+
+// MAIN API FUNCTION
+export async function addSupplierSustainabilityData(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query("BEGIN");
+
+        try {
+            const {
+                supporting_document_ids,
+                additional_notes,
+                client_id,
+                supplier_general_info_questions,
+                supplier_product_questions,
+                scope_one_direct_emissions_questions,
+                scope_two_indirect_emissions_questions,
+                scope_three_other_indirect_emissions_questions,
+                scope_four_avoided_emissions_questions
+            } = req.body;
+
+            // Validation
+            if (!supplier_general_info_questions?.bom_pcf_id ||
+                !supplier_general_info_questions?.client_id) {
+                return res.send(generateResponse(false, "bom_pcf_id and client_id are required", 400, null));
+            }
+
+            const product_bom_pcf_id = supplier_general_info_questions.bom_pcf_id;
+            const bom_pcf_id = supplier_general_info_questions.bom_pcf_id;
+            const sgiq_id = ulid();
+            const allDQRConfigs: any[] = [];
+
+            scope_two_indirect_emissions_questions.client_id = client_id;
+
+            const own_emission_id = ulid();
+
+            const OwnEmissionInsert = `
+                INSERT INTO own_emission (
+                    id, code, bom_pcf_id, supporting_document_ids,
+                    additional_notes, client_id
+                )
+                VALUES ($1,$2,$3,$4,$5,$6)
+                RETURNING *;
+            `;
+
+            await client.query(OwnEmissionInsert, [
+                own_emission_id,
+                `OWNE-${Date.now()}`,
+                bom_pcf_id,
+                supporting_document_ids,
+                additional_notes,
+                client_id
+            ]);
+
+
+            // ============================================
+            // STEP 1: Insert General Info (REQUIRED FIRST)
+            // ============================================
+            const generalInsert = `
+                INSERT INTO supplier_general_info_questions (
+                    sgiq_id, bom_pcf_id, ere_acknowledge, repm_acknowledge, dc_acknowledge,
+                    organization_name, core_business_activitiy, specify_other_activity, designation,
+                    email_address, no_of_employees, specify_other_no_of_employees, annual_revenue,
+                    specify_other_annual_revenue, annual_reporting_period,
+                    availability_of_scope_one_two_three_emissions_data, client_id ,own_emission_id
+                )
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+                RETURNING *;
+            `;
+
+            const generalResult = await client.query(generalInsert, [
+                sgiq_id, bom_pcf_id,
+                supplier_general_info_questions.ere_acknowledge ?? false,
+                supplier_general_info_questions.repm_acknowledge ?? false,
+                supplier_general_info_questions.dc_acknowledge ?? false,
+                supplier_general_info_questions.organization_name,
+                supplier_general_info_questions.core_business_activitiy,
+                supplier_general_info_questions.specify_other_activity,
+                supplier_general_info_questions.designation,
+                supplier_general_info_questions.email_address,
+                supplier_general_info_questions.no_of_employees,
+                supplier_general_info_questions.specify_other_no_of_employees,
+                supplier_general_info_questions.annual_revenue,
+                supplier_general_info_questions.specify_other_annual_revenue,
+                supplier_general_info_questions.annual_reporting_period,
+                supplier_general_info_questions.availability_of_scope_one_two_three_emissions_data ?? false,
+                client_id,
+                own_emission_id
+            ]);
+
+            // Insert scope questions (nested in general info) - BULK
+            const scopeGeneralQuestions = supplier_general_info_questions.availability_of_scope_one_two_three_emissions_questions;
+            if (Array.isArray(scopeGeneralQuestions) && scopeGeneralQuestions.length > 0) {
+                const dqrRecordsNine: any[] = [];
+
+                const insertRows = scopeGeneralQuestions.map(scope => {
+                    const aosotte_id = ulid(); // Unique ID for each
+
+                    // Store for DQR
+                    dqrRecordsNine.push({
+                        childId: aosotte_id,
+                        data: {
+                            country_iso_three: scope.country_iso_three,
+                            scope_one: scope.scope_one,
+                            scope_two: scope.scope_two,
+                            scope_three: scope.scope_three
+                        }
+                    });
+
+                    // Return row for bulk insert
+                    return [aosotte_id, sgiq_id, scope.country_iso_three, scope.scope_one, scope.scope_two, scope.scope_three];
+                });
+
+                // Bulk insert
+                await bulkInsert(
+                    client,
+                    'availability_of_scope_one_two_three_emissions_questions',
+                    ['aosotte_id', 'sgiq_id', 'country_iso_three', 'scope_one', 'scope_two', 'scope_three'],
+                    insertRows
+                );
+
+                // Add to DQR configs
+                allDQRConfigs.push({
+                    tableName: 'dqr_emission_data_rating_qnine',
+                    columns: ['edrqn_id', 'sgiq_id', 'aosotte_id', 'data'],
+                    parentId: sgiq_id,
+                    records: dqrRecordsNine
+                });
+
+
+            }
+
+            // ============================================
+            // STEP 2: Process all sections IN PARALLEL
+            // ============================================
+            const insertPromises = [];
+
+            // SUPPLIER PRODUCT QUESTIONS
+            if (supplier_product_questions) {
+                insertPromises.push(insertSupplierProduct(client, supplier_product_questions, sgiq_id, product_bom_pcf_id));
+            }
+
+            // SCOPE ONE
+            if (scope_one_direct_emissions_questions) {
+                insertPromises.push(insertScopeOne(client, scope_one_direct_emissions_questions, sgiq_id, product_bom_pcf_id));
+            }
+
+            // SCOPE TWO
+            if (scope_two_indirect_emissions_questions) {
+                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, product_bom_pcf_id));
+            }
+
+            // SCOPE THREE
+            if (scope_three_other_indirect_emissions_questions) {
+                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, product_bom_pcf_id));
+            }
+
+            // SCOPE FOUR
+            if (scope_four_avoided_emissions_questions) {
+                insertPromises.push(insertScopeFour(client, scope_four_avoided_emissions_questions, sgiq_id, product_bom_pcf_id));
+            }
+
+            // Execute all inserts in parallel
+            await Promise.all(insertPromises);
+
+            // ============================================
+            // STEP 3: Update PCF stages
+            // ============================================
+
+            await client.query(
+                `UPDATE pcf_request_data_collection_stage SET is_submitted = true,completed_date=NOW()
+                 WHERE bom_pcf_id = $1 AND client_id=$2;`,
+                [bom_pcf_id, client_id]
+            );
+
+            console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
+            await createDQRRecords(client, allDQRConfigs);
+
+            await client.query("COMMIT");
+
+            return res.send(
+                generateResponse(true, "Client sustainability data added successfully", 200,
+                    "Client sustainability data added successfully")
+            );
+        } catch (error: any) {
+            await client.query("ROLLBACK");
+            console.error("Error adding Client sustainability data:", error);
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+// HELPER FUNCTIONS - Each section in separate function
+async function insertSupplierProduct(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+    const spq_id = ulid();
+    const dqrQ11: any[] = [];
+    const allDQRConfigs: any[] = [];
+
+    // Insert parent
+    await client.query(
+        `INSERT INTO supplier_product_questions (
+            spq_id, sgiq_id, do_you_have_an_existing_pcf_report, pcf_methodology_used,
+            upload_pcf_report, required_environmental_impact_methods, any_co_product_have_economic_value
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [spq_id, sgiq_id, data.do_you_have_an_existing_pcf_report, data.pcf_methodology_used,
+            data.upload_pcf_report, data.required_environmental_impact_methods, data.any_co_product_have_economic_value]
+    );
+
+    // Q11
+    dqrQ11.push({
+        childId: spq_id,
+        data: data.pcf_methodology_used
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_supplier_product_questions_rating_qeleven',
+        columns: ['spqrqe_id', 'sgiq_id', 'spq_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ11
+    });
+
+    const dqrQ12: any[] = [];
+    // Q12
+    dqrQ12.push({
+        childId: spq_id,
+        data: data.upload_pcf_report
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_supplier_product_questions_rating_qtwelve',
+        columns: ['spqrqt_id', 'sgiq_id', 'spq_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ12
+    });
+
+    const childInserts = [];
+
+    // Production site details - BULK
+    if (Array.isArray(data.production_site_details_questions) && data.production_site_details_questions.length > 0) {
+
+        const dqrQ13: any[] = [];
+        // Q13
+        const insertRows = data.production_site_details_questions.map((p: any) => {
+            const psd_id = ulid(); // correct child id
+
+            // Store DQR data
+            dqrQ13.push({
+                childId: psd_id,
+                data: {
+                    product_id: p.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: p.material_number,
+                    product_name: p.product_name,
+                    location: p.location
+                }
+            });
+
+            // Row for bulk insert
+            return [psd_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.location];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'production_site_details_questions',
+            ['psd_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'location'],
+            insertRows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_production_site_detail_rating_qthirteen',
+            columns: ['psdrqt_id', 'sgiq_id', 'psd_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ13
+        });
+    }
+
+    // Product component manufactured - BULK
+    if (Array.isArray(data.product_component_manufactured_questions) && data.product_component_manufactured_questions.length > 0) {
+        const dqrQ15: any[] = [];
+
+        // Q15
+        const insertRows = data.product_component_manufactured_questions.map((p: any) => {
+            const pcm_id = ulid(); //unique child id
+
+            // Store DQR payload
+            dqrQ15.push({
+                childId: pcm_id,
+                data: {
+                    product_id: p.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: p.material_number,
+                    product_name: p.product_name,
+                    production_period: p.production_period,
+                    weight_per_unit: p.weight_per_unit,
+                    unit: p.unit,
+                    price: p.price,
+                    quantity: p.quantity
+                }
+            });
+
+            // Return row for bulk insert
+            return [
+                pcm_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity
+            ];
+        });
+
+
+        childInserts.push(bulkInsert(
+            client,
+            'product_component_manufactured_questions',
+            ['pcm_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity'],
+            insertRows
+            // data.product_component_manufactured_questions.map((p: any) =>
+            //     [ulid(), spq_id, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity]
+            // )
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_product_component_manufactured_rating_qfiften',
+            columns: ['pcmrqf_id', 'sgiq_id', 'pcm_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ15
+        });
+    }
+
+    // Co-product component - BULK
+    if (Array.isArray(data.co_product_component_economic_value_questions) && data.co_product_component_economic_value_questions.length > 0) {
+        const dqrQ15Point2: any[] = [];
+        const bomGroups: Record<string, any[]> = {};
+        // Q15
+        const insertRows = data.co_product_component_economic_value_questions.map((p: any) => {
+            const cpcev_id = ulid(); //unique child id
+
+            // Store DQR payload
+            dqrQ15Point2.push({
+                childId: cpcev_id,
+                data: {
+                    product_id: p.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: p.material_number,
+                    product_name: p.product_name,
+                    co_product_name: p.co_product_name,
+                    weight: p.weight,
+                    price_per_product: p.price_per_product,
+                    quantity: p.quantity
+                }
+            });
+
+            if (!bomGroups[p.product_id]) bomGroups[p.product_id] = [];
+            bomGroups[p.product_id].push(p);
+
+            // Return row for bulk insert
+            return [
+                cpcev_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
+            ];
+        });
+
+
+        childInserts.push(bulkInsert(
+            client,
+            'co_product_component_economic_value_questions',
+            ['cpcev_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity'],
+            insertRows
+            // data.co_product_component_economic_value_questions.map((c: any) =>
+            //     [ulid(), spq_id, c.product_name, c.co_product_name, c.weight, c.price_per_product, c.quantity]
+            // )
+        ));
+
+
+        for (const [product_id, coProducts] of Object.entries(bomGroups)) {
+            //  Fetch BOM price
+
+            const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1`, [product_id]);
+            const bomPrice = bomRes.rows[0]?.price || 0;
+
+            //  Calculate average price_per_product
+            const totalPrice = coProducts.reduce((sum, p) => sum + (p.price_per_product || 0), 0);
+            const avgPricePerProduct = totalPrice / (coProducts.length || 1);
+
+            // Compute ER safely
+            const ER = bomPrice / (avgPricePerProduct || 1);
+
+            // Update BOM table
+            await client.query(
+                `UPDATE bom SET economic_ratio = $1 WHERE id = $2`,
+                [ER, product_id]
+            );
+
+            let econAllocation = 'NA';
+            let phyMassAllocation = 'Physical';
+            let checkER = 'Physical';
+
+            if (ER > 5) {
+                econAllocation = 'Economic';
+            }
+
+            await client.query(
+                `
+    INSERT INTO allocation_methodology (
+        id,
+        product_id,
+        econ_allocation_er_greater_than_five,
+        phy_mass_allocation_er_less_than_five,
+        check_er_less_than_five,
+        product_bom_pcf_id
+    )
+    SELECT
+        $1,
+        $2::VARCHAR(255),
+        $3,
+        $4,
+        $5,
+        $6
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM allocation_methodology
+        WHERE product_id = $2::VARCHAR(255)
+    )
+    `,
+                [
+                    ulid(),
+                    product_id,
+                    econAllocation,
+                    phyMassAllocation,
+                    checkER,
+                    product_bom_pcf_id
+                ]
+            );
+
+
+
+            console.log(`BOM ID ${product_id} | BOM Price: ${bomPrice} | Avg Co-Product Price: ${avgPricePerProduct} | ER: ${ER}`);
+        }
+
+        allDQRConfigs.push({
+            tableName: 'dqr_co_product_component_manufactured_rating_qfiftenone',
+            columns: ['pcmrqfo_id', 'sgiq_id', 'cpcev_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ15Point2
+        });
+    }
+
+    console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
+    await createDQRRecords(client, allDQRConfigs);
+    await Promise.all(childInserts);
+}
+
+async function insertScopeOne(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+    const sode_id = ulid();
+    const allDQRConfigs: any[] = [];
+
+    // Insert parent
+    await client.query(
+        `INSERT INTO scope_one_direct_emissions_questions
+         (sode_id, sgiq_id, refrigerant_top_ups_performed, industrial_process_emissions_present)
+         VALUES ($1, $2, $3, $4)`,
+        [sode_id, sgiq_id, data.refrigerant_top_ups_performed ?? false, data.industrial_process_emissions_present ?? false]
+    );
+
+    const childInserts = [];
+
+    // Stationary combustion - needs nested handling
+    const stationaryCombustionQuestions = data.stationary_combustion_on_site_energy_use_questions;
+
+    if (Array.isArray(stationaryCombustionQuestions) && stationaryCombustionQuestions.length > 0) {
+        const dqrQ16: any[] = [];
+        const scoseuRows: any[] = [];
+        const subFuelRows: any[] = [];
+
+        for (const item of stationaryCombustionQuestions) {
+            const scoseu_id = ulid();
+
+            //Parent row
+            scoseuRows.push([
+                scoseu_id,
+                sode_id,
+                item.fuel_type
+            ]);
+
+            // DQR payload (Q16)
+            dqrQ16.push({
+                childId: scoseu_id,
+                data: JSON.stringify({
+                    fuel_type: item.fuel_type
+                })
+            });
+
+            // Sub fuel types (bulk collected)
+            if (Array.isArray(item.scoseu_sub_fuel_type_questions) && item.scoseu_sub_fuel_type_questions.length > 0) {
+                for (const s of item.scoseu_sub_fuel_type_questions) {
+                    subFuelRows.push([
+                        ulid(),
+                        scoseu_id,
+                        s.sub_fuel_type,
+                        s.consumption_quantity,
+                        s.unit
+                    ]);
+                }
+            }
+        }
+
+        // Bulk insert parent table
+        childInserts.push(
+            bulkInsert(
+                client,
+                'stationary_combustion_on_site_energy_use_questions',
+                ['scoseu_id', 'sode_id', 'fuel_type'],
+                scoseuRows
+            )
+        );
+
+        // Bulk insert sub fuel types (if any)
+        if (subFuelRows.length > 0) {
+            childInserts.push(
+                bulkInsert(
+                    client,
+                    'scoseu_sub_fuel_type_questions',
+                    ['ssft_id', 'scoseu_id', 'sub_fuel_type', 'consumption_quantity', 'unit'],
+                    subFuelRows
+                )
+            );
+        }
+
+        //Register DQR Q16
+        allDQRConfigs.push({
+            tableName: 'dqr_stationary_combustion_on_site_energy_rating_qsixten',
+            columns: ['scoserqs_id', 'sgiq_id', 'scoseu_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ16
+        });
+    }
+
+    // Mobile combustion - BULK
+    if (Array.isArray(data.mobile_combustion_company_owned_vehicles_questions) && data.mobile_combustion_company_owned_vehicles_questions.length > 0) {
+        const dqrQ17: any[] = [];
+
+        const insertRows = data.mobile_combustion_company_owned_vehicles_questions.map((p: any) => {
+            const mccov_id = ulid(); // correct child id
+
+            // Store DQR data
+            dqrQ17.push({
+                childId: mccov_id,
+                data: {
+                    fuel_type: p.fuel_type,
+                    quantity: p.quantity,
+                    unit: p.unit
+                }
+            });
+
+            // Row for bulk insert
+            return [mccov_id, sode_id, p.fuel_type, p.quantity, p.unit];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'mobile_combustion_company_owned_vehicles_questions',
+            ['mccov_id', 'sode_id', 'fuel_type', 'quantity', 'unit'],
+            insertRows
+            // data.mobile_combustion_company_owned_vehicles_questions.map((v: any) =>
+            //     [mccov_id, sode_id, v.fuel_type, v.quantity, v.unit]
+            // )
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_mobile_combustion_company_owned_vehicles_rating_qseventen',
+            columns: ['mccoqrqs_id', 'sgiq_id', 'mccov_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ17
+        });
+    }
+
+    // Refrigerants - BULK
+    if (Array.isArray(data.refrigerants_questions) && data.refrigerants_questions.length > 0) {
+
+        const dqrQ19: any[] = [];
+
+        const insertRows = data.refrigerants_questions.map((p: any) => {
+            const refr_id = ulid(); // correct child id
+
+            // Store DQR data
+            dqrQ19.push({
+                childId: refr_id,
+                data: {
+                    refrigerant_type: p.refrigerant_type,
+                    quantity: p.quantity,
+                    unit: p.unit
+                }
+            });
+
+            // Row for bulk insert
+            return [refr_id, sode_id, p.refrigerant_type, p.quantity, p.unit];
+        });
+
+
+        childInserts.push(bulkInsert(
+            client,
+            'refrigerants_questions',
+            ['refr_id', 'sode_id', 'refrigerant_type', 'quantity', 'unit'],
+            insertRows
+            // data.refrigerants_questions.map((r: any) => [ulid(), sode_id, r.refrigerant_type, r.quantity, r.unit])
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_refrigerants_rating_qnineten',
+            columns: ['refrqn_id', 'sgiq_id', 'refr_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ19
+        });
+    }
+
+    // Process emissions - BULK
+    if (Array.isArray(data.process_emissions_sources_questions) && data.process_emissions_sources_questions.length > 0) {
+
+        const dqrQ21: any[] = [];
+
+        const insertRows = data.process_emissions_sources_questions.map((p: any) => {
+            const pes_id = ulid(); // correct child id
+
+            // Store DQR data
+            dqrQ21.push({
+                childId: pes_id,
+                data: {
+                    source: p.source,
+                    gas_type: p.gas_type,
+                    quantity: p.quantity,
+                    unit: p.unit
+                }
+            });
+
+            // Row for bulk insert
+            return [pes_id, sode_id, p.source, p.gas_type, p.quantity, p.unit];
+        });
+
+
+        childInserts.push(bulkInsert(
+            client,
+            'process_emissions_sources_questions',
+            ['pes_id', 'sode_id', 'source', 'gas_type', 'quantity', 'unit'],
+            insertRows
+            // data.process_emissions_sources_questions.map((e: any) =>
+            //     [ulid(), sode_id, e.source, e.gas_type, e.quantity, e.unit]
+            // )
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_process_emissions_sources_qtwentyone',
+            columns: ['pesqto_id', 'sgiq_id', 'pes_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ21
+        });
+    }
+
+    await Promise.all(childInserts);
+
+    console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
+    await createDQRRecords(client, allDQRConfigs);
+}
+
+async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+    const stide_id = ulid();
+    const allDQRConfigs: any[] = [];
+
+    // Insert parent
+    await client.query(
+        `INSERT INTO scope_two_indirect_emissions_questions (
+            stide_id, sgiq_id, do_you_acquired_standardized_re_certificates,
+            methodology_to_allocate_factory_energy_to_product_level, methodology_details_document_url,
+            energy_intensity_of_production_estimated_kwhor_mj, process_specific_energy_usage,
+            do_you_use_any_abatement_systems, water_consumption_and_treatment_details,
+            do_you_perform_destructive_testing, it_system_use_for_production_control,
+            total_energy_consumption_of_it_hardware_production, energy_con_included_total_energy_pur_sec_two_qfortythree,
+            do_you_use_cloud_based_system_for_production, do_you_use_any_cooling_sysytem_for_server,
+            energy_con_included_total_energy_pur_sec_two_qfifty
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+        [
+            stide_id, sgiq_id,
+            data.do_you_acquired_standardized_re_certificates ?? false,
+            data.methodology_to_allocate_factory_energy_to_product_level ?? false,
+            data.methodology_details_document_url,
+            data.energy_intensity_of_production_estimated_kwhor_mj ?? false,
+            data.process_specific_energy_usage ?? false,
+            data.do_you_use_any_abatement_systems ?? false,
+            data.water_consumption_and_treatment_details,
+            data.do_you_perform_destructive_testing ?? false,
+            data.it_system_use_for_production_control,
+            data.total_energy_consumption_of_it_hardware_production ?? false,
+            data.energy_con_included_total_energy_pur_sec_two_qfortythree ?? false,
+            data.do_you_use_cloud_based_system_for_production ?? false,
+            data.do_you_use_any_cooling_sysytem_for_server ?? false,
+            data.energy_con_included_total_energy_pur_sec_two_qfifty ?? false
+        ]
+    );
+
+    const dqrQ26: any[] = [];
+    dqrQ26.push({
+        childId: stide_id,
+        data: data.methodology_details_document_url
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_two_indirect_emissions_qtwentysix',
+        columns: ['stieqts_id', 'sgiq_id', 'stide_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ26
+    });
+
+    const dqrQ31: any[] = [];
+    dqrQ31.push({
+        childId: stide_id,
+        data: data.water_consumption_and_treatment_details
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_two_indirect_emissions_qthirtyone',
+        columns: ['stideqto_id', 'sgiq_id', 'stide_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ31
+    });
+
+    const dqrQ41: any[] = [];
+    dqrQ41.push({
+        childId: stide_id,
+        data: data.it_system_use_for_production_control
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_two_indirect_emissions_qfortyone',
+        columns: ['stideqfo_id', 'sgiq_id', 'stide_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ41
+    });
+
+    const childInserts = [];
+
+    if (Array.isArray(data.scope_two_indirect_emissions_from_purchased_energy_questions)) {
+        console.log(data.client_id, "data.client_iddata.client_id");
+
+        // data.scope_two_indirect_emissions_from_purchased_energy_questions = data.client_id;
+
+        const dqrQ22: any[] = [];
+
+        const rows = data.scope_two_indirect_emissions_from_purchased_energy_questions.map((e: any) => {
+            const stidefpe_id = ulid();
+
+            e = data.client_id;
+            prepareDQR({
+                records: dqrQ22,
+                childId: stidefpe_id,
+                payload: {
+                    energy_source: e.energy_source,
+                    energy_type: e.energy_type,
+                    quantity: e.quantity,
+                    unit: e.unit,
+                    client_id: data.client_id
+                }
+            });
+
+            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.client_id];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'scope_two_indirect_emissions_from_purchased_energy_questions',
+            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'client_id'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_scope_two_indirect_emis_from_pur_energy_qtwentytwo',
+            columns: ['stidefpeqtt_id', 'sgiq_id', 'stidefpe_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ22
+        });
+    }
+
+    if (Array.isArray(data.scope_two_indirect_emissions_certificates_questions)) {
+        const dqrQ24: any[] = [];
+
+        const rows = data.scope_two_indirect_emissions_certificates_questions.map((c: any) => {
+            const stidec_id = ulid();
+
+            prepareDQR({
+                records: dqrQ24,
+                childId: stidec_id,
+                payload: c
+            });
+
+            return [
+                stidec_id, stide_id,
+                c.certificate_name, c.mechanism, c.serial_id,
+                c.generator_id, c.generator_name,
+                c.generator_location, c.date_of_generation, c.issuance_date
+            ];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'scope_two_indirect_emissions_certificates_questions',
+            ['stidec_id', 'stide_id', 'certificate_name', 'mechanism', 'serial_id', 'generator_id', 'generator_name', 'generator_location', 'date_of_generation', 'issuance_date'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_scope_two_indirect_emissions_certificates_qtwentyfour',
+            columns: ['stiecqtf_id', 'sgiq_id', 'stidec_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ24
+        });
+    }
+
+    if (Array.isArray(data.energy_intensity_of_production_estimated_kwhor_mj_questions)) {
+        const dqrQ27: any[] = [];
+
+        const rows = data.energy_intensity_of_production_estimated_kwhor_mj_questions.map((i: any) => {
+            const eiopekm_id = ulid();
+
+            prepareDQR({
+                records: dqrQ27,
+                childId: eiopekm_id,
+                payload: i
+            });
+
+            return [eiopekm_id, stide_id, i.product_id, product_bom_pcf_id, i.material_number, i.product_name, i.energy_intensity, i.unit];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'energy_intensity_of_production_estimated_kwhor_mj_questions',
+            ['eiopekm_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'energy_intensity', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_energy_intensity_of_pro_est_kwhor_mj_qtwentyseven',
+            columns: ['eiopekmqts_id', 'sgiq_id', 'eiopekm_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ27
+        });
+
+    }
+
+    if (Array.isArray(data.process_specific_energy_usage_questions)) {
+        const dqrQ28: any[] = [];
+
+        const rows = data.process_specific_energy_usage_questions.map((p: any) => {
+            const pseu_id = ulid();
+
+            prepareDQR({
+                records: dqrQ28,
+                childId: pseu_id,
+                payload: p
+            });
+
+            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'process_specific_energy_usage_questions',
+            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_process_specific_energy_usage_qtwentyeight',
+            columns: ['pseuqte_id', 'sgiq_id', 'pseu_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ28
+        });
+
+    }
+
+    if (Array.isArray(data.abatement_systems_used_questions) && data.abatement_systems_used_questions.length > 0) {
+
+        const dqrQ30: any[] = [];
+
+        const rows = data.abatement_systems_used_questions.map((a: any) => {
+            const asu_id = ulid();
+
+            dqrQ30.push({
+                childId: asu_id,
+                data: JSON.stringify(a)
+            });
+
+            return [asu_id, stide_id, a.source, a.quantity, a.unit];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'abatement_systems_used_questions',
+            ['asu_id', 'stide_id', 'source', 'quantity', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_abatement_systems_used_qthirty',
+            columns: ['asuqt_id', 'sgiq_id', 'asu_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ30
+        });
+    }
+
+    if (Array.isArray(data.type_of_quality_control_equipment_usage_questions)) {
+
+        const dqrQ32: any[] = [];
+
+        const rows = data.type_of_quality_control_equipment_usage_questions.map((q: any) => {
+            const toqceu_id = ulid();
+
+            dqrQ32.push({
+                childId: toqceu_id,
+                data: JSON.stringify(q)
+            });
+
+            return [toqceu_id, stide_id, q.equipment_name, q.quantity, q.unit, q.avg_operating_hours_per_month];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'type_of_quality_control_equipment_usage_questions',
+            ['toqceu_id', 'stide_id', 'equipment_name', 'quantity', 'unit', 'avg_operating_hours_per_month'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_type_of_quality_control_equipment_usage_qthirtytwo',
+            columns: ['toqceuqto_id', 'sgiq_id', 'toqceu_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ32
+        });
+    }
+
+    if (Array.isArray(data.electricity_consumed_for_quality_control_questions)) {
+
+        const dqrQ33: any[] = [];
+
+        const rows = data.electricity_consumed_for_quality_control_questions.map((e: any) => {
+            const ecfqc_id = ulid();
+
+            dqrQ33.push({
+                childId: ecfqc_id,
+                data: JSON.stringify(e)
+            });
+
+            return [ecfqc_id, stide_id, e.energy_type, e.quantity, e.unit, e.period];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'electricity_consumed_for_quality_control_questions',
+            ['ecfqc_id', 'stide_id', 'energy_type', 'quantity', 'unit', 'period'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_electricity_consumed_for_quality_control_qthirtythree',
+            columns: ['ecfqcqtt_id', 'sgiq_id', 'ecfqc_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ33
+        });
+    }
+
+    if (Array.isArray(data.quality_control_process_usage_questions)) {
+
+        const dqrQ34: any[] = [];
+
+        const rows = data.quality_control_process_usage_questions.map((q: any) => {
+            const qcpu_id = ulid();
+
+            dqrQ34.push({
+                childId: qcpu_id,
+                data: JSON.stringify(q)
+            });
+
+            return [qcpu_id, stide_id, q.process_name, q.quantity, q.unit, q.period];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'quality_control_process_usage_questions',
+            ['qcpu_id', 'stide_id', 'process_name', 'quantity', 'unit', 'period'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_quality_control_process_usage_qthirtyfour',
+            columns: ['qcpuqtf_id', 'sgiq_id', 'qcpu_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ34
+        });
+    }
+
+    if (Array.isArray(data.quality_control_process_usage_pressure_or_flow_questions)) {
+
+        const dqrQ341: any[] = [];
+
+        const rows = data.quality_control_process_usage_pressure_or_flow_questions.map((p: any) => {
+            const qcpupf_id = ulid();
+
+            dqrQ341.push({
+                childId: qcpupf_id,
+                data: JSON.stringify(p)
+            });
+
+            return [qcpupf_id, stide_id, p.flow_name, p.quantity, p.unit, p.period];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'quality_control_process_usage_pressure_or_flow_questions',
+            ['qcpupf_id', 'stide_id', 'flow_name', 'quantity', 'unit', 'period'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_quality_control_process_usage_pressure_or_flow_qthirtyfour',
+            columns: ['qcpupfqtf_id', 'sgiq_id', 'qcpupf_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ341
+        });
+    }
+
+    if (Array.isArray(data.quality_control_use_any_consumables_questions)) {
+
+        const dqrQ35: any[] = [];
+
+        const rows = data.quality_control_use_any_consumables_questions.map((c: any) => {
+            const qcuac_id = ulid();
+
+            dqrQ35.push({
+                childId: qcuac_id,
+                data: JSON.stringify(c)
+            });
+
+            return [qcuac_id, stide_id, c.consumable_name, c.mass_of_consumables, c.unit, c.period];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'quality_control_use_any_consumables_questions',
+            ['qcuac_id', 'stide_id', 'consumable_name', 'mass_of_consumables', 'unit', 'period'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_quality_control_use_any_consumables_qthirtyfive',
+            columns: ['qcuacqtf_id', 'sgiq_id', 'qcuac_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ35
+        });
+    }
+
+    if (Array.isArray(data.weight_of_samples_destroyed_questions)) {
+
+        const dqrQ37: any[] = [];
+
+        const rows = data.weight_of_samples_destroyed_questions.map((w: any) => {
+            const wosd_id = ulid();
+
+            dqrQ37.push({
+                childId: wosd_id,
+                data: JSON.stringify(w)
+            });
+
+            return [wosd_id, stide_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.weight, w.unit, w.period];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'weight_of_samples_destroyed_questions',
+            ['wosd_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'weight', 'unit', 'period'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_weight_of_samples_destroyed_qthirtyseven',
+            columns: ['wosdqts_id', 'sgiq_id', 'wosd_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ37
+        });
+    }
+
+    if (Array.isArray(data.defect_or_rejection_rate_identified_by_quality_control_questions)) {
+
+        const dqrQ38: any[] = [];
+
+        const rows = data.defect_or_rejection_rate_identified_by_quality_control_questions.map((d: any) => {
+            const dorriqc_id = ulid();
+
+            dqrQ38.push({
+                childId: dorriqc_id,
+                data: JSON.stringify(d)
+            });
+
+            return [dorriqc_id, stide_id, d.product_id, product_bom_pcf_id, d.material_number, d.component_name, d.percentage];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'defect_or_rejection_rate_identified_by_quality_control_questions',
+            ['dorriqc_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'percentage'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_defect_or_rej_rate_identified_by_quality_control_qthirtyeight',
+            columns: ['dorriqcqte_id', 'sgiq_id', 'dorriqc_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ38
+        });
+    }
+
+    if (Array.isArray(data.rework_rate_due_to_quality_control_questions)) {
+
+        const dqrQ39: any[] = [];
+
+        const rows = data.rework_rate_due_to_quality_control_questions.map((r: any) => {
+            const rrdqc_id = ulid();
+
+            dqrQ39.push({
+                childId: rrdqc_id,
+                data: JSON.stringify(r)
+            });
+
+            return [rrdqc_id, stide_id, r.product_id, product_bom_pcf_id, r.material_number, r.component_name, r.processes_involved, r.percentage];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'rework_rate_due_to_quality_control_questions',
+            ['rrdqc_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'processes_involved', 'percentage'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_rework_rate_due_to_quality_control_qthirtynine',
+            columns: ['rrdqcqtn_id', 'sgiq_id', 'rrdqc_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ39
+        });
+    }
+
+    if (Array.isArray(data.weight_of_quality_control_waste_generated_questions)) {
+
+        const dqrQ40: any[] = [];
+
+        const rows = data.weight_of_quality_control_waste_generated_questions.map((w: any) => {
+            const woqcwg_id = ulid();
+
+            dqrQ40.push({
+                childId: woqcwg_id,
+                data: JSON.stringify(w)
+            });
+
+            return [woqcwg_id, stide_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'weight_of_quality_control_waste_generated_questions',
+            ['woqcwg_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_weight_of_quality_control_waste_generated_qforty',
+            columns: ['woqcwgqf_id', 'sgiq_id', 'woqcwg_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ40
+        });
+    }
+
+    if (Array.isArray(data.energy_consumption_for_qfortyfour_questions) && data.energy_consumption_for_qfortyfour_questions.length > 0) {
+
+        const dqrQ44: any[] = [];
+
+        const rows = data.energy_consumption_for_qfortyfour_questions.map((e: any) => {
+            const ecfqff_id = ulid();
+
+            dqrQ44.push({
+                childId: ecfqff_id,
+                data: JSON.stringify({
+                    energy_purchased: e.energy_purchased,
+                    energy_type: e.energy_type,
+                    quantity: e.quantity,
+                    unit: e.unit
+                })
+            });
+
+            return [
+                ecfqff_id,
+                stide_id,
+                e.energy_purchased,
+                e.energy_type,
+                e.quantity,
+                e.unit
+            ];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'energy_consumption_for_qfortyfour_questions',
+            ['ecfqff_id', 'stide_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_energy_consumption_for_qfortyfour_qfortyfour',
+            columns: ['ecfqffqff_id', 'sgiq_id', 'ecfqff_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ44
+        });
+    }
+
+    if (Array.isArray(data.cloud_provider_details_questions) && data.cloud_provider_details_questions.length > 0) {
+
+        const dqrQ46: any[] = [];
+
+        const rows = data.cloud_provider_details_questions.map((c: any) => {
+            const cpd_id = ulid();
+
+            dqrQ46.push({
+                childId: cpd_id,
+                data: JSON.stringify({
+                    cloud_provider_name: c.cloud_provider_name,
+                    virtual_machines: c.virtual_machines,
+                    data_storage: c.data_storage,
+                    data_transfer: c.data_transfer
+                })
+            });
+
+            return [
+                cpd_id,
+                stide_id,
+                c.cloud_provider_name,
+                c.virtual_machines,
+                c.data_storage,
+                c.data_transfer
+            ];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'cloud_provider_details_questions',
+            ['cpd_id', 'stide_id', 'cloud_provider_name', 'virtual_machines', 'data_storage', 'data_transfer'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_cloud_provider_details_qfortysix',
+            columns: ['cpdqfs_id', 'sgiq_id', 'cpd_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ46
+        });
+    }
+
+    if (Array.isArray(data.dedicated_monitoring_sensor_usage_questions) && data.dedicated_monitoring_sensor_usage_questions.length > 0) {
+
+        const dqrQ47: any[] = [];
+
+        const rows = data.dedicated_monitoring_sensor_usage_questions.map((d: any) => {
+            const dmsu_id = ulid();
+
+            dqrQ47.push({
+                childId: dmsu_id,
+                data: JSON.stringify({
+                    type_of_sensor: d.type_of_sensor,
+                    sensor_quantity: d.sensor_quantity,
+                    energy_consumption: d.energy_consumption,
+                    unit: d.unit
+                })
+            });
+
+            return [
+                dmsu_id,
+                stide_id,
+                d.type_of_sensor,
+                d.sensor_quantity,
+                d.energy_consumption,
+                d.unit
+            ];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'dedicated_monitoring_sensor_usage_questions',
+            ['dmsu_id', 'stide_id', 'type_of_sensor', 'sensor_quantity', 'energy_consumption', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_dedicated_monitoring_sensor_usage_qfortyseven',
+            columns: ['dmsuqfs_id', 'sgiq_id', 'dmsu_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ47
+        });
+    }
+
+
+    if (Array.isArray(data.annual_replacement_rate_of_sensor_questions) && data.annual_replacement_rate_of_sensor_questions.length > 0) {
+
+        const dqrQ48: any[] = [];
+
+        const rows = data.annual_replacement_rate_of_sensor_questions.map((a: any) => {
+            const arros_id = ulid();
+
+            dqrQ48.push({
+                childId: arros_id,
+                data: JSON.stringify({
+                    consumable_name: a.consumable_name,
+                    quantity: a.quantity,
+                    unit: a.unit
+                })
+            });
+
+            return [
+                arros_id,
+                stide_id,
+                a.consumable_name,
+                a.quantity,
+                a.unit
+            ];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'annual_replacement_rate_of_sensor_questions',
+            ['arros_id', 'stide_id', 'consumable_name', 'quantity', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_annual_replacement_rate_of_sensor_qfortyeight',
+            columns: ['arrosqfe_id', 'sgiq_id', 'arros_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ48
+        });
+    }
+
+    if (Array.isArray(data.energy_consumption_for_qfiftyone_questions) && data.energy_consumption_for_qfiftyone_questions.length > 0) {
+
+        const dqrQ51: any[] = [];
+
+        const rows = data.energy_consumption_for_qfiftyone_questions.map((e: any) => {
+            const ecfqfo_id = ulid();
+
+            dqrQ51.push({
+                childId: ecfqfo_id,
+                data: JSON.stringify({
+                    energy_purchased: e.energy_purchased,
+                    energy_type: e.energy_type,
+                    quantity: e.quantity,
+                    unit: e.unit
+                })
+            });
+
+            return [
+                ecfqfo_id,
+                stide_id,
+                e.energy_purchased,
+                e.energy_type,
+                e.quantity,
+                e.unit
+            ];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'energy_consumption_for_qfiftyone_questions',
+            ['ecfqfo_id', 'stide_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_energy_consumption_for_qfiftyone_qfiftyone',
+            columns: ['ecfqfoqfo_id', 'sgiq_id', 'ecfqfo_id', 'data'],
+            parentId: sgiq_id,
+            records: dqrQ51
+        });
+    }
+
+
+    await Promise.all(childInserts);
+
+    console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
+    await createDQRRecords(client, allDQRConfigs);
+}
+
+async function insertScopeThree(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+    const stoie_id = ulid();
+    const allDQRConfigs: any[] = [];
+
+    // Insert parent
+    await client.query(
+        `INSERT INTO scope_three_other_indirect_emissions_questions (
+            stoie_id, sgiq_id, raw_materials_contact_enviguide_support,
+            grade_of_metal_used, msds_link_or_upload_document,
+            use_of_recycled_secondary_materials, percentage_of_pre_post_consumer_material_used_in_product,
+            do_you_use_recycle_mat_for_packaging, percentage_of_recycled_content_used_in_packaging,
+            do_you_use_electricity_for_packaging, energy_con_included_total_energy_pur_sec_two_qsixtysix,
+            internal_or_external_waste_material_per_recycling, any_by_product_generated,
+            do_you_track_emission_from_transport, mode_of_transport_used_for_transportation,
+            mode_of_transport_enviguide_support, iso_14001_or_iso_50001_certified,
+            standards_followed_iso_14067_GHG_catena_etc, do_you_report_to_cdp_sbti_or_other,
+            measures_to_reduce_carbon_emissions_in_production, renewable_energy_initiatives_or_recycling_programs,
+            your_company_info
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+        [
+            stoie_id, sgiq_id,
+            data.raw_materials_contact_enviguide_support ?? false,
+            data.grade_of_metal_used,
+            data.msds_link_or_upload_document,
+            data.use_of_recycled_secondary_materials ?? false,
+            data.percentage_of_pre_post_consumer_material_used_in_product ?? false,
+            data.do_you_use_recycle_mat_for_packaging ?? false,
+            data.percentage_of_recycled_content_used_in_packaging,
+            data.do_you_use_electricity_for_packaging ?? false,
+            data.energy_con_included_total_energy_pur_sec_two_qsixtysix ?? false,
+            data.internal_or_external_waste_material_per_recycling,
+            data.any_by_product_generated ?? false,
+            data.do_you_track_emission_from_transport ?? false,
+            data.mode_of_transport_used_for_transportation ?? false,
+            data.mode_of_transport_enviguide_support ?? false,
+            data.iso_14001_or_iso_50001_certified ?? false,
+            data.standards_followed_iso_14067_GHG_catena_etc ?? false,
+            data.do_you_report_to_cdp_sbti_or_other ?? false,
+            data.measures_to_reduce_carbon_emissions_in_production,
+            data.renewable_energy_initiatives_or_recycling_programs,
+            data.your_company_info
+        ]
+    );
+
+    const dqrQ53: any[] = [];
+    dqrQ53.push({
+        childId: stoie_id,
+        data: data.grade_of_metal_used
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_three_other_indirect_emissions_qfiftythree',
+        columns: ['stoieqft_id', 'sgiq_id', 'stoie_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ53
+    });
+
+    const dqrQ54: any[] = [];
+    dqrQ54.push({
+        childId: stoie_id,
+        data: data.msds_link_or_upload_document
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_three_other_indirect_emissions_qfiftyfour',
+        columns: ['stoieqff_id', 'sgiq_id', 'stoie_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ54
+    });
+
+    const dqrQ64: any[] = [];
+    dqrQ64.push({
+        childId: stoie_id,
+        data: data.percentage_of_recycled_content_used_in_packaging
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_three_other_indirect_emissions_qsixtyfour',
+        columns: ['stoieqsf_id', 'sgiq_id', 'stoie_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ64
+    });
+
+    const dqrQ69: any[] = [];
+    dqrQ69.push({
+        childId: stoie_id,
+        data: data.internal_or_external_waste_material_per_recycling
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_three_other_indirect_emissions_qsixtynine',
+        columns: ['stoieqsn_id', 'sgiq_id', 'stoie_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ69
+    });
+
+
+    const dqrQ79: any[] = [];
+    dqrQ79.push({
+        childId: stoie_id,
+        data: data.measures_to_reduce_carbon_emissions_in_production
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_three_other_indirect_emissions_qseventynine',
+        columns: ['stoieqsn_id', 'sgiq_id', 'stoie_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ79
+    });
+
+    const dqrQ80: any[] = [];
+    dqrQ80.push({
+        childId: stoie_id,
+        data: data.renewable_energy_initiatives_or_recycling_programs
+    });
+    allDQRConfigs.push({
+        tableName: 'dqr_scope_three_other_indirect_emissions_qeighty',
+        columns: ['stoieqe_id', 'sgiq_id', 'stoie_id', 'data'],
+        parentId: sgiq_id,
+        records: dqrQ80
+    });
+
+    const childInserts = [];
+
+
+    if (Array.isArray(data.raw_materials_used_in_component_manufacturing_questions)) {
+
+        const dqr52: any[] = [];
+
+        const rows = data.raw_materials_used_in_component_manufacturing_questions.map((m: any) => {
+            const rmuicm_id = ulid();
+
+            prepareDQR({
+                records: dqr52,
+                childId: rmuicm_id,
+                payload: {
+                    product_id: m.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: m.material_number,
+                    material_name: m.material_name,
+                    percentage: m.percentage
+                }
+            });
+
+            return [rmuicm_id, stoie_id, m.product_id, product_bom_pcf_id, m.material_number, m.material_name, m.percentage];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'raw_materials_used_in_component_manufacturing_questions',
+            ['rmuicm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_raw_materials_used_in_component_manufacturing_qfiftytwo',
+            columns: ['rmuicmqft_id', 'sgiq_id', 'rmuicm_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr52
+        });
+    }
+
+    if (Array.isArray(data.recycled_materials_with_percentage_questions)) {
+
+        const dqr56: any[] = [];
+
+        const rows = data.recycled_materials_with_percentage_questions.map((r: any) => {
+            const rmwp_id = ulid();
+
+            prepareDQR({
+                records: dqr56,
+                childId: rmwp_id,
+                payload: {
+                    product_id: r.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: r.material_number,
+                    material_name: r.material_name,
+                    percentage: r.percentage
+                }
+            });
+
+            return [rmwp_id, stoie_id, r.product_id, product_bom_pcf_id, r.material_number, r.material_name, r.percentage];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'recycled_materials_with_percentage_questions',
+            ['rmwp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_recycled_materials_with_percentage_qfiftysix',
+            columns: ['rmwpqfs_id', 'sgiq_id', 'rmwp_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr56
+        });
+    }
+
+    if (Array.isArray(data.pre_post_consumer_reutilization_percentage_questions)) {
+
+        const dqr58: any[] = [];
+
+        const rows = data.pre_post_consumer_reutilization_percentage_questions.map((p: any) => {
+            const ppcrp_id = ulid();
+
+            prepareDQR({
+                records: dqr58,
+                childId: ppcrp_id,
+                payload: {
+                    material_type: p.material_type,
+                    percentage: p.percentage
+                }
+            });
+
+            return [ppcrp_id, stoie_id, p.material_type, p.percentage];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'pre_post_consumer_reutilization_percentage_questions',
+            ['ppcrp_id', 'stoie_id', 'material_type', 'percentage'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_pre_post_consumer_reutilization_percentage_qfiftyeight',
+            columns: ['ppcrpqfe_id', 'sgiq_id', 'ppcrp_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr58
+        });
+    }
+
+    if (Array.isArray(data.pir_pcr_material_percentage_questions)) {
+
+        const dqr59: any[] = [];
+
+        const rows = data.pir_pcr_material_percentage_questions.map((p: any) => {
+            const ppmp_id = ulid();
+
+            prepareDQR({
+                records: dqr59,
+                childId: ppmp_id,
+                payload: {
+                    material_type: p.material_type,
+                    percentage: p.percentage
+                }
+            });
+
+            return [ppmp_id, stoie_id, p.material_type, p.percentage];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'pir_pcr_material_percentage_questions',
+            ['ppmp_id', 'stoie_id', 'material_type', 'percentage'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_pir_pcr_material_percentage_qfiftynine',
+            columns: ['ppmpqfn_id', 'sgiq_id', 'ppmp_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr59
+        });
+    }
+
+    if (Array.isArray(data.type_of_pack_mat_used_for_delivering_questions)) {
+
+        const dqr60: any[] = [];
+
+        const rows = data.type_of_pack_mat_used_for_delivering_questions.map((p: any) => {
+            const topmudp_id = ulid();
+
+            prepareDQR({
+                records: dqr60,
+                childId: topmudp_id,
+                payload: p
+            });
+
+            return [topmudp_id, stoie_id, p.product_id, product_bom_pcf_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'type_of_pack_mat_used_for_delivering_questions',
+            ['topmudp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_type_of_pack_mat_used_for_delivering_qsixty',
+            columns: ['topmudpqs_id', 'sgiq_id', 'topmudp_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr60
+        });
+    }
+
+    if (Array.isArray(data.weight_of_packaging_per_unit_product_questions)) {
+
+        const dqr61: any[] = [];
+
+        const rows = data.weight_of_packaging_per_unit_product_questions.map((w: any) => {
+            const woppup_id = ulid();
+
+            prepareDQR({
+                records: dqr61,
+                childId: woppup_id,
+                payload: w
+            });
+
+            return [woppup_id, stoie_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.packagin_weight, w.unit];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'weight_of_packaging_per_unit_product_questions',
+            ['woppup_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'packagin_weight', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_weight_of_packaging_per_unit_product_qsixtyone',
+            columns: ['woppupqso_id', 'sgiq_id', 'woppup_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr61
+        });
+    }
+
+    if (Array.isArray(data.energy_consumption_for_qsixtyseven_questions)) {
+
+        const dqr67: any[] = [];
+
+        const rows = data.energy_consumption_for_qsixtyseven_questions.map((e: any) => {
+            const ecfqss_id = ulid();
+
+            prepareDQR({
+                records: dqr67,
+                childId: ecfqss_id,
+                payload: e
+            });
+
+            return [ecfqss_id, stoie_id, e.energy_purchased, e.energy_type, e.quantity, e.unit];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'energy_consumption_for_qsixtyseven_questions',
+            ['ecfqss_id', 'stoie_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_energy_consumption_for_qsixtyseven_qsixtyseven',
+            columns: ['ecfqssqss_id', 'sgiq_id', 'ecfqss_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr67
+        });
+    }
+
+    if (Array.isArray(data.weight_of_pro_packaging_waste_questions)) {
+
+        const dqr68: any[] = [];
+
+        const rows = data.weight_of_pro_packaging_waste_questions.map((w: any) => {
+            const woppw_id = ulid();
+
+            prepareDQR({
+                records: dqr68,
+                childId: woppw_id,
+                payload: {
+                    product_id: w.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: w.material_number,
+                    component_name: w.component_name,
+                    waste_type: w.waste_type,
+                    waste_weight: w.waste_weight,
+                    unit: w.unit,
+                    treatment_type: w.treatment_type
+                }
+            });
+
+            return [woppw_id, stoie_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'weight_of_pro_packaging_waste_questions',
+            ['woppw_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_weight_of_pro_packaging_waste_qsixtyeight',
+            columns: ['woppwqse_id', 'sgiq_id', 'woppw_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr68
+        });
+    }
+
+    if (Array.isArray(data.type_of_by_product_questions)) {
+
+        const dqr71: any[] = [];
+
+        const rows = data.type_of_by_product_questions.map((b: any) => {
+            const topbp_id = ulid();
+
+            prepareDQR({
+                records: dqr71,
+                childId: topbp_id,
+                payload: {
+                    product_id: b.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: b.material_number,
+                    component_name: b.component_name,
+                    by_product: b.by_product,
+                    price_per_product: b.price_per_product,
+                    quantity: b.quantity
+                }
+            });
+
+            return [topbp_id, stoie_id, b.product_id, product_bom_pcf_id, b.material_number, b.component_name, b.by_product, b.price_per_product, b.quantity];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'type_of_by_product_questions',
+            ['topbp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'by_product', 'price_per_product', 'quantity'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_type_of_by_product_qseventyone',
+            columns: ['topbpqso_id', 'sgiq_id', 'topbp_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr71
+        });
+    }
+
+    if (Array.isArray(data.co_two_emission_of_raw_material_questions)) {
+
+        const dqr73: any[] = [];
+
+        const rows = data.co_two_emission_of_raw_material_questions.map((c: any) => {
+            const coteorm_id = ulid();
+
+            prepareDQR({
+                records: dqr73,
+                childId: coteorm_id,
+                payload: {
+                    product_id: c.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: c.material_number,
+                    component_name: c.component_name,
+                    raw_material_name: c.raw_material_name,
+                    transport_mode: c.transport_mode,
+                    source_location: c.source_location,
+                    destination_location: c.destination_location,
+                    co_two_emission: c.co_two_emission
+                }
+            });
+
+            return [
+                coteorm_id,
+                stoie_id,
+                c.product_id,
+                product_bom_pcf_id,
+                c.material_number,
+                c.component_name,
+                c.raw_material_name,
+                c.transport_mode,
+                c.source_location,
+                c.destination_location,
+                c.co_two_emission
+            ];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'co_two_emission_of_raw_material_questions',
+            ['coteorm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_co_two_emission_of_raw_material_qseventythree',
+            columns: ['coteormqst_id', 'sgiq_id', 'coteorm_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr73
+        });
+    }
+
+    if (Array.isArray(data.mode_of_transport_used_for_transportation_questions)) {
+
+        const dqr74: any[] = [];
+
+        const rows = data.mode_of_transport_used_for_transportation_questions.map((t: any) => {
+            const motuft_id = ulid();
+
+            prepareDQR({
+                records: dqr74,
+                childId: motuft_id,
+                payload: {
+                    product_id: t.product_id,
+                    product_bom_pcf_id: product_bom_pcf_id,
+                    material_number: t.material_number,
+                    component_name: t.component_name,
+                    mode_of_transport: t.mode_of_transport,
+                    weight_transported: t.weight_transported,
+                    source_point: t.source_point,
+                    drop_point: t.drop_point,
+                    distance: t.distance
+                }
+            });
+
+            return [
+                motuft_id,
+                stoie_id,
+                t.product_id,
+                product_bom_pcf_id,
+                t.material_number,
+                t.component_name,
+                t.mode_of_transport,
+                t.weight_transported,
+                t.source_point,
+                t.drop_point,
+                t.distance
+            ];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'mode_of_transport_used_for_transportation_questions',
+            ['motuft_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_mode_of_transport_used_for_transportation_qseventyfour',
+            columns: ['motuftqsf_id', 'sgiq_id', 'motuft_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr74
+        });
+    }
+
+    if (Array.isArray(data.destination_plant_component_transportation_questions)) {
+
+        const dqr75: any[] = [];
+
+        const rows = data.destination_plant_component_transportation_questions.map((d: any) => {
+            const dpct_id = ulid();
+
+            prepareDQR({
+                records: dqr75,
+                childId: dpct_id,
+                payload: {
+                    country: d.country,
+                    state: d.state,
+                    city: d.city,
+                    pincode: d.pincode
+                }
+            });
+
+            return [dpct_id, stoie_id, d.country, d.state, d.city, d.pincode];
+        });
+
+        childInserts.push(bulkInsert(
+            client,
+            'destination_plant_component_transportation_questions',
+            ['dpct_id', 'stoie_id', 'country', 'state', 'city', 'pincode'],
+            rows
+        ));
+
+        allDQRConfigs.push({
+            tableName: 'dqr_destination_plant_component_transportation_qseventyfive',
+            columns: ['dpctqsf_id', 'sgiq_id', 'dpct_id', 'data'],
+            parentId: sgiq_id,
+            records: dqr75
+        });
+    }
+
+    await Promise.all(childInserts);
+    console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
+    await createDQRRecords(client, allDQRConfigs);
+}
+
+async function insertScopeFour(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+    const sfae_id = ulid();
+
+    await client.query(
+        `INSERT INTO scope_four_avoided_emissions_questions (
+            sfae_id, sgiq_id, products_or_services_that_help_reduce_customer_emissions,
+            circular_economy_practices_reuse_take_back_epr_refurbishment,
+            renewable_energy_carbon_offset_projects_implemented
+        ) VALUES ($1, $2, $3, $4, $5)`,
+        [
+            sfae_id, sgiq_id,
+            data.products_or_services_that_help_reduce_customer_emissions ?? false,
+            data.circular_economy_practices_reuse_take_back_epr_refurbishment,
+            data.renewable_energy_carbon_offset_projects_implemented
+        ]
+    );
+}
+
+// DQR HELPER FUNCTION
+async function createDQRRecords(client: any, dqrConfigs: any[]) {
+    const insertPromises = [];
+
+    for (const config of dqrConfigs) {
+        if (config.records && config.records.length > 0) {
+            const values: any[] = [];
+            const placeholders: string[] = [];
+            let index = 1;
+
+            for (const record of config.records) {
+                placeholders.push(`($${index++}, $${index++}, $${index++}, $${index++})`);
+                values.push(
+                    ulid(),                    // dqr_id
+                    config.parentId,           // parent FK (sgiq_id, sode_id, etc.)
+                    record.childId,            // child FK (aosotte_id, etc.)
+                    JSON.stringify(record.data)
+                );
+            }
+
+            const query = `
+                INSERT INTO ${config.tableName}
+                (${config.columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+            `;
+
+            insertPromises.push(client.query(query, values));
+        }
+    }
+
+    if (insertPromises.length > 0) {
+        await Promise.all(insertPromises);
+    }
+}
+
+function prepareDQR({
+    records,
+    childId,
+    payload
+}: {
+    records: any[],
+    childId: string,
+    payload: any
+}) {
+    records.push({
+        childId,
+        data: JSON.stringify(payload)
+    });
+}
+// it will end here
+
+export async function pcfCalculate(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id, product_id } = req.body;
+
+            // Validate input
+            if (!bom_pcf_id) {
+                return res.send(
+                    generateResponse(false, "bom_pcf_id is required", 400, null)
+                );
+            }
+
+            // Check PCF request stage
+            // const checkQuery = `
+            //     SELECT is_pcf_calculated
+            //     FROM pcf_request_stages
+            //     WHERE bom_pcf_id = $1 AND client_id IS NOT NULL;
+            // `;
+
+            // const result = await client.query(checkQuery, [bom_pcf_id]);
+
+            // if (result.rowCount === 0) {
+            //     return res.send(
+            //         generateResponse(false, "No PCF request found for given bom_pcf_id", 404, null)
+            //     );
+            // }
+
+            // if (result.rows[0].is_pcf_calculated === true) {
+            //     return res.send(
+            //         generateResponse(false, "PCF is already calculated for this BOM", 400, null)
+            //     );
+            // }
+
+            let overall_pcf = 0;
+            // To fetch ALL BOM for particular PCF 
+
+            const fetchParticularProduct = `
+                SELECT id,bom_pcf_id,product_id,client_id
+                FROM own_emission
+                WHERE bom_pcf_id = $1
+                LIMIT 1;
+            `;
+
+            const particularProductResult = await client.query(fetchParticularProduct, [bom_pcf_id]);
+
+            const TotalBomDetails = [];
+            for (let BomData of particularProductResult.rows) {
+
+                BomData.product_id = product_id;
+                const fetchSGIQID = `
+                SELECT sgiq_id,bom_pcf_id,client_id,annual_reporting_period
+                FROM supplier_general_info_questions
+                WHERE bom_pcf_id = $1 AND supplier_general_info_questions.client_id IS NOT NULL AND client_id =$2 ;
+            `;
+
+                const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id, BomData.client_id]);
+
+
+                let Total_Housing_Component_Emissions = 0;
+                //========> Phase one start
+                let Raw_Material_emissions = 0;
+
+                // FEtching materials For Particular BOM
+                const fetchQ52 = `
+                SELECT rmuicm_id,stoie_id,product_id,
+                material_number,material_name,percentage,product_bom_pcf_id
+                FROM raw_materials_used_in_component_manufacturing_questions
+                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+            `;
+
+                const fetchQ52SupResult = await client.query(fetchQ52, [BomData.product_id, BomData.bom_pcf_id]);
+
+                for (let ProductData of fetchQ52SupResult.rows) {
+                    const fetchQ13 = `
+                SELECT product_id,
+                material_number,product_name,location
+                FROM production_site_details_questions
+                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+            `;
+
+                    const fetchQ13SupResult = await client.query(fetchQ13, [BomData.product_id, BomData.bom_pcf_id]);
+
+
+                    const fetchEmissionMaterialFactor = `
+                SELECT element_name,year,unit,
+                ef_eu_region,ef_india_region,ef_global_region
+                FROM materials_emission_factor WHERE element_name=$1 AND year=$2 AND unit=$3;
+            `;
+
+                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "Kg"]);
+
+                    let Material_Emission_Factor_kg_CO2E_kg = 0;
+                    if (fetchEmissionMaterialFactorSupResult.rows) {
+
+                        if (fetchQ13SupResult.rows[0]) {
+
+                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "india") {
+                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_india_region)
+                            }
+
+                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "europe") {
+                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_eu_region)
+                            }
+
+                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "global") {
+                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_global_region)
+                            }
+
+                        }
+
+                    }
+
+                    // for this component weight i need to ask abhiram
+                    const weightInKg = 1 / 1000;
+
+                    const material_composition = ProductData.percentage;
+                    const material_composition_weight = ((weightInKg / 100) * ProductData.percentage);
+
+
+                    console.log("Material composition (%):", ProductData.percentage);
+                    console.log("Weight In KG convert:", weightInKg);
+
+                    console.log("Material composition Weight in (Kg):", (weightInKg / 100) * ProductData.percentage);
+                    console.log("Material_Emission_Factor_kg_CO2E_kg:", Material_Emission_Factor_kg_CO2E_kg);
+                    console.log("Material emissions (kg CO₂e):", ((weightInKg / 100) * ProductData.percentage) * Material_Emission_Factor_kg_CO2E_kg);
+                    let Material_emissions_kg_CO_e = ((((weightInKg / 100) * ProductData.percentage) * Material_Emission_Factor_kg_CO2E_kg));
+                    Raw_Material_emissions += Material_emissions_kg_CO_e;
+
+                    // ====> Insert into bom_emission_material_calculation_engine table
+                    const queryMaterial = `
+                        INSERT INTO bom_emission_material_calculation_engine 
+                        (id,product_id, material_type, material_composition,
+                         material_composition_weight, material_emission_factor,material_emission,product_bom_pcf_id)
+                        VALUES ($1,$2, $3, $4, $5, $6, $7,$8)
+                        RETURNING *;
+                    `;
+
+                    await client.query(queryMaterial, [
+                        ulid(),
+                        BomData.product_id,
+                        ProductData.material_name,
+                        material_composition,
+                        material_composition_weight,
+                        Material_Emission_Factor_kg_CO2E_kg,
+                        Material_emissions_kg_CO_e,
+                        bom_pcf_id
+                    ]);
+
+                    // ===> Insert Ends here
+
+                }
+                console.log("Raw Material emissions (kg CO₂e):", Raw_Material_emissions);
+
+                Total_Housing_Component_Emissions += Raw_Material_emissions;
+                //========> Phase One END
+
+                //========> Second Phase start
+                const fetchQ15 = `
+                SELECT pcm_id,spq_id,product_id,
+                material_number,product_name,price
+                FROM product_component_manufactured_questions
+                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+            `;
+
+                const fetchQ15SupResult = await client.query(fetchQ15, [BomData.product_id, BomData.bom_pcf_id]);
+
+                const Q15Result = fetchQ15SupResult.rows[0];
+
+                const fetchQ15PointOne = `
+                SELECT product_id,
+                material_number,product_name,price_per_product
+                FROM co_product_component_economic_value_questions
+                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+            `;
+
+                const fetchQ15PointOneSupResult = await client.query(fetchQ15PointOne, [BomData.product_id, BomData.bom_pcf_id]);
+
+                const Q15PointOneResult = fetchQ15PointOneSupResult.rows[0];
+
+                // const Economic_Ratio_ER = (Q15Result.price / Q15PointOneResult.price_per_product);
+                // console.log("Economic Ratio (ER):", Economic_Ratio_ER);
+
+                const Economic_Ratio_ER = 0;
+
+                const Allocation_Method = Economic_Ratio_ER > 5 ? "Economic Allocation Method" : "Physical Mass Balance allocation Method";
+                console.log("Allocation Method:", Allocation_Method);
+
+                console.log("Economic_Ratio_ER:", Economic_Ratio_ER);
+
+                // ========>Second Phase End
+
+                // ========>Third Phase Start
+
+                const fetchSTIDEID = `
+                SELECT sgiq_id,stide_id
+                FROM scope_two_indirect_emissions_questions
+                WHERE sgiq_id = $1;
+            `;
+
+                const fetchSTIDEIDSupResult = await client.query(fetchSTIDEID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
+
+
+                for (let fetchStideId of fetchSTIDEIDSupResult.rows) {
+                    const fetchQ22 = `
+                SELECT stidefpe_id,stide_id,client_id,
+                energy_source,energy_type,quantity,unit
+                FROM scope_two_indirect_emissions_from_purchased_energy_questions
+                WHERE stide_id = $1 AND client_id=$2;
+            `;
+
+
+                    const fetchEnegryResult = await client.query(fetchQ22, [fetchStideId.stide_id, fetchSGIQIDSupResult.rows[0].client_id]);
+
+                    let Total_Electrical_Energy_consumed_at_Factory_level_kWh = 0;
+                    let Total_Heating_Energy_consumed_at_Factory_level_kWh = 0;
+                    let Total_Cooling_Energy_consumed_at_Factory_level_kWh = 0;
+                    let Total_Steam_Energy_consumed_at_Factory_level_kWh = 0;
+                    let Total_Energy_consumed_at_Factory_level_kWh = 0;
+
+
+                    for (let Energy of fetchEnegryResult.rows) {
+                        console.log(Energy, "EnergyEnergy");
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
+                            Total_Electrical_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                        }
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "heating") {
+                            Total_Heating_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                        }
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "cooling") {
+                            Total_Cooling_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                        }
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "steam") {
+                            Total_Steam_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                        }
+                    }
+                    console.log(Total_Electrical_Energy_consumed_at_Factory_level_kWh, "Total_Electrical_Energy_consumed_at_Factory_level_kWh");
+                    console.log(Total_Heating_Energy_consumed_at_Factory_level_kWh, "Total_Heating_Energy_consumed_at_Factory_level_kWh");
+                    console.log(Total_Cooling_Energy_consumed_at_Factory_level_kWh, "Total_Cooling_Energy_consumed_at_Factory_level_kWh");
+                    console.log(Total_Steam_Energy_consumed_at_Factory_level_kWh, "Total_Steam_Energy_consumed_at_Factory_level_kWh");
+
+                    Total_Energy_consumed_at_Factory_level_kWh = Total_Electrical_Energy_consumed_at_Factory_level_kWh + Total_Heating_Energy_consumed_at_Factory_level_kWh +
+                        Total_Cooling_Energy_consumed_at_Factory_level_kWh + Total_Steam_Energy_consumed_at_Factory_level_kWh;
+                    console.log(Total_Energy_consumed_at_Factory_level_kWh, "Total_Energy_consumed_at_Factory_level_kWh");
+
+
+                    const fetcSPQID = `
+                SELECT spq_id,sgiq_id
+                FROM supplier_product_questions
+                WHERE sgiq_id = $1;
+            `;
+
+                    const fetcSPQIDSupResult = await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
+
+
+                    const someOfAllProductQues = `
+                SELECT spq_id, product_id,material_number,weight_per_unit,price,quantity
+                FROM product_component_manufactured_questions
+                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+            `;
+
+                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [BomData.product_id, BomData.bom_pcf_id]);
+
+                    let Total_weight_produced_at_Factory_level_kg = 0;
+                    if (someOfAllProductQuesSupResult.rows) {
+                        for (let fetchwieghtAndQuanty of someOfAllProductQuesSupResult.rows) {
+                            Total_weight_produced_at_Factory_level_kg += parseFloat(fetchwieghtAndQuanty.weight_per_unit) * parseInt(fetchwieghtAndQuanty.quantity);
+                        }
+
+                        console.log(Total_weight_produced_at_Factory_level_kg, "Total_weight_produced_at_Factory_level_kg");
+
+                    }
+
+                    let no_of_products_current_component_produced = 0;
+
+                    const partcularProductQuanty = `
+                SELECT spq_id,product_id,material_number,quantity
+                FROM product_component_manufactured_questions
+                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+            `;
+
+                    console.log(BomData.product_id, "BomData.product_idBomData.product_id");
+
+                    const partcularProductQuantySupResult = await client.query(partcularProductQuanty, [BomData.product_id, BomData.bom_pcf_id]);
+
+                    if (partcularProductQuantySupResult.rows[0]) {
+                        no_of_products_current_component_produced += partcularProductQuantySupResult.rows[0].quantity
+                    }
+                    console.log("no_of_products_current_component_produced:", no_of_products_current_component_produced);
+
+                    // need to ask for weight gms
+                    let Weight = 1;
+                    let Total_weight_of_current_component_produced_Kg = 0;
+                    if (partcularProductQuantySupResult.rows[0].product_id === BomData.product_id) {
+                        Total_weight_of_current_component_produced_Kg += (Weight * no_of_products_current_component_produced)
+                    }
+                    console.log("Total_weight_of_current_component_produced_Kg:", Total_weight_of_current_component_produced_Kg);
+
+                    let Total_electricity_utilised_for_production_all_current_components_kWh = 0;
+                    console.log(Total_weight_of_current_component_produced_Kg, Total_weight_produced_at_Factory_level_kg, Total_Electrical_Energy_consumed_at_Factory_level_kWh);
+                    Total_electricity_utilised_for_production_all_current_components_kWh = ((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Electrical_Energy_consumed_at_Factory_level_kWh)
+                    console.log("Total_electricity_utilised_for_production_all_current_components_kWh :", Total_electricity_utilised_for_production_all_current_components_kWh);
+
+                    let Production_electricity_energy_use_per_unit_kWh = 0;
+
+                    Production_electricity_energy_use_per_unit_kWh =
+                        (Total_electricity_utilised_for_production_all_current_components_kWh / no_of_products_current_component_produced);
+                    console.log("Production_electricity_energy_use_per_unit_kWh:", Production_electricity_energy_use_per_unit_kWh);
+
+                    let Production_Heating_energy_use_per_unit_kWh = 0;
+                    Production_Heating_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Heating_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
+                    console.log("Production_Heating_energy_use_per_unit_kWh :", Production_Heating_energy_use_per_unit_kWh);
+
+                    let Production_Cooling_energy_use_per_unit_kWh = 0;
+                    Production_Cooling_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Cooling_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
+                    console.log("Production_Cooling_energy_use_per_unit_kWh :", Production_Cooling_energy_use_per_unit_kWh);
+
+                    let Production_Steam_energy_use_per_unit_kWh = 0;
+                    Production_Steam_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Steam_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
+                    console.log("Production_Steam_energy_use_per_unit_kWh :", Production_Steam_energy_use_per_unit_kWh);
+
+
+                    const fetchQ13Location = `
+                        SELECT product_id,
+                        material_number,product_name,location
+                        FROM production_site_details_questions
+                        WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                     `;
+
+                    const fetchQ13LocationSupResult = await client.query(fetchQ13Location, [BomData.product_id, BomData.bom_pcf_id]);
+
+
+                    let FetchElectricityTypeEmiassionValue = 0;
+                    let FetchHeatingTypeEmiassionValue = 0;
+                    let FetchSteamTypeEmiassionValue = 0;
+                    let FetchCoolingTypeEmiassionValue = 0;
+                    for (let Energy of fetchEnegryResult.rows) {
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
+                            let EnergySource = "Electricity";
+                            let EnergyType = Energy.energy_type;
+                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                            console.log(EnergyResponse, "EnergyResponseEnergyResponse", fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit);
+
+                            const fetchQ22 = `
+                                SELECT type_of_energy,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM electricity_emission_factor
+                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+
+
+                            if (fetchEnegryResult.rows[0]) {
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
+                                }
+
+                            }
+                            console.log(FetchElectricityTypeEmiassionValue, "FetchElectricityTypeEmiassionValue");
+
+                        }
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "heating") {
+                            let EnergySource = "Heating";
+                            let EnergyType = Energy.energy_type;
+                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
+
+                            const fetchQ22 = `
+                                SELECT type_of_energy,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM electricity_emission_factor
+                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+
+
+                            if (fetchEnegryResult.rows[0]) {
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
+                                }
+
+                            }
+                            console.log(FetchHeatingTypeEmiassionValue, "FetchHeatingTypeEmiassionValue");
+
+                        }
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "steam") {
+                            let EnergySource = "Steam";
+                            let EnergyType = Energy.energy_type;
+                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
+
+                            const fetchQ22 = `
+                                SELECT type_of_energy,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM electricity_emission_factor
+                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+
+
+                            if (fetchEnegryResult.rows[0]) {
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
+                                }
+
+                            }
+                            console.log(FetchSteamTypeEmiassionValue, "FetchSteamTypeEmiassionValue");
+
+                        }
+
+                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "cooling") {
+                            let EnergySource = "Cooling";
+                            let EnergyType = Energy.energy_type;
+                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
+                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
+
+                            const fetchQ22 = `
+                                SELECT type_of_energy,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit
+                                FROM electricity_emission_factor
+                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+
+
+                            if (fetchEnegryResult.rows[0]) {
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
+                                }
+
+                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
+                                }
+
+                            }
+                            console.log(FetchCoolingTypeEmiassionValue, "FetchCoolingTypeEmiassionValue");
+
+                        }
+                    }
+
+
+                    console.log("FetchElectricityTypeEmiassionValue:", FetchElectricityTypeEmiassionValue);
+                    console.log("FetchHeatingTypeEmiassionValue:", FetchHeatingTypeEmiassionValue);
+                    console.log("FetchSteamTypeEmiassionValue:", FetchSteamTypeEmiassionValue);
+                    console.log("FetchCoolingTypeEmiassionValue:", FetchCoolingTypeEmiassionValue);
+
+                    let Manufacturing_Emissions_kg_CO2e = 0;
+
+                    Manufacturing_Emissions_kg_CO2e =
+                        ((Production_electricity_energy_use_per_unit_kWh * FetchElectricityTypeEmiassionValue) +
+                            (Production_Heating_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue) +
+                            (Production_Cooling_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue) +
+                            (Production_Steam_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue))
+
+                    console.log("Manufacturing_Emissions_kg_CO2e:", Manufacturing_Emissions_kg_CO2e);
+
+                    Total_Housing_Component_Emissions += Manufacturing_Emissions_kg_CO2e;
+
+                    // const weightInKg = parseFloat(BomData.weight_gms) / 1000;
+                    const weightInKg = 1 / 1000;
+
+                    // ====> Insert into bom_emission_production_calculation_engine table
+                    const queryProd = `
+                        INSERT INTO bom_emission_production_calculation_engine 
+                        (id,product_id, component_weight_kg, allocation_methodology,
+                         total_electrical_energy_consumed_at_factory_level_kWh, total_heating_energy_consumed_at_factory_level_kWh,
+                         total_cooling_energy_consumed_at_factory_level_kWh,total_steam_energy_consumed_at_factory_level_kWh,
+                         total_energy_consumed_at_factory_level_kWh,total_weight_produced_at_factory_level_kg,
+                         no_of_products_current_component_produced,total_weight_of_current_component_produced_kg,
+                         total_electricity_utilised_for_production_all_current_components_kWh,
+                         production_electricity_energy_use_per_unit_kWh,production_heat_energy_use_per_unit_kWh,
+                         production_cooling_energy_use_per_unit_kWh,production_steam_energy_use_per_unit_kWh,
+                         emission_factor_of_electricity,emission_factor_of_heat,
+                         emission_factor_of_cooling,emission_factor_of_steam,
+                         product_bom_pcf_id)
+                        VALUES ($1,$2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                        RETURNING *;
+                    `;
+
+                    await client.query(queryProd, [
+                        ulid(),
+                        BomData.product_id,
+                        weightInKg,
+                        Allocation_Method,
+                        Total_Electrical_Energy_consumed_at_Factory_level_kWh,
+                        Total_Heating_Energy_consumed_at_Factory_level_kWh,
+                        Total_Cooling_Energy_consumed_at_Factory_level_kWh,
+                        Total_Steam_Energy_consumed_at_Factory_level_kWh,
+                        Total_Energy_consumed_at_Factory_level_kWh,
+                        Total_weight_produced_at_Factory_level_kg,
+                        no_of_products_current_component_produced,
+                        Total_weight_of_current_component_produced_Kg,
+                        Total_electricity_utilised_for_production_all_current_components_kWh,
+                        Production_electricity_energy_use_per_unit_kWh,
+                        Production_Heating_energy_use_per_unit_kWh,
+                        Production_Cooling_energy_use_per_unit_kWh,
+                        Production_Steam_energy_use_per_unit_kWh,
+                        FetchElectricityTypeEmiassionValue,
+                        FetchHeatingTypeEmiassionValue,
+                        FetchCoolingTypeEmiassionValue,
+                        FetchSteamTypeEmiassionValue,
+                        bom_pcf_id
+                    ]);
+
+                    // ===> Insert Ends here
+
+                    // Third Phase END
+
+
+                    // Fourth Phase Start
+
+                    let packaginType = "";
+                    let packaginSize = "";
+                    let packaginWeight = 0;
+                    let Emission_Factor_Box_kg_CO2E_kg = 0;
+                    let Packaging_Carbon_Emissions_kg_CO2e_or_box = 0;
+
+                    const fetchQ61PcakingTypeProduct = `
+                        SELECT product_id,
+                        material_number,packagin_type,unit
+                        FROM type_of_pack_mat_used_for_delivering_questions
+                        WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                     `;
+
+                    const fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.product_id, BomData.bom_pcf_id]);
+
+                    if (Q15Result.product_id === fetchQ61PcakingTypeProductResult.rows[0].product_id) {
+                        packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type
+                    }
+
+                    const fetchQ61PcakingWeight = `
+                        SELECT product_id,
+                        material_number,packagin_weight,unit
+                        FROM weight_of_packaging_per_unit_product_questions
+                        WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                     `;
+
+                    const fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.product_id, BomData.bom_pcf_id]);
+
+
+                    if (Q15Result.product_id === fetchQ61PcakingWeightResult.rows[0].product_id) {
+                        packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
+                    }
+
+                    const fetchPAckaginEmissionFactor = `
+                                SELECT material_type,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit,iso_country_code
+                                FROM packaging_material_treatment_type_emission_factor
+                                WHERE material_type = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResult.rows[0].unit]);
+
+                    if (fetchPackagingEmisResult.rows[0]) {
+
+                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                        }
+
+                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
+                        }
+
+                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
+                        }
+
+                    }
+
+                    Packaging_Carbon_Emissions_kg_CO2e_or_box = (packaginWeight * Emission_Factor_Box_kg_CO2E_kg);
+                    console.log("packaginType:", packaginType);
+                    console.log("packaginWeight:", packaginWeight);
+                    console.log("Emission_Factor_Box_kg_CO2E_kg:", Emission_Factor_Box_kg_CO2E_kg);
+                    console.log("Packaging_Carbon_Emissions_kg_CO2e_or_box:", Packaging_Carbon_Emissions_kg_CO2e_or_box);
+
+                    Total_Housing_Component_Emissions += Packaging_Carbon_Emissions_kg_CO2e_or_box;
+
+
+                    // ====> Insert into bom_emission_packaging_calculation_engine table
+                    const queryPacking = `
+                        INSERT INTO bom_emission_packaging_calculation_engine 
+                        (id,product_id, pack_weight_kg, emission_factor_box_kg,
+                        packaging_type,product_bom_pcf_id)
+                        VALUES ($1,$2, $3, $4, $5, $6)
+                        RETURNING *;
+                    `;
+
+                    await client.query(queryPacking, [
+                        ulid(),
+                        BomData.product_id,
+                        packaginWeight,
+                        Emission_Factor_Box_kg_CO2E_kg,
+                        packaginType,
+                        bom_pcf_id
+                    ]);
+
+                    // ===> Insert Ends here
+
+                    // Fourth Phase END
+
+
+                    // Fifth Phase Start
+
+
+                    const extractNumber = (value: string | number | null | undefined): number => {
+                        if (typeof value === 'number') return value;
+                        if (!value) return 0;
+
+                        const num = value.match(/[\d.]+/);
+                        return num ? parseFloat(num[0]) : 0;
+                    };
+
+                    let Total_Transportation_emissions_per_unit_kg_CO2E = 0;
+
+                    const fetchQ74ModeOFTransportControl = `
+                                SELECT product_id,material_number,mode_of_transport,
+                                weight_transported,distance
+                                FROM mode_of_transport_used_for_transportation_questions
+                                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                             `;
+
+
+                    const fetchQ74ModeOFTransportControlResult = await client.query(fetchQ74ModeOFTransportControl, [BomData.product_id, BomData.bom_pcf_id]);
+
+
+                    const packaginWeightNum =
+                        typeof packaginWeight === 'string'
+                            ? parseFloat(packaginWeight)
+                            : packaginWeight || 0;
+                    const bomWeightKg = 1 / 1000;
+
+                    console.log("packaginWeightNum:", packaginWeightNum, "packaginWeight:", bomWeightKg);
+
+                    const mass_transported_Kg = packaginWeightNum + bomWeightKg;
+
+                    console.log("mass_transported_Kg:", mass_transported_Kg);
+
+                    for (let fetchQ74TransportData of fetchQ74ModeOFTransportControlResult.rows) {
+
+
+
+                        let modeOfTransport = fetchQ74TransportData.mode_of_transport;
+                        let weightTransportedRaw = fetchQ74TransportData.weight_transported;
+                        let distance = extractNumber(fetchQ74TransportData.distance);
+
+                        console.log("modeOfTransport:", modeOfTransport);
+                        console.log("weightTransportedRaw:", weightTransportedRaw);
+                        console.log("distance:", distance);
+
+                        let Mass_transported_ton;
+
+                        // if (weightTransportedRaw) {
+
+                        //     let weightTransported = extractNumber(weightTransportedRaw);
+
+                        //     Mass_transported_ton = weightTransported;
+                        // } else {
+                        Mass_transported_ton = mass_transported_Kg / 1000;
+                        // }
+
+                        console.log("Mass_transported_ton:", Mass_transported_ton);
+
+                        let Distance_Km = distance;
+                        console.log("Distance_Km:", Distance_Km);
+
+                        let transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = 0;
+
+
+                        const fetchVehicleTypeEmissionFactor = `
+                                SELECT vehicle_type,ef_eu_region,ef_india_region,
+                                ef_global_region,year,unit,iso_country_code
+                                FROM vehicle_type_emission_factor
+                                WHERE vehicle_type = $1 AND year=$2 AND unit=$3;
+                             `;
+
+
+                        const fetchVehicleTypeEmisResult = await client.query(fetchVehicleTypeEmissionFactor, [modeOfTransport, fetchSGIQIDSupResult.rows[0].annual_reporting_period, 'Kms']);
+
+                        if (fetchVehicleTypeEmisResult.rows[0]) {
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_india_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_eu_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_global_region)
+                            }
+
+                        }
+
+                        console.log("transport_Mode_Emission_Factor_Value_kg_CO2e_t_km:", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km);
+
+                        let Leg_wise_transport_emissions_per_unit_kg_CO2E = 0;
+
+                        Leg_wise_transport_emissions_per_unit_kg_CO2E += (Mass_transported_ton * Distance_Km * transport_Mode_Emission_Factor_Value_kg_CO2e_t_km)
+
+                        console.log("Leg_wise_transport_emissions_per_unit_kg_CO2E:", Leg_wise_transport_emissions_per_unit_kg_CO2E);
+
+                        Total_Transportation_emissions_per_unit_kg_CO2E += Leg_wise_transport_emissions_per_unit_kg_CO2E;
+
+
+                        // ====> Insert into bom_emission_logistic_calculation_engine table
+                        const query = `
+                            INSERT INTO bom_emission_logistic_calculation_engine 
+                            (id,product_id, mode_of_transport, mass_transported_kg,
+                            mass_transported_ton,distance_km,transport_mode_emission_factor_value_kg_co2e_t_km,
+                            leg_wise_transport_emissions_per_unit_kg_co2e,product_bom_pcf_id)
+                            VALUES ($1,$2, $3, $4, $5, $6, $7, $8,$9)
+                            RETURNING *;
+                        `;
+
+                        await client.query(query, [
+                            ulid(),
+                            BomData.product_id,
+                            modeOfTransport,
+                            mass_transported_Kg,
+                            Mass_transported_ton,
+                            Distance_Km,
+                            transport_Mode_Emission_Factor_Value_kg_CO2e_t_km,
+                            Leg_wise_transport_emissions_per_unit_kg_CO2E,
+                            bom_pcf_id
+                        ]);
+
+                        // ===> Insert Ends here
+
+                    }
+
+                    console.log("Total_Transportation_emissions_per_unit_kg_CO2E:", Total_Transportation_emissions_per_unit_kg_CO2E);
+
+                    Total_Housing_Component_Emissions += Total_Transportation_emissions_per_unit_kg_CO2E;
+
+                    // Fifth Phase END
+
+                    // Sixth Phase Start 
+
+                    //=======> Emission Factor Box waste treatment (kg CO₂e/kg) 
+
+                    let emission_factor_box_waste_treatment_kg_CO2e_kg = 0;
+                    let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0;
+
+                    const fetchQ40WasteQualityControl = `
+                                SELECT product_id,material_number,waste_type,
+                                waste_weight,unit,treatment_type
+                                FROM weight_of_quality_control_waste_generated_questions
+                                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                             `;
+
+
+                    const fetchQ40WasteQualityControlResult = await client.query(fetchQ40WasteQualityControl, [BomData.product_id, BomData.bom_pcf_id]);
+
+                    for (let fetchQ40Data of fetchQ40WasteQualityControlResult.rows) {
+
+                        // let emission_factor_box_waste_treatment_kg_CO2e_kg = 0;
+
+                        const fetchWasteTreatmentEmissionFactor = `
+                                SELECT
+                                    wmttef.waste_type,
+                                    wmttef.wtt_id,
+                                    wmttef.ef_eu_region,
+                                    wmttef.ef_india_region,
+                                    wmttef.ef_global_region,
+                                    wmttef.year,
+                                    wmttef.unit,
+                                    wmttef.iso_country_code
+                                FROM waste_material_treatment_type_emission_factor AS wmttef
+                                JOIN waste_treatment_type AS wtt
+                                ON wmttef.wtt_id = wtt.wtt_id
+                            WHERE
+                             wmttef.waste_type = $1
+                             AND wmttef.year = $2
+                             AND wmttef.unit = $3
+                             AND wtt.name = $4;
+                        `;
+
+                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ40Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ40Data.unit, fetchQ40Data.treatment_type]);
+
+                        if (fetchPackagingEmisResult.rows[0]) {
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
+                            }
+
+                        }
+
+                        console.log("emission_factor_box_waste_treatment_kg_CO2e_kg:", emission_factor_box_waste_treatment_kg_CO2e_kg);
+
+
+                    }
+                    //=======> END
+
+                    // ====>Emission Factor Packaging waste treatment (kg CO₂e/kWh) 
+
+                    const fetchQ68PackagingWasteControl = `
+                                SELECT product_id,material_number,waste_type,
+                                waste_weight,unit,treatment_type
+                                FROM weight_of_pro_packaging_waste_questions
+                                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                             `;
+
+
+                    const fetchQ68PackagingWasteControlResult = await client.query(fetchQ68PackagingWasteControl, [BomData.product_id, BomData.bom_pcf_id]);
+
+                    for (let fetchQ68Data of fetchQ68PackagingWasteControlResult.rows) {
+
+                        // let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0;
+
+                        const fetchWasteTreatmentEmissionFactor = `
+                                SELECT
+                                    pmttef.material_type,
+                                    pmttef.ptt_id,
+                                    pmttef.ef_eu_region,
+                                    pmttef.ef_india_region,
+                                    pmttef.ef_global_region,
+                                    pmttef.year,
+                                    pmttef.unit,
+                                    pmttef.iso_country_code
+                                FROM packaging_material_treatment_type_emission_factor AS pmttef
+                                JOIN packaging_treatment_type AS ptt
+                                ON pmttef.ptt_id = ptt.ptt_id
+                            WHERE
+                             pmttef.material_type = $1
+                             AND pmttef.year = $2
+                             AND pmttef.unit = $3
+                             AND ptt.name = $4;
+                        `;
+
+                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ68Data.unit, fetchQ68Data.treatment_type]);
+
+                        console.log(fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ68Data.unit, fetchQ68Data.treatment_type);
+
+                        if (fetchPackagingEmisResult.rows[0]) {
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
+                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
+                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
+                            }
+
+                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
+                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
+                            }
+
+                        }
+
+                        console.log("emission_factor_packaging_waste_treatment_kg_COe2_kWh:", emission_factor_packaging_waste_treatment_kg_COe2_kWh);
+
+
+
+
+                    }
+
+
+                    let waste_disposal_emissions_kg_CO2e = 0;
+
+                    const weightInKg68 = 1 / 1000;
+
+                    const weightOfTenPercent = ((weightInKg68 / 100) * 10);
+
+                    console.log("weightInKg68:", weightInKg68, "weightOfTenPercent:", weightOfTenPercent);
+
+                    waste_disposal_emissions_kg_CO2e = ((weightOfTenPercent * emission_factor_box_waste_treatment_kg_CO2e_kg) + (emission_factor_packaging_waste_treatment_kg_COe2_kWh));
+                    console.log("waste_disposal_emissions_kg_CO2e:", waste_disposal_emissions_kg_CO2e);
+                    // ====> END
+
+
+                    Total_Housing_Component_Emissions += waste_disposal_emissions_kg_CO2e;
+
+                    console.log(waste_disposal_emissions_kg_CO2e, Raw_Material_emissions, Manufacturing_Emissions_kg_CO2e, Packaging_Carbon_Emissions_kg_CO2e_or_box, Total_Transportation_emissions_per_unit_kg_CO2E);
+
+
+                    // ====> Insert into bom_emission_waste_calculation_engine table
+                    const query = `
+                        INSERT INTO bom_emission_waste_calculation_engine 
+                        (id,product_id, waste_generated_per_box_kg, emission_factor_box_waste_treatment_kg_co2e_kg,
+                        emission_factor_packaging_waste_treatment_kg_co2e_kWh,product_bom_pcf_id)
+                        VALUES ($1,$2, $3, $4, $5, $6)
+                        RETURNING *;
+                    `;
+
+                    await client.query(query, [
+                        ulid(),
+                        BomData.product_id,
+                        weightOfTenPercent,
+                        emission_factor_box_waste_treatment_kg_CO2e_kg,
+                        emission_factor_packaging_waste_treatment_kg_COe2_kWh,
+                        bom_pcf_id
+                    ]);
+
+                    // ===> Insert Ends here
+
+                    console.log("Total_Housing_Component_Emissions:", Total_Housing_Component_Emissions);
+
+                    // Sixth Phase END
+
+                    // ====> Insert into bom_emission_calculation_engine table
+                    const queryLastPhase = `
+                        INSERT INTO bom_emission_calculation_engine 
+                        (id,product_id, material_value, production_value,
+                        packaging_value,logistic_value,waste_value,total_pcf_value,
+                        product_bom_pcf_id)
+                        VALUES ($1,$2, $3, $4, $5, $6, $7, $8, $9)
+                        RETURNING *;
+                    `;
+
+                    await client.query(queryLastPhase, [
+                        ulid(),
+                        BomData.product_id,
+                        Raw_Material_emissions,
+                        Manufacturing_Emissions_kg_CO2e,
+                        Packaging_Carbon_Emissions_kg_CO2e_or_box,
+                        Total_Transportation_emissions_per_unit_kg_CO2E,
+                        waste_disposal_emissions_kg_CO2e,
+                        Total_Housing_Component_Emissions,
+                        bom_pcf_id
+                    ]);
+
+                    // ===> Insert Ends here
+
+                    overall_pcf += Total_Housing_Component_Emissions;
+                    TotalBomDetails.push({
+                        product_id: BomData.product_id,
+                        material_value: Raw_Material_emissions,
+                        production_value: Manufacturing_Emissions_kg_CO2e,
+                        packaging_value: Packaging_Carbon_Emissions_kg_CO2e_or_box,
+                        logistic_value: Total_Transportation_emissions_per_unit_kg_CO2E,
+                        waste_value: waste_disposal_emissions_kg_CO2e,
+                        total_pcf_value: Total_Housing_Component_Emissions
+                    });
+
+                }
+
+
+
+
+
+
+            }
+
+
+            // Update status of bom calculation Pcf level
+            await client.query(
+                `UPDATE pcf_request_stages SET is_pcf_calculated = true
+                 WHERE bom_pcf_id = $1 AND client_id IS NOT NULL AND client_id = $2;`,
+                [bom_pcf_id, particularProductResult.rows[0].client_id]
+            );
+
+            await client.query(
+                `UPDATE bom_pcf_request SET overall_pcf = $1
+                 WHERE id = $2 AND client_id IS NOT NULL AND client_id = $3;`,
+                [overall_pcf, bom_pcf_id, particularProductResult.rows[0].client_id]
+            );
+
+            await client.query(
+                `UPDATE own_emission SET is_own_emission_calculated = true
+                 WHERE bom_pcf_id = $1 AND client_id IS NOT NULL AND client_id = $2;`,
+                [bom_pcf_id, particularProductResult.rows[0].client_id]
+            );
+
+            return res.send(
+                generateResponse(true, "PCF calculation can be initiated", 200, TotalBomDetails)
+            );
+
+        } catch (error: any) {
+            console.error("❌ Error in PCF calculation:", error);
+            return res.send(
+                generateResponse(false, error.message || "PCF calculation failed", 500, null)
+            );
+        }
+    });
+}

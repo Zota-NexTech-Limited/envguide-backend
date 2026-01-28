@@ -367,7 +367,7 @@ LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
 LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
 LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
 
-LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
+LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id AND prs.client_id IS NULL
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
 
 LEFT JOIN LATERAL (

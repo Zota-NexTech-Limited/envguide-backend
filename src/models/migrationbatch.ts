@@ -2,7 +2,7 @@
 import { withClient } from '../util/database';
 
 export async function mirgation() {
-    const createTableQueries: any = [
+  const createTableQueries = [
         `CREATE TABLE IF NOT EXISTS users_table
         (
             user_id
@@ -45,13 +45,7 @@ export async function mirgation() {
          (
              255
          ),
-            FOREIGN KEY
-         (
-             user_role_id
-         ) REFERENCES roles_table
-         (
-             role_id
-         ),
+            FOREIGN KEY( user_role_id ) REFERENCES roles_table ( role_id ),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )`,
@@ -209,6 +203,7 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
         `CREATE TABLE IF NOT EXISTS user_mfa_secret (
             id VARCHAR(255) PRIMARY KEY,
             user_id VARCHAR(255),       
@@ -228,6 +223,7 @@ export async function mirgation() {
             own_emission_status VARCHAR(255),  
             additional_notes TEXT,
             client_id VARCHAR(255),
+            is_own_emission_calculated BOOLEAN DEFAULT FALSE,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -300,7 +296,7 @@ export async function mirgation() {
 
         `CREATE TABLE IF NOT EXISTS bom_pcf_request (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) DEFAULT ('PCF' || LPAD(nextval('pcf_code_seq')::text, 5, '0')) UNIQUE, 
+            code VARCHAR(255) DEFAULT ('PCF' || LPAD(nextval('pcf_code_seq')::text, 5, '0')) UNIQUE,  
             request_title VARCHAR(255),
             priority VARCHAR(255),
             request_organization VARCHAR(255),
@@ -312,17 +308,19 @@ export async function mirgation() {
             product_code VARCHAR(255),
             manufacturer_id VARCHAR(255),
             model_version VARCHAR(255),
+            client_id VARCHAR(255),
+            is_client BOOLEAN DEFAULT false,
             is_approved BOOLEAN DEFAULT false,
             is_rejected BOOLEAN DEFAULT false,
             is_draft BOOLEAN DEFAULT false,
             is_task_created BOOLEAN DEFAULT false,
             technical_specification_file TEXT[],
+            status VARCHAR(255) DEFAULT 'Inprogress',
             product_images TEXT[],
             created_by VARCHAR(255),
-            updated_by VARCHAR(255),
-            status VARCHAR(255) DEFAULT 'Inprogress',
             rejected_by VARCHAR(255),
             reject_reason TEXT,
+            updated_by VARCHAR(255),
             overall_pcf DOUBLE PRECISION,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -366,6 +364,8 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS bom_emission_material_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
             bom_id VARCHAR(255),
+            product_id VARCHAR(255),  
+            product_bom_pcf_id VARCHAR(255),
             material_type VARCHAR(255),
             material_composition DOUBLE PRECISION,
             material_composition_weight DOUBLE PRECISION,
@@ -378,6 +378,8 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS bom_emission_production_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
             bom_id VARCHAR(255), 
+            product_id VARCHAR(255),  
+            product_bom_pcf_id VARCHAR(255),
             component_weight_kg DOUBLE PRECISION,
             allocation_methodology VARCHAR(255),
             total_electrical_energy_consumed_at_factory_level_kWh DOUBLE PRECISION,
@@ -403,7 +405,9 @@ export async function mirgation() {
 
         `CREATE TABLE IF NOT EXISTS bom_emission_packaging_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255),      
+            bom_id VARCHAR(255),    
+            product_id VARCHAR(255),   
+            product_bom_pcf_id VARCHAR(255), 
             pack_weight_kg DOUBLE PRECISION,
             emission_factor_box_kg  DOUBLE PRECISION,
             pack_size_l_w_h_m VARCHAR(255),
@@ -414,7 +418,9 @@ export async function mirgation() {
 
         `CREATE TABLE IF NOT EXISTS bom_emission_logistic_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255),   
+            bom_id VARCHAR(255),  
+            product_id VARCHAR(255),   
+            product_bom_pcf_id VARCHAR(255),
             mode_of_transport VARCHAR(255), 
             mass_transported_kg DOUBLE PRECISION,
             mass_transported_ton DOUBLE PRECISION,
@@ -428,6 +434,8 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS bom_emission_waste_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
             bom_id VARCHAR(255),      
+            product_id VARCHAR(255),  
+            product_bom_pcf_id VARCHAR(255),
             waste_generated_per_box_kg DOUBLE PRECISION,
             emission_factor_box_waste_treatment_kg_co2e_kg DOUBLE PRECISION,
             emission_factor_packaging_waste_treatment_kg_co2e_kWh DOUBLE PRECISION,
@@ -438,6 +446,8 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS bom_emission_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
             bom_id VARCHAR(255),      
+            product_id VARCHAR(255),  
+            product_bom_pcf_id VARCHAR(255),
             material_value DOUBLE PRECISION,
             production_value DOUBLE PRECISION,
             packaging_value DOUBLE PRECISION,
@@ -450,7 +460,9 @@ export async function mirgation() {
 
         `CREATE TABLE IF NOT EXISTS allocation_methodology (
             id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255) UNIQUE,   
+            bom_id VARCHAR(255) UNIQUE,  
+            product_id VARCHAR(255), 
+            product_bom_pcf_id VARCHAR(255),
             split_allocation BOOLEAN DEFAULT false,   
             sys_expansion_allocation BOOLEAN DEFAULT false,
             check_er_less_than_five VARCHAR(255),
@@ -497,6 +509,7 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS pcf_request_stages (
             id VARCHAR(255) PRIMARY KEY,
             bom_pcf_id VARCHAR(255),
+            client_id VARCHAR(255),
             is_pcf_request_created BOOLEAN DEFAULT FALSE,
             is_pcf_request_submitted BOOLEAN DEFAULT FALSE,
             is_bom_verified BOOLEAN DEFAULT FALSE,
@@ -541,6 +554,7 @@ export async function mirgation() {
             bom_pcf_id VARCHAR(255),
             bom_id VARCHAR(255),
             sup_id VARCHAR(255),
+            client_id VARCHAR(255),
             submitted_by VARCHAR(255),
             is_submitted BOOLEAN DEFAULT FALSE,
             completed_date TIMESTAMPTZ,
@@ -549,7 +563,6 @@ export async function mirgation() {
   );`,
 
         //========>PCF Request Stages Tables end<============
-
 
         //   =======>Supplier Organization Questionnaire Tables<==========
 
@@ -608,6 +621,7 @@ export async function mirgation() {
             availability_of_scope_one_two_three_emissions_data BOOLEAN DEFAULT false,
             sup_id VARCHAR(255),
             client_id VARCHAR(255),
+            own_emission_id VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -645,6 +659,8 @@ export async function mirgation() {
             psd_id VARCHAR(255) PRIMARY KEY,
             spq_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),   
             product_name VARCHAR(255),
             location TEXT,
@@ -657,6 +673,8 @@ export async function mirgation() {
             pcm_id VARCHAR(255) PRIMARY KEY,
             spq_id VARCHAR(255),   
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             product_name VARCHAR(255),
             production_period VARCHAR(255),
@@ -673,6 +691,8 @@ export async function mirgation() {
             cpcev_id VARCHAR(255) PRIMARY KEY,
             spq_id VARCHAR(255), 
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             product_name VARCHAR(255),  
             co_product_name VARCHAR(255),
@@ -808,6 +828,8 @@ export async function mirgation() {
             eiopekm_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             product_name VARCHAR(255),
             energy_intensity NUMERIC(10,2),
@@ -904,6 +926,8 @@ export async function mirgation() {
             wosd_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             weight NUMERIC(10,2),
@@ -918,6 +942,8 @@ export async function mirgation() {
             dorriqc_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             percentage VARCHAR(50),
@@ -930,6 +956,8 @@ export async function mirgation() {
             rrdqc_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             processes_involved VARCHAR(255),
@@ -943,6 +971,8 @@ export async function mirgation() {
             woqcwg_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             waste_type VARCHAR(255),
@@ -1048,6 +1078,8 @@ export async function mirgation() {
             rmuicm_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             material_name VARCHAR(255),
             percentage VARCHAR(50),
@@ -1060,6 +1092,8 @@ export async function mirgation() {
             rmwp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             material_name VARCHAR(255),
             percentage VARCHAR(50),
@@ -1094,6 +1128,8 @@ export async function mirgation() {
             topmudp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             packagin_type VARCHAR(255),
@@ -1109,6 +1145,8 @@ export async function mirgation() {
             woppup_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             packagin_weight VARCHAR(255),
@@ -1135,7 +1173,9 @@ export async function mirgation() {
         `CREATE TABLE IF NOT EXISTS weight_of_pro_packaging_waste_questions (
             woppw_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
-            bom_id VARCHAR(255),  
+            bom_id VARCHAR(255), 
+            product_id VARCHAR(255), 
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             waste_type VARCHAR(255),
@@ -1152,6 +1192,8 @@ export async function mirgation() {
             topbp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             by_product VARCHAR(255),
@@ -1167,6 +1209,8 @@ export async function mirgation() {
             coteorm_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
             bom_id VARCHAR(255),  
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             raw_material_name VARCHAR(255),
@@ -1188,6 +1232,8 @@ export async function mirgation() {
             motuft_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
             bom_id VARCHAR(255),
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             mode_of_transport VARCHAR(255),
@@ -1228,6 +1274,7 @@ export async function mirgation() {
   );`,
 
         //  ==========>Supplier Organization Questionnaire Tables end<============
+
 
         //===========> DQR Rating Tables total 50 tables
 
@@ -2833,7 +2880,6 @@ export async function mirgation() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT uq_iron_code_name UNIQUE (code, name)
   );`,
-
         //   Here these tables needed currently using these below table combining above four
 
         `CREATE TABLE IF NOT EXISTS material_composition_metal (
@@ -2886,6 +2932,7 @@ export async function mirgation() {
   );`,
 
         //   ==========>Data Setup tables end<============
+
 
         // ===========> Master Data Setup tables start<============
         `CREATE TABLE IF NOT EXISTS material_composition_metals (
@@ -3027,6 +3074,7 @@ export async function mirgation() {
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
 
         `CREATE TABLE IF NOT EXISTS sub_fuel_types (
             sft_id VARCHAR(255) PRIMARY KEY,
@@ -3232,7 +3280,6 @@ export async function mirgation() {
 
         // ===========> Master Data Setup tables end<============
 
-
         // ==============> ECOinvent Emission Factor DataSetup <================
 
         `CREATE TABLE IF NOT EXISTS materials_emission_factor (
@@ -3353,7 +3400,6 @@ export async function mirgation() {
     created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );`,
         // <=======================END<================
-
     ]
 
     // try {
