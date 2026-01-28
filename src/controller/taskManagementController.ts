@@ -68,7 +68,9 @@ export async function getPCFListDropDown(req: any, res: any) {
                     p.code,
                     p.request_title,
                     p.priority,
-                    p.request_organization
+                    p.request_organization,
+                    p.is_client,
+                    p.client_id
                 FROM bom_pcf_request p
                 WHERE p.is_task_created = FALSE
                 ORDER BY p.created_date DESC;
@@ -146,20 +148,22 @@ export async function createTask(req: any, res: any) {
         product,
         estimated_hour,
         tags,
-        attachments
+        attachments,
+        is_client,
+        client_id
     } = req.body;
 
     const created_by = req.user_id; // assuming auth middleware
 
-    if (!task_title || !category_id || !assign_to || !bom_pcf_id) {
-        return res
-            .status(400)
-            .json(generateResponse(false, "Task title, category,bom_pcf_id and assign_to are required", 400, null));
-    }
-
     return withClient(async (client: any) => {
         try {
             await client.query("BEGIN");
+
+            if (!task_title || !category_id || !assign_to || !bom_pcf_id) {
+                return res
+                    .status(400)
+                    .json(generateResponse(false, "Task title, category,bom_pcf_id and assign_to are required", 400, null));
+            }
 
             /* INSERT TASK */
             const task_id = ulid();
@@ -300,6 +304,31 @@ export async function createTask(req: any, res: any) {
 
             await client.query(updatePCFRequest, [bom_pcf_id]);
 
+            if (is_client) {
+                const dataCollectionId = ulid();
+                const dataRatingId = ulid();
+
+                const insertPCFQuery = `
+            INSERT INTO pcf_request_data_collection_stage (
+                    id, bom_pcf_id, client_id
+                )
+                VALUES ($1,$2,$3)
+                RETURNING *;
+            `;
+
+                await client.query(insertPCFQuery, [dataCollectionId, bom_pcf_id, client_id]);
+
+                const insertPCFDataRatingQuery = `
+             INSERT INTO pcf_request_data_rating_stage (
+                    id, bom_pcf_id, client_id
+                )
+                VALUES ($1,$2,$3)
+                RETURNING *;
+            `;
+
+                await client.query(insertPCFDataRatingQuery, [dataRatingId, bom_pcf_id, client_id]);
+            }
+
             await client.query("COMMIT");
 
             /* SEND EMAILS */
@@ -348,6 +377,8 @@ export async function createTask(req: any, res: any) {
                     taskResult.rows[0],
                 )
             );
+
+
 
         } catch (error: any) {
             await client.query("ROLLBACK");
@@ -669,6 +700,27 @@ export async function deleteTask(req: any, res: any) {
 
             return res.status(500).json(
                 generateResponse(false, "Failed to delete task", 500, error.message)
+            );
+        }
+    });
+}
+
+export async function sampleEmailTest(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const payload = {
+                email: "chethan@zotanextech.com",
+                bom_pcf_id: "01KADE43VDJRKCMGFTAPYK17M7",
+                bom_id: "01KADE43VDJRKCMGFTAPYK17M7",
+                supplier_id: "01KADE43VDJRKCMGFTAPYK17M7",
+            }
+            sendSupplierTaskEmail(payload);
+        } catch (error) {
+            await client.query("ROLLBACK");
+            console.error("❌ Error in deleteTask:", error);
+
+            return res.status(500).json(
+                generateResponse(false, "Failed to delete task", 500, error)
             );
         }
     });

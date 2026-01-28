@@ -1117,7 +1117,7 @@ export async function createPcfRequestWithBOMDetails(req: any, res: any) {
                 pcf_request_submitted_date: new Date()
             };
 
-            await bomService.insertPCFBOMRequestStages(client, bomPCFStagesData);
+            await bomService.insertPCFBOMRequestStages(client, bomPCFStagesData, bom_pcf_request.client_id);
 
             await client.query("COMMIT");
 
@@ -1393,7 +1393,7 @@ LEFT JOIN LATERAL (
 ) ps ON TRUE
 
 /* ---------- PCF Stages ---------- */
-LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
+LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id AND prs.client_id IS NULL
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
 LEFT JOIN users_table usb ON usb.user_id = prs.pcf_request_submitted_by
 
@@ -1860,14 +1860,14 @@ COALESCE(
             'material_emission', (
                 SELECT jsonb_agg(to_jsonb(mem))
                 FROM bom_emission_material_calculation_engine mem
-                WHERE mem.bom_id = b.id
+                WHERE mem.bom_id = b.id AND mem.product_id IS NULL
             ),
 
             /* ---------- PRODUCTION EMISSION ---------- */
             'production_emission_calculation', (
                 SELECT to_jsonb(mep)
                 FROM bom_emission_production_calculation_engine mep
-                WHERE mep.bom_id = b.id
+                WHERE mep.bom_id = b.id AND mep.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -1875,7 +1875,7 @@ COALESCE(
             'packaging_emission_calculation', (
                 SELECT to_jsonb(mpk)
                 FROM bom_emission_packaging_calculation_engine mpk
-                WHERE mpk.bom_id = b.id
+                WHERE mpk.bom_id = b.id AND mpk.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -1883,7 +1883,7 @@ COALESCE(
             'waste_emission_calculation', (
                 SELECT to_jsonb(mw)
                 FROM bom_emission_waste_calculation_engine mw
-                WHERE mw.bom_id = b.id
+                WHERE mw.bom_id = b.id AND mw.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -1891,7 +1891,7 @@ COALESCE(
             'logistic_emission_calculation', (
                 SELECT to_jsonb(ml)
                 FROM bom_emission_logistic_calculation_engine ml
-                WHERE ml.bom_id = b.id
+                WHERE ml.bom_id = b.id AND ml.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -1899,7 +1899,7 @@ COALESCE(
             'pcf_total_emission_calculation', (
                 SELECT to_jsonb(pcfe)
                 FROM bom_emission_calculation_engine pcfe
-                WHERE pcfe.bom_id = b.id
+                WHERE pcfe.bom_id = b.id AND pcfe.product_id IS NULL
                 LIMIT 1
             ),
 
@@ -1921,7 +1921,7 @@ COALESCE(
                     ON stoie.sgiq_id = sgiq.sgiq_id
                 JOIN mode_of_transport_used_for_transportation_questions mt
                     ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id
+                WHERE sgiq.sup_id = b.supplier_id AND sgiq.client_id = NULL
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -2087,7 +2087,7 @@ LEFT JOIN users_table urb ON urb.user_id = base_pcf.rejected_by
 LEFT JOIN bom_pcf_request_product_specification ps ON ps.bom_pcf_id = base_pcf.id
 LEFT JOIN bom b ON b.bom_pcf_id = base_pcf.id
 LEFT JOIN supplier_details s ON s.sup_id = b.supplier_id
-LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id
+LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id AND st.client_id IS NULL
 LEFT JOIN users_table ucb ON ucb.user_id = st.pcf_request_created_by
 LEFT JOIN users_table usb ON usb.user_id = st.pcf_request_submitted_by
 LEFT JOIN users_table uvb ON uvb.user_id = st.bom_verified_by
@@ -2675,7 +2675,7 @@ export async function pcfCalculate(req: any, res: any) {
             const checkQuery = `
                 SELECT is_pcf_calculated
                 FROM pcf_request_stages
-                WHERE bom_pcf_id = $1;
+                WHERE bom_pcf_id = $1 AND client_id IS NULL;
             `;
 
             const result = await client.query(checkQuery, [bom_pcf_id]);
@@ -2710,7 +2710,7 @@ export async function pcfCalculate(req: any, res: any) {
                 const fetchSGIQID = `
                 SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
                 FROM supplier_general_info_questions
-                WHERE bom_pcf_id = $1 AND sup_id =$2;
+                WHERE bom_pcf_id = $1 AND sup_id =$2 AND supplier_general_info_questions.client_id = NULL;
             `;
 
                 const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id, BomData.supplier_id]);
@@ -3648,6 +3648,7 @@ export async function pcfCalculate(req: any, res: any) {
                         (id,bom_id, material_value, production_value,
                         packaging_value,logistic_value,waste_value,total_pcf_value)
                         VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
+                        ON CONFLICT (bom_id) DO NOTHING
                         RETURNING *;
                     `;
 
@@ -3695,7 +3696,7 @@ export async function pcfCalculate(req: any, res: any) {
             // Update status of bom calculation Pcf level
             await client.query(
                 `UPDATE pcf_request_stages SET is_pcf_calculated = true
-                 WHERE bom_pcf_id = $1;`,
+                 WHERE bom_pcf_id = $1 AND client_id IS NULL;`,
                 [bom_pcf_id]
             );
 

@@ -427,7 +427,8 @@ export async function getProductFootPrint(req: any, res: any) {
                             ON stoie.sgiq_id = sgiq.sgiq_id
                         JOIN mode_of_transport_used_for_transportation_questions mt
                             ON mt.stoie_id = stoie.stoie_id
-                        WHERE sgiq.sup_id = b.supplier_id
+                        WHERE sgiq.sup_id = b.supplier_id 
+                          AND sgiq.client_id IS NULL
                           AND mt.mode_of_transport ILIKE $${paramIndex++}
                     )
                 `);
@@ -495,14 +496,14 @@ SELECT
     (
         SELECT jsonb_agg(to_jsonb(mem))
         FROM bom_emission_material_calculation_engine mem
-        WHERE mem.bom_id = b.id
+        WHERE mem.bom_id = b.id AND mem.product_id IS NULL
     ) AS material_emission,
 
     /* ---------- PRODUCTION EMISSION ---------- */
     (
         SELECT to_jsonb(mep)
         FROM bom_emission_production_calculation_engine mep
-        WHERE mep.bom_id = b.id
+        WHERE mep.bom_id = b.id AND mep.product_id IS NULL
         LIMIT 1
     ) AS production_emission_calculation,
 
@@ -510,7 +511,7 @@ SELECT
     (
         SELECT to_jsonb(mpk)
         FROM bom_emission_packaging_calculation_engine mpk
-        WHERE mpk.bom_id = b.id
+        WHERE mpk.bom_id = b.id AND mpk.product_id IS NULL
         LIMIT 1
     ) AS packaging_emission_calculation,
 
@@ -518,7 +519,7 @@ SELECT
     (
         SELECT to_jsonb(mw)
         FROM bom_emission_waste_calculation_engine mw
-        WHERE mw.bom_id = b.id
+        WHERE mw.bom_id = b.id AND mw.product_id IS NULL
         LIMIT 1
     ) AS waste_emission_calculation,
 
@@ -526,7 +527,7 @@ SELECT
     (
         SELECT to_jsonb(ml)
         FROM bom_emission_logistic_calculation_engine ml
-        WHERE ml.bom_id = b.id
+        WHERE ml.bom_id = b.id AND ml.product_id IS NULL
         LIMIT 1
     ) AS logistic_emission_calculation,
 
@@ -534,7 +535,7 @@ SELECT
     (
         SELECT to_jsonb(pcfe)
         FROM bom_emission_calculation_engine pcfe
-        WHERE pcfe.bom_id = b.id
+        WHERE pcfe.bom_id = b.id AND pcfe.product_id IS NULL
         LIMIT 1
     ) AS pcf_total_emission_calculation,
 
@@ -571,7 +572,7 @@ LEFT JOIN LATERAL (
         ON stoie.sgiq_id = sgiq.sgiq_id
     JOIN mode_of_transport_used_for_transportation_questions mt
         ON mt.stoie_id = stoie.stoie_id
-    WHERE sgiq.sup_id = b.supplier_id
+    WHERE sgiq.sup_id = b.supplier_id AND sgiq.client_id IS NULL
 ) transport ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
@@ -782,7 +783,7 @@ LEFT JOIN LATERAL (
         SUM(bece.total_pcf_value)::numeric AS supplier_total_pcf_emission
     FROM bom b2
     JOIN bom_emission_calculation_engine bece
-        ON bece.bom_id = b2.id
+        ON bece.bom_id = b2.id AND bece.product_id IS NULL
     WHERE b2.supplier_id = b.supplier_id
 ) spcf ON TRUE
 
@@ -790,7 +791,7 @@ LEFT JOIN LATERAL (
     SELECT sgiq.annual_reporting_period
     FROM supplier_general_info_questions sgiq
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id
-      AND sgiq.sup_id = b.supplier_id
+      AND sgiq.sup_id = b.supplier_id AND sgiq.client_id IS NULL
     ORDER BY sgiq.created_date ASC
     LIMIT 1
 ) arp ON TRUE
@@ -900,7 +901,7 @@ COALESCE(
         AND ef.year = arp.annual_reporting_period
         AND ef.unit = pe.unit
 
-    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
 ) q22 ON TRUE
 
 
@@ -946,7 +947,7 @@ LEFT JOIN LATERAL (
         AND ef.year = arp.annual_reporting_period
         AND ef.unit = ec.unit
 
-    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
 ) q51 ON TRUE
 
 
@@ -992,7 +993,7 @@ LEFT JOIN LATERAL (
         AND ef.year = arp.annual_reporting_period
         AND ef.unit = ec.unit
 
-    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
 ) q67 ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
@@ -1260,7 +1261,7 @@ ROUND(
     ) AS q52_material_type_data
     FROM raw_materials_used_in_component_manufacturing_questions rm
     LEFT JOIN supplier_general_info_questions sgi
-        ON sgi.bom_pcf_id = b.bom_pcf_id
+        ON sgi.bom_pcf_id = b.bom_pcf_id AND sgi.client_id IS NULL
     LEFT JOIN materials_emission_factor mef
         ON mef.year = sgi.annual_reporting_period
         AND mef.unit = 'Kg'
@@ -1597,7 +1598,7 @@ LEFT JOIN LATERAL (
         SUM(bece.total_pcf_value)::numeric AS supplier_total_pcf_emission
     FROM bom b2
     JOIN bom_emission_calculation_engine bece
-        ON bece.bom_id = b2.id
+        ON bece.bom_id = b2.id AND bece.product_id IS NULL
     WHERE b2.supplier_id = b.supplier_id
 ) spcf ON TRUE
 
@@ -1605,7 +1606,7 @@ LEFT JOIN LATERAL (
     SELECT sgiq.annual_reporting_period
     FROM supplier_general_info_questions sgiq
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id
-      AND sgiq.sup_id = b.supplier_id
+      AND sgiq.sup_id = b.supplier_id AND sgiq.client_id IS NULL
     ORDER BY sgiq.created_date ASC
     LIMIT 1
 ) arp ON TRUE
@@ -1718,7 +1719,7 @@ ROUND(
         AND ef.year = arp.annual_reporting_period
         AND ef.unit = pe.unit
 
-    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
 ) q22 ON TRUE
 
 
@@ -1785,7 +1786,7 @@ ROUND(
         AND ef.year = arp.annual_reporting_period
         AND ef.unit = ec.unit
 
-    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
 ) q51 ON TRUE
 
 
@@ -1852,7 +1853,7 @@ ROUND(
         AND ef.year = arp.annual_reporting_period
         AND ef.unit = ec.unit
 
-    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
 ) q67 ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
@@ -1983,7 +1984,7 @@ export async function getTransportationFootPrint(req: any, res: any) {
         ON stoie.sgiq_id = sgiq.sgiq_id
       JOIN mode_of_transport_used_for_transportation_questions ec
         ON ec.stoie_id = stoie.stoie_id
-      WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+      WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
         AND ec.mode_of_transport ILIKE $${idx++}
     )
   `);
@@ -2008,7 +2009,7 @@ export async function getTransportationFootPrint(req: any, res: any) {
             ON stoie.sgiq_id = sgiq.sgiq_id
           JOIN mode_of_transport_used_for_transportation_questions ec
             ON ec.stoie_id = stoie.stoie_id
-          WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+          WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
             AND ec.mode_of_transport ILIKE $${idx}
       )
     )
@@ -2058,6 +2059,7 @@ LEFT JOIN LATERAL (
     FROM supplier_general_info_questions sgiq
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id
       AND sgiq.sup_id = b.supplier_id
+      AND sgiq.client_id IS NULL
     ORDER BY sgiq.created_date ASC
     LIMIT 1
 ) arp ON TRUE
@@ -2150,7 +2152,7 @@ LEFT JOIN LATERAL (
         ON mef.year = arp.annual_reporting_period
         AND mef.unit = 'Kms'
         AND lower(mef.vehicle_type) = lower(ec.mode_of_transport)
-    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
 ) q74 ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
@@ -2283,7 +2285,7 @@ export async function getPackagingFootPrint(req: any, res: any) {
       JOIN scope_three_other_indirect_emissions_questions stoie
         ON stoie.stoie_id = ec.stoie_id
       JOIN supplier_general_info_questions sgiq
-        ON sgiq.sgiq_id = stoie.sgiq_id
+        ON sgiq.sgiq_id = stoie.sgiq_id AND sgiq.client_id IS NULL
       WHERE sgiq.bom_pcf_id = b.bom_pcf_id
         AND ec.energy_purchased ILIKE $${idx++}
     )
@@ -2299,7 +2301,7 @@ export async function getPackagingFootPrint(req: any, res: any) {
       JOIN scope_three_other_indirect_emissions_questions stoie
         ON stoie.stoie_id = ec.stoie_id
       JOIN supplier_general_info_questions sgiq
-        ON sgiq.sgiq_id = stoie.sgiq_id
+        ON sgiq.sgiq_id = stoie.sgiq_id AND sgiq.client_id IS NULL
       WHERE sgiq.bom_pcf_id = b.bom_pcf_id
         AND ec.energy_type ILIKE $${idx++}
     )
@@ -2332,7 +2334,7 @@ export async function getPackagingFootPrint(req: any, res: any) {
         JOIN scope_three_other_indirect_emissions_questions stoie
           ON stoie.stoie_id = ec.stoie_id
         JOIN supplier_general_info_questions sgiq
-          ON sgiq.sgiq_id = stoie.sgiq_id
+          ON sgiq.sgiq_id = stoie.sgiq_id AND sgiq.client_id IS NULL
         WHERE sgiq.bom_pcf_id = b.bom_pcf_id
           AND (
             ec.energy_purchased ILIKE $${idx}
@@ -2402,7 +2404,7 @@ LEFT JOIN LATERAL (
     SELECT sgiq.annual_reporting_period
     FROM supplier_general_info_questions sgiq
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id
-      AND sgiq.sup_id = b.supplier_id
+      AND sgiq.sup_id = b.supplier_id AND sgiq.client_id IS NULL
     ORDER BY sgiq.created_date ASC
     LIMIT 1
 ) arp ON TRUE
@@ -2543,7 +2545,7 @@ ROUND(
         AND ef.year = arp.annual_reporting_period
         AND ef.unit = ec.unit
 
-    WHERE sgiq.bom_pcf_id = b.bom_pcf_id
+    WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.client_id IS NULL
 ) q67 ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
@@ -3251,7 +3253,7 @@ SELECT
         ELSE 'Non-representative / missing key data'
     END AS meaning_description
 FROM dqr_scores ds
-JOIN supplier_sgiq ss ON ss.sup_id = ds.sup_id
+JOIN supplier_sgiq ss ON ss.sup_id = ds.sup_id AND ss.client_id IS NULL
 ORDER BY ds.overall_dqr_score DESC 
 LIMIT ${limit} OFFSET ${offset};
 

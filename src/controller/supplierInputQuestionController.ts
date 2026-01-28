@@ -21,7 +21,7 @@ export async function getSupplierSustainabilityDataById(req: any, res: any) {
                 SELECT gq.*, u.user_name
                 FROM supplier_general_info_questions gq
                 LEFT JOIN users_table u ON gq.user_id = u.user_id
-                WHERE gq.sgiq_id = $1 AND gq.user_id = $2
+                WHERE gq.sgiq_id = $1 AND gq.user_id = $2 AND gq.client_id IS NULL
             `;
             const generalInfo = await client.query(generalInfoQuery, [sgiq_id, user_id]);
 
