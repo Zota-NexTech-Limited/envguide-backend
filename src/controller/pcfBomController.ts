@@ -2,6 +2,7 @@ import { withClient } from '../util/database';
 import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes';
 import { bomService } from "../services/pcfBomService";
+import { getProductByCode } from './productController';
 
 // below code also working but no need all the details remainng should create after dqr so 
 // created  createBOMWithDetailsFinal API
@@ -1041,6 +1042,16 @@ export async function createPcfRequestWithBOMDetails(req: any, res: any) {
                 bom
             } = req.body;
 
+            if (!bom_pcf_request.product_code) {
+                return res.status(400).send(generateResponse(false, "Product code is required", 400, null));
+            }
+
+            if (bom_pcf_request.product_code) {
+                const product = await getProductByCode(client, bom_pcf_request.product_code);
+                if (!product) {
+                    return res.status(400).send(generateResponse(false, "Product not found", 400, null));
+                }
+            }
 
             const created_by = req.user_id;
 
@@ -2681,6 +2692,7 @@ export async function pcfCalculate(req: any, res: any) {
                 );
             }
 
+            let overall_pcf = 0;
             // To fetch ALL BOM for particular PCF 
             const fetchAllBOM = `
                 SELECT id,bom_pcf_id,material_number,economic_ratio,
@@ -3652,6 +3664,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                     // ===> Insert Ends here
 
+                    overall_pcf += Total_Housing_Component_Emissions;
                     TotalBomDetails.push({
                         bom_id: BomData.id,
                         material_value: Raw_Material_emissions,
@@ -3684,6 +3697,12 @@ export async function pcfCalculate(req: any, res: any) {
                 `UPDATE pcf_request_stages SET is_pcf_calculated = true
                  WHERE bom_pcf_id = $1;`,
                 [bom_pcf_id]
+            );
+
+            await client.query(
+                `UPDATE bom_pcf_request SET overall_pcf = $1
+                 WHERE id = $2;`,
+                [overall_pcf, bom_pcf_id]
             );
 
             return res.send(

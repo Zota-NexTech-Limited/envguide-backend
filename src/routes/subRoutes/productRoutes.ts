@@ -9,11 +9,11 @@ Routes.get('/api/product/get-by-id', authService.authenticate, Controller.getPro
 Routes.get('/api/product/list', authService.authenticate, Controller.listProducts);
 Routes.get('/api/product/drop-down', authService.authenticate, Controller.productsDropDown);
 
-Routes.post('/api/product-pcf/add', authService.authenticate, Controller.createProductPCF);
-Routes.post('/api/product-pcf/update', authService.authenticate, Controller.updateProductPCF);
-Routes.get('/api/product-pcf/get-by-id', authService.authenticate, Controller.getProductPCFById);
-Routes.post('/api/product-pcf/delete-raw-material-component', authService.authenticate, Controller.deleteRawMaterialComponents);
-Routes.post('/api/product-pcf/delete-transportation', authService.authenticate, Controller.deleteTransportation);
-Routes.post('/api/product-pcf/delete-packaging', authService.authenticate, Controller.deletePackaging);
+// OWN EMISSION 
+Routes.get('/api/product/bom-pcf-drop-down', authService.authenticate, Controller.pcfDropDown);
+Routes.get('/api/product/pcf-bom/get-by-id', authService.authenticate, Controller.getByIdPcfRequestWithBOMDetails);
+Routes.get('/api/product/pcf-bom/history-bom-details', authService.authenticate, Controller.getPCFHistoryBOMDetails);
+Routes.get('/api/product/pcf-bom/supplier-details', authService.authenticate, Controller.productPCFBomSupplierDetails);
+Routes.get('/api/product/secondary-data-entries-by-id', authService.authenticate, Controller.secondaryDataEntriesById);
 
 export default Routes;
