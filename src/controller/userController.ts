@@ -846,6 +846,61 @@ export async function getDocumentType(req: any, res: any) {
     }
 }
 
+export async function deleteUserById(req: any, res: any) {
+    return withClient(async (client: any) => {
+
+        try {
+            const { user_id } = req.body;
+            if (!user_id) {
+                return res.status(400).json({
+                    status: false,
+                    message: "user_id is required"
+                });
+            }
+
+            // Check if user exists
+            const checkUser = await client.query(
+                `SELECT user_phone_number FROM users_table WHERE user_id = $1`,
+                [user_id]
+            );
+
+            if (checkUser.rowCount === 0) {
+                return res.status(404).json({
+                    status: false,
+                    message: "User not found"
+                });
+            }
+
+            await client.query('BEGIN'); // Start transaction
+
+            // Delete user
+            await client.query(
+                `DELETE FROM users_table WHERE user_id = $1`,
+                [user_id]
+            );
+
+            await client.query(
+                `DELETE FROM user_mfa_secret WHERE user_id = $1`,
+                [user_id]
+            );
+
+            await client.query('COMMIT');
+
+            return res.status(200).json({
+                status: true,
+                message: "User deleted successfully"
+            });
+
+        } catch (error: any) {
+            await client.query('ROLLBACK'); // rollback in case of error
+            console.error("Error in deleteUserById:", error);
+            return res.status(500).json({
+                status: false,
+                message: "Internal Server Error"
+            });
+        }
+    });
+}
 
 
 
@@ -1043,6 +1098,176 @@ export async function updateManufacturerOnboardingForm(req: any, res: any) {
     });
 }
 
+export async function getManufacturerById(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.query;
+
+            const query = `
+                SELECT *
+                FROM manufacturer
+                WHERE id = $1
+                LIMIT 1;
+            `;
+
+            const result = await client.query(query, [id]);
+
+            if (result.rowCount === 0) {
+                return res.send(
+                    generateResponse(false, "Manufacturer not found", 404, null)
+                );
+            }
+
+            return res.send(
+                generateResponse(true, "Manufacturer fetched successfully", 200, result.rows[0])
+            );
+
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getManufacturerList(req: any, res: any) {
+    const {
+        pageNumber = 1,
+        pageSize = 20,
+        code,
+        name,
+        email,
+        phone_number,
+        factory_or_plant_name,
+        contact_person_name,
+        search
+    } = req.query;
+
+    const limit = parseInt(pageSize);
+    const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
+    const offset = (page - 1) * limit;
+
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    return withClient(async (client: any) => {
+        try {
+
+            if (code) {
+                conditions.push(`m.code ILIKE $${idx++}`);
+                values.push(`%${code}%`);
+            }
+
+            if (name) {
+                conditions.push(`m.name ILIKE $${idx++}`);
+                values.push(`%${name}%`);
+            }
+
+            if (email) {
+                conditions.push(`m.email ILIKE $${idx++}`);
+                values.push(`%${email}%`);
+            }
+
+            if (phone_number) {
+                conditions.push(`m.phone_number ILIKE $${idx++}`);
+                values.push(`%${phone_number}%`);
+            }
+
+            if (factory_or_plant_name) {
+                conditions.push(`m.factory_or_plant_name ILIKE $${idx++}`);
+                values.push(`%${factory_or_plant_name}%`);
+            }
+
+            if (contact_person_name) {
+                conditions.push(`m.contact_person_name ILIKE $${idx++}`);
+                values.push(`%${contact_person_name}%`);
+            }
+
+            /* Global search */
+            if (search) {
+                conditions.push(`
+                    (
+                        m.code ILIKE $${idx}
+                        OR m.name ILIKE $${idx}
+                        OR m.email ILIKE $${idx}
+                        OR m.phone_number ILIKE $${idx}
+                        OR m.factory_or_plant_name ILIKE $${idx}
+                        OR m.contact_person_name ILIKE $${idx}
+                    )
+                `);
+                values.push(`%${search}%`);
+                idx++;
+            }
+
+            // Correct placement of limit & offset
+            const limitIndex = idx++;
+            const offsetIndex = idx++;
+
+            values.push(limit, offset);
+
+            const query = `
+                SELECT m.*
+                FROM manufacturer m
+                WHERE 1=1
+                ${conditions.length ? `AND ${conditions.join(" AND ")}` : ""}
+                ORDER BY m.created_date DESC
+                LIMIT $${limitIndex} OFFSET $${offsetIndex}
+            `;
+
+            const result = await client.query(query, values);
+
+            return res.status(200).send(
+                generateResponse(true, "Success!", 200, {
+                    page,
+                    pageSize: limit,
+                    totalCount: result.rows.length,
+                    data: result.rows
+                })
+            );
+
+        } catch (error: any) {
+            return res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+
+export async function deleteManufacturer(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.body; // or req.body
+
+            const check = await client.query(
+                `SELECT id FROM manufacturer WHERE id = $1`,
+                [id]
+            );
+
+            if (check.rowCount === 0) {
+                return res.send(
+                    generateResponse(false, "Manufacturer not found", 404, null)
+                );
+            }
+
+            await client.query(
+                `DELETE FROM manufacturer WHERE id = $1`,
+                [id]
+            );
+
+            return res.send(
+                generateResponse(true, "Manufacturer deleted successfully", 200, null)
+            );
+
+        } catch (error: any) {
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
+        }
+    });
+}
+
+
 export async function addSupplierOnboardingForm(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
@@ -1141,6 +1366,179 @@ export async function updateSupplierOnboardingForm(req: any, res: any) {
             );
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getSupplierById(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { id } = req.query;
+
+            const query = `
+                SELECT *
+                FROM supplier_details
+                WHERE sup_id = $1
+                LIMIT 1;
+            `;
+
+            const result = await client.query(query, [id]);
+
+            if (result.rowCount === 0) {
+                return res.send(
+                    generateResponse(false, "Supplier not found", 404, null)
+                );
+            }
+
+            return res.send(
+                generateResponse(true, "Supplier fetched successfully", 200, result.rows[0])
+            );
+
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getSupplierList(req: any, res: any) {
+    const {
+        pageNumber = 1,
+        pageSize = 20,
+
+        code,
+        supplier_name,
+        supplier_email,
+        supplier_phone_number,
+        supplier_gst_number,
+        supplier_company_name,
+
+        search
+    } = req.query;
+
+    const limit = parseInt(pageSize);
+    const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
+    const offset = (page - 1) * limit;
+
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    return withClient(async (client: any) => {
+        try {
+
+            if (code) {
+                conditions.push(`s.code ILIKE $${idx++}`);
+                values.push(`%${code}%`);
+            }
+
+            if (supplier_name) {
+                conditions.push(`s.supplier_name ILIKE $${idx++}`);
+                values.push(`%${supplier_name}%`);
+            }
+
+            if (supplier_email) {
+                conditions.push(`s.supplier_email ILIKE $${idx++}`);
+                values.push(`%${supplier_email}%`);
+            }
+
+            if (supplier_phone_number) {
+                conditions.push(`s.supplier_phone_number ILIKE $${idx++}`);
+                values.push(`%${supplier_phone_number}%`);
+            }
+
+            if (supplier_gst_number) {
+                conditions.push(`s.supplier_gst_number ILIKE $${idx++}`);
+                values.push(`%${supplier_gst_number}%`);
+            }
+
+            if (supplier_company_name) {
+                conditions.push(`s.supplier_company_name ILIKE $${idx++}`);
+                values.push(`%${supplier_company_name}%`);
+            }
+
+            /* Global search */
+            if (search) {
+                conditions.push(`
+                    (
+                        s.code ILIKE $${idx}
+                        OR s.supplier_name ILIKE $${idx}
+                        OR s.supplier_email ILIKE $${idx}
+                        OR s.supplier_phone_number ILIKE $${idx}
+                        OR s.supplier_gst_number ILIKE $${idx}
+                        OR s.supplier_company_name ILIKE $${idx}
+                    )
+                `);
+                values.push(`%${search}%`);
+                idx++;
+            }
+
+            const limitIndex = idx++;
+            const offsetIndex = idx++;
+
+            values.push(limit, offset);
+
+            const result = await client.query(
+                `
+                SELECT s.*
+                FROM supplier_details s
+                WHERE 1=1
+                ${conditions.length ? `AND ${conditions.join(" AND ")}` : ""}
+                ORDER BY s.created_date DESC
+                LIMIT $${limitIndex} OFFSET $${offsetIndex}
+                `,
+                values
+            );
+
+            const rows = result.rows;
+
+            return res.status(200).send(
+                generateResponse(true, "Success!", 200, {
+                    page,
+                    pageSize: limit,
+                    totalCount: rows.length,
+                    data: rows
+                })
+            );
+
+        } catch (error: any) {
+            return res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+
+export async function deleteSupplier(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { sup_id } = req.body; // or req.body
+
+            const check = await client.query(
+                `SELECT sup_id FROM supplier_details WHERE sup_id = $1`,
+                [sup_id]
+            );
+
+            if (check.rowCount === 0) {
+                return res.send(
+                    generateResponse(false, "Supplier not found", 404, null)
+                );
+            }
+
+            await client.query(
+                `DELETE FROM supplier_details WHERE sup_id = $1`,
+                [sup_id]
+            );
+
+            return res.send(
+                generateResponse(true, "Supplier deleted successfully", 200, null)
+            );
+
+        } catch (error: any) {
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
         }
     });
 }
