@@ -207,7 +207,8 @@ export async function getSupplierDetailsList(req: any, res: any) {
             idx++;
         }
 
-        const baseCondition = 'client_id IS NULL';
+        // const baseCondition = 'sgiq.client_id IS NULL';
+        const baseCondition = 'sgiq.bom_pcf_id IS NOT NULL';
 
         const whereClause = conditions.length
             ? `WHERE ${baseCondition} AND ${conditions.join(' AND ')}`
