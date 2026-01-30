@@ -849,7 +849,298 @@ export async function getDocumentType(req: any, res: any) {
 
 
 
+import { withClient } from '../util/database';
+
+// Manufacturer onboarding form
+async function generateManufacturerCode(client: any) {
+    const result = await client.query(`
+        SELECT code
+        FROM manufacturer
+        WHERE code LIKE 'MANF%'
+        ORDER BY code DESC
+        LIMIT 1
+    `);
+
+    if (result.rowCount === 0) {
+        return "MANF0001";
+    }
+
+    const lastCode = result.rows[0].code; // MANF0009
+    const num = parseInt(lastCode.replace("MANF", ""), 10) + 1;
+
+    return `MANF${num.toString().padStart(4, "0")}`;
+}
 
 
+export async function createManufacturerOnboardingForm(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+            const id = ulid();
 
+            const code = await generateManufacturerCode(client);
 
+            // uniqueness check
+            const check = await client.query(
+                `SELECT name, email, phone_number
+                 FROM manufacturer
+                 WHERE name ILIKE $1
+                    OR email ILIKE $2
+                    OR phone_number = $3`,
+                [data.name, data.email, data.phone_number]
+            );
+
+            if (check.rowCount > 0) {
+                const row = check.rows[0];
+
+                if (row.name?.toLowerCase() === data.name.toLowerCase())
+                    return res.send(generateResponse(false, "Name already exists", 400, null));
+
+                if (row.email?.toLowerCase() === data.email.toLowerCase())
+                    return res.send(generateResponse(false, "Email already exists", 400, null));
+
+                if (row.phone_number === data.phone_number)
+                    return res.send(generateResponse(false, "Phone number already exists", 400, null));
+            }
+
+            const query = `
+                INSERT INTO manufacturer (
+                    id, code, name, address, lat, long,
+                    email, phone_number, alternate_phone_number,
+                    gender, date_of_birth, image, company_logo,
+                    company_website, factory_or_plant_name,
+                    factory_address, city, state, country,
+                    manufacturing_capabilities,
+                    installed_capacity_or_month,
+                    machinery_list, years_of_operation,
+                    number_of_employees, key_oem_clients,
+                    iso_9001, iso_14001, ohsas_18001,
+                    iatf_16949, other_certifications,
+                    reach_compliance, rohs_ompliance,
+                    conflict_minerals_declaration,
+                    environmental_safety_policy,
+                    factory_layout_pdf,
+                    factory_profile_or_capability_deck,
+                    qa_or_qc_lab_availability,
+                    testing_certifications,
+                    contact_person_name,
+                    contact_person_designation,
+                    contact_person_email,
+                    contact_person_phone
+                )
+                VALUES (
+                    $1,$2,$3,$4,$5,$6,
+                    $7,$8,$9,
+                    $10,$11,$12,$13,
+                    $14,$15,$16,$17,$18,$19,
+                    $20,$21,$22,$23,
+                    $24,$25,$26,$27,
+                    $28,$29,$30,
+                    $31,$32,$33,
+                    $34,$35,$36,
+                    $37,$38,$39,
+                    $40,$41,$42
+                )
+                RETURNING *;
+            `;
+
+            const values = [
+                id, code, data.name, data.address, data.lat, data.long,
+                data.email, data.phone_number, data.alternate_phone_number,
+                data.gender, data.date_of_birth, data.image, data.company_logo,
+                data.company_website, data.factory_or_plant_name,
+                data.factory_address, data.city, data.state, data.country,
+                data.manufacturing_capabilities,
+                data.installed_capacity_or_month,
+                data.machinery_list, data.years_of_operation,
+                data.number_of_employees, data.key_oem_clients,
+                data.iso_9001, data.iso_14001, data.ohsas_18001,
+                data.iatf_16949, data.other_certifications,
+                data.reach_compliance, data.rohs_ompliance,
+                data.conflict_minerals_declaration,
+                data.environmental_safety_policy,
+                data.factory_layout_pdf,
+                data.factory_profile_or_capability_deck,
+                data.qa_or_qc_lab_availability,
+                data.testing_certifications,
+                data.contact_person_name,
+                data.contact_person_designation,
+                data.contact_person_email,
+                data.contact_person_phone
+            ];
+
+            const result = await client.query(query, values);
+
+            return res.send(generateResponse(true, "Manufacturer created", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateManufacturerOnboardingForm(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const id = req.body.id;
+            const data = { ...req.body };
+
+            // prevent updating restricted fields
+            delete data.id;
+            delete data.code;
+
+            /* ---------- uniqueness check ---------- */
+            const check = await client.query(
+                `SELECT id, name, email, phone_number
+                 FROM manufacturer
+                 WHERE (name ILIKE $1
+                        OR email ILIKE $2
+                        OR phone_number = $3)
+                   AND id <> $4`,
+                [data.name, data.email, data.phone_number, id]
+            );
+
+            if (check.rowCount > 0) {
+                const row = check.rows[0];
+
+                if (row.name?.toLowerCase() === data.name?.toLowerCase())
+                    return res.send(generateResponse(false, "Name already exists", 400, null));
+
+                if (row.email?.toLowerCase() === data.email?.toLowerCase())
+                    return res.send(generateResponse(false, "Email already exists", 400, null));
+
+                if (row.phone_number === data.phone_number)
+                    return res.send(generateResponse(false, "Phone number already exists", 400, null));
+            }
+
+            /* ---------- dynamic update ---------- */
+            const keys = Object.keys(data);
+            if (!keys.length) {
+                return res.send(generateResponse(false, "No fields to update", 400, null));
+            }
+
+            const setClause = keys
+                .map((key, i) => `${key} = $${i + 1}`)
+                .join(", ");
+
+            const values = keys.map(k => data[k]);
+
+            const query = `
+                UPDATE manufacturer
+                SET ${setClause},
+                    update_date = CURRENT_TIMESTAMP
+                WHERE id = $${keys.length + 1}
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [...values, id]);
+
+            return res.send(
+                generateResponse(true, "Manufacturer updated", 200, result.rows[0])
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function addSupplierOnboardingForm(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const sup_id = ulid();
+            const data = req.body;
+
+            /* ---------- uniqueness check ---------- */
+            const exists = await client.query(
+                `SELECT supplier_email
+                 FROM supplier_details
+                 WHERE supplier_email ILIKE $1`,
+                [data.supplier_email]
+            );
+
+            if (exists.rowCount > 0) {
+                return res.send(
+                    generateResponse(false, "Supplier email already exists", 400, null)
+                );
+            }
+
+            const keys = Object.keys(data);
+            const columns = ["sup_id", ...keys];
+            const placeholders = columns.map((_, i) => `$${i + 1}`);
+
+            const values = [sup_id, ...keys.map(k => data[k])];
+
+            const query = `
+                INSERT INTO supplier_details (${columns.join(",")})
+                VALUES (${placeholders.join(",")})
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, values);
+
+            return res.send(
+                generateResponse(true, "Supplier created", 200, result.rows[0])
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateSupplierOnboardingForm(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const sup_id = req.body.sup_id;
+            const data = { ...req.body };
+
+            delete data.sup_id;
+            delete data.code;
+
+            /* ---------- uniqueness check ---------- */
+            if (data.supplier_email) {
+                const exists = await client.query(
+                    `SELECT sup_id
+                     FROM supplier_details
+                     WHERE supplier_email ILIKE $1
+                       AND sup_id <> $2`,
+                    [data.supplier_email, sup_id]
+                );
+
+                if (exists.rowCount > 0) {
+                    return res.send(
+                        generateResponse(false, "Supplier email already exists", 400, null)
+                    );
+                }
+            }
+
+            const keys = Object.keys(data);
+
+            if (!keys.length) {
+                return res.send(
+                    generateResponse(false, "No fields to update", 400, null)
+                );
+            }
+
+            const setClause = keys
+                .map((key, i) => `${key} = $${i + 1}`)
+                .join(", ");
+
+            const values = keys.map(k => data[k]);
+
+            const query = `
+                UPDATE supplier_details
+                SET ${setClause},
+                    update_date = CURRENT_TIMESTAMP
+                WHERE sup_id = $${keys.length + 1}
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [...values, sup_id]);
+
+            return res.send(
+                generateResponse(true, "Supplier updated", 200, result.rows[0])
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
