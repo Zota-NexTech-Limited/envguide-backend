@@ -9,7 +9,6 @@ export async function createProduct(req: any, res: any) {
             await client.query("BEGIN");
 
             const {
-                product_code,
                 product_name,
                 product_category_id,
                 product_sub_category_id,
@@ -30,9 +29,26 @@ export async function createProduct(req: any, res: any) {
             const created_by = req.user_id;
             const id = ulid();
 
-            if (!product_code || product_code.trim() === "") {
-                return res.send(generateResponse(false, "product_code is required", 400, null));
+            // if (!product_code || product_code.trim() === "") {
+            //     return res.send(generateResponse(false, "product_code is required", 400, null));
+            // }
+
+            // === Generate new code ===
+            const lastCodeRes = await client.query(
+                `SELECT product_code FROM product 
+         WHERE product_code LIKE 'PRO%' 
+         ORDER BY created_date DESC 
+         LIMIT 1;`
+            );
+
+            let product_code = "PRO00001";
+            if (lastCodeRes.rows.length > 0) {
+                const lastCode = lastCodeRes.rows[0].code; // e.g. "PRO00012"
+                const numPart = parseInt(lastCode.replace("PRO", ""), 10);
+                const nextNum = numPart + 1;
+                product_code = "PRO" + String(nextNum).padStart(5, "0");
             }
+
             if (!product_name || product_name.trim() === "") {
                 return res.send(generateResponse(false, "product_name is required", 400, null));
             }
@@ -41,17 +57,17 @@ export async function createProduct(req: any, res: any) {
             }
 
             // 🔍 CHECK IF PRODUCT CODE ALREADY EXISTS
-            const codeCheck = await client.query(
-                `SELECT id FROM product WHERE product_code = $1`,
-                [product_code]
-            );
+            // const codeCheck = await client.query(
+            //     `SELECT id FROM product WHERE product_code = $1`,
+            //     [product_code]
+            // );
 
-            if (codeCheck.rows.length > 0) {
-                await client.query("ROLLBACK");
-                return res.send(
-                    generateResponse(false, "Product code already exists", 400, null)
-                );
-            }
+            // if (codeCheck.rows.length > 0) {
+            //     await client.query("ROLLBACK");
+            //     return res.send(
+            //         generateResponse(false, "Product code already exists", 400, null)
+            //     );
+            // }
 
             const insertQuery = `
                 INSERT INTO product (
@@ -93,7 +109,6 @@ export async function updateProduct(req: any, res: any) {
 
             const {
                 id,
-                product_code,
                 product_name,
                 product_category_id,
                 product_sub_category_id,
@@ -116,9 +131,9 @@ export async function updateProduct(req: any, res: any) {
             const updated_by = req.user_id;
 
             // 🔐 REQUIRED FIELD VALIDATION
-            if (!product_code || product_code.trim() === "") {
-                return res.send(generateResponse(false, "product_code is required", 400, null));
-            }
+            // if (!product_code || product_code.trim() === "") {
+            //     return res.send(generateResponse(false, "product_code is required", 400, null));
+            // }
             if (!product_name || product_name.trim() === "") {
                 return res.send(generateResponse(false, "product_name is required", 400, null));
             }
@@ -127,41 +142,40 @@ export async function updateProduct(req: any, res: any) {
             }
 
             // 🔍 CHECK UNIQUE CODE FOR OTHER PRODUCTS
-            const codeCheck = await client.query(
-                `SELECT id FROM product WHERE product_code = $1 AND id <> $2`,
-                [product_code, id]
-            );
+            // const codeCheck = await client.query(
+            //     `SELECT id FROM product WHERE product_code = $1 AND id <> $2`,
+            //     [product_code, id]
+            // );
 
-            if (codeCheck.rows.length > 0) {
-                return res.send(generateResponse(false, "Product code already exists", 400, null));
-            }
+            // if (codeCheck.rows.length > 0) {
+            //     return res.send(generateResponse(false, "Product code already exists", 400, null));
+            // }
 
             const updateQuery = `
                 UPDATE product
-                SET product_code = $1,
-                    product_name = $2,
-                    product_category_id = $3,
-                    product_sub_category_id = $4,
-                    description = $5,
-                    ts_weight_kg = $6,
-                    ts_dimensions = $7,
-                    ts_material = $8,
-                    ts_manufacturing_process_id = $9,
-                    ts_supplier = $10,
-                    ts_part_number = $11,
-                    ed_estimated_pcf = $12,
-                    ed_recyclability = $13,
-                    ed_life_cycle_stage_id = $14,
-                    ed_renewable_energy = $15,
-                    updated_by = $16,
+                SET 
+                    product_name = $1,
+                    product_category_id = $2,
+                    product_sub_category_id = $3,
+                    description = $4,
+                    ts_weight_kg = $5,
+                    ts_dimensions = $6,
+                    ts_material = $7,
+                    ts_manufacturing_process_id = $8,
+                    ts_supplier = $9,
+                    ts_part_number = $10,
+                    ed_estimated_pcf = $11,
+                    ed_recyclability = $12,
+                    ed_life_cycle_stage_id = $13,
+                    ed_renewable_energy = $14,
+                    updated_by = $15,
                     update_date = NOW(),
-                    product_status=$18
-                WHERE id = $17
+                    product_status=$17
+                WHERE id = $16
                 RETURNING *;
             `;
 
             const result = await client.query(updateQuery, [
-                product_code,
                 product_name,
                 product_category_id,
                 product_sub_category_id,
@@ -1138,7 +1152,7 @@ export async function getPCFOwnEmissionHistoryDetails(req: any, res: any) {
             }
 
             console.log(productCheck.rows[0]);
-            
+
             const result = await client.query(
                 `
 WITH base_pcf AS (
