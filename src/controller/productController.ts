@@ -436,13 +436,17 @@ export async function pcfDropDown(req: any, res: any) {
             }
 
             const query = `
-                SELECT
-                    id,
-                    code,
-                    request_title
-                FROM bom_pcf_request
-                WHERE product_code = $1
-                ORDER BY created_date DESC
+                 SELECT
+                    bpr.id,
+                    bpr.code,
+                    bpr.request_title,
+                    COALESCE(oe.is_own_emission_calculated, false)
+                        AS is_own_emission_calculated
+                FROM bom_pcf_request bpr
+                LEFT JOIN own_emission oe
+                    ON oe.bom_pcf_id = bpr.id
+                WHERE bpr.product_code = $1
+                ORDER BY bpr.created_date DESC
             `;
 
             const result = await client.query(query, [product_code]);
