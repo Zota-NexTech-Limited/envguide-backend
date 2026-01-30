@@ -117,13 +117,13 @@ export async function getOwnEmissionById(req: any, res: any) {
                    u1.user_name AS created_by_name,
                    u2.user_name AS updated_by_name
             FROM own_emission oe
-            LEFT JOIN calculation_method cm ON oe.calculation_method_id = cm.id
-            LEFT JOIN fuel_combustion fc ON oe.fuel_combustion_id = fc.id
-            LEFT JOIN process_emission pe ON oe.process_emission_id = pe.id
-            LEFT JOIN fugitive_emission fe ON oe.fugitive_emission_id = fe.id
-            LEFT JOIN electicity_location_based elb ON oe.electicity_location_based_id = elb.id
-            LEFT JOIN electicity_market_based emb ON oe.electicity_market_based_id = emb.id
-            LEFT JOIN steam_heat_cooling shc ON oe.steam_heat_cooling_id = shc.id
+            LEFT JOIN calculation_method cm ON oe.id = cm.id
+            LEFT JOIN fuel_combustion fc ON oe.id = fc.id
+            LEFT JOIN process_emission pe ON oe.id = pe.id
+            LEFT JOIN fugitive_emission fe ON oe.id = fe.id
+            LEFT JOIN electicity_location_based elb ON oe.id = elb.id
+            LEFT JOIN electicity_market_based emb ON oe.id = emb.id
+            LEFT JOIN steam_heat_cooling shc ON oe.id = shc.id
             LEFT JOIN users_table u1 ON oe.created_by = u1.user_id
             LEFT JOIN users_table u2 ON oe.updated_by = u2.user_id
             WHERE oe.id = $1;
@@ -174,13 +174,13 @@ export async function getOwnEmissionList(req: any, res: any) {
              u1.user_name AS created_by_name,
              u2.user_name AS updated_by_name
       FROM own_emission oe
-      LEFT JOIN calculation_method cm ON oe.calculation_method_id = cm.id
-      LEFT JOIN fuel_combustion fc ON oe.fuel_combustion_id = fc.id
-      LEFT JOIN process_emission pe ON oe.process_emission_id = pe.id
-      LEFT JOIN fugitive_emission fe ON oe.fugitive_emission_id = fe.id
-      LEFT JOIN electicity_location_based elb ON oe.electicity_location_based_id = elb.id
-      LEFT JOIN electicity_market_based emb ON oe.electicity_market_based_id = emb.id
-      LEFT JOIN steam_heat_cooling shc ON oe.steam_heat_cooling_id = shc.id
+      LEFT JOIN calculation_method cm ON oe.id = cm.id
+      LEFT JOIN fuel_combustion fc ON oe.id = fc.id
+      LEFT JOIN process_emission pe ON oe.id = pe.id
+      LEFT JOIN fugitive_emission fe ON oe.id = fe.id
+      LEFT JOIN electicity_location_based elb ON oe.id = elb.id
+      LEFT JOIN electicity_market_based emb ON oe.id = emb.id
+      LEFT JOIN steam_heat_cooling shc ON oe.id = shc.id
       LEFT JOIN users_table u1 ON oe.created_by = u1.user_id
       LEFT JOIN users_table u2 ON oe.updated_by = u2.user_id
       ORDER BY oe.created_date DESC
