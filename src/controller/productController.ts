@@ -316,8 +316,9 @@ export async function listProducts(req: any, res: any) {
                 search = ""
             } = req.query;
 
-            const offset = (pageNumber - 1) * pageSize;
+            const page = pageNumber;
             const limit = pageSize;
+            const offset = (Number(page) - 1) * Number(limit);
 
             let whereClauses: string[] = [];
             let params: any[] = [];
@@ -394,9 +395,30 @@ export async function listProducts(req: any, res: any) {
                 LIMIT ${limit} OFFSET ${offset};
             `;
 
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM product t;
+            `;
+
+            const countResult = await client.query(
+                countQuery,
+                params.slice(0, params.length - 2)
+            );
+
+            const total = Number(countResult.rows[0].total);
+
+
             const result = await client.query(query, params);
 
-            return res.send(generateResponse(true, "Fetched successfully", 200, result.rows));
+            return res.send(generateResponse(true, "Fetched successfully", 200, {
+                data: result.rows,
+                pagination: {
+                    total,
+                    page: Number(page),
+                    limit: Number(limit),
+                    totalPages: Math.ceil(total / Number(limit))
+                }
+            }));
 
         } catch (err: any) {
             console.error("❌ Error listing products:", err);
