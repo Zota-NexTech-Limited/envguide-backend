@@ -1208,9 +1208,9 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
 
     } = req.query;
 
-    const limit = parseInt(pageSize);
-    const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
-    const offset = (page - 1) * limit;
+    const page = pageNumber;
+    const limit = pageSize;
+    const offset = (Number(page) - 1) * Number(limit);
 
     const conditions: string[] = [];
     const values: any[] = [];
@@ -1294,7 +1294,7 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
                 idx++;
             }
 
-            values.push(limit, offset);
+            values.push(Number(limit), offset);
 
             const result = await client.query(
                 `
@@ -1406,15 +1406,33 @@ WHERE 1=1
             );
 
             const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            // const totalCount = rows.length > 0 ? rows.length : 0;
+
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM bom_pcf_request t;
+            `;
+
+            const countResult = await client.query(
+                countQuery,
+                values.slice(0, values.length - 2)
+            );
+
+            const total = Number(countResult.rows[0].total);
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
-                    success: true,
-                    page,
-                    pageSize: limit,
-                    totalCount,
-                    data: result.rows
+                    // success: true,
+                    // page,
+                    // pageSize: limit,
+                    // totalCount: total,
+                    data: result.rows,
+                    pagination: {
+                        total,
+                        page: Number(page),
+                        limit: Number(limit),
+                        totalPages: Math.ceil(total / Number(limit))
+                    }
                 })
             );
 

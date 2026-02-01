@@ -493,15 +493,17 @@ export async function listDocumentMaster(req: any, res: any) {
                  AND created_date < date_trunc('year', CURRENT_DATE)`
             );
 
-            const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            // const rows = result.rows;
+            // const totalCount = rows.length > 0 ? rows.length : 0;
+
+
 
 
             return res.status(200).json({
                 message: "Document list fetched successfully",
                 currentPage: Number(pageNumber),
                 totalRecords: total.rows[0].total,
-                totalCount: totalCount,
+                totalCount: total.rows[0].total,
                 totalPages: Math.ceil(total.rows[0].total / limit),
                 recentActivity: recentActivity.rows,
                 stats: {
@@ -690,15 +692,34 @@ LIMIT $${idx++} OFFSET $${idx++};
 
             const result = await client.query(query, values);
 
-            const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            // const rows = result.rows;
+            // const totalCount = rows.length > 0 ? rows.length : 0;
+
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM bom_pcf_request t;
+            `;
+
+            const countResult = await client.query(
+                countQuery,
+                values.slice(0, values.length - 2)
+            );
+
+            const total = Number(countResult.rows[0].total);
+
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
-                    page,
-                    pageSize: limit,
-                    totalCount,
-                    data: result.rows
+                    // page,
+                    // pageSize: limit,
+                    // totalCount,
+                    data: result.rows,
+                    pagination: {
+                        total,
+                        page: Number(page),
+                        limit: Number(limit),
+                        totalPages: Math.ceil(total / Number(limit))
+                    }
                 })
             );
 

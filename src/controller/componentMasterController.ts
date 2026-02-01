@@ -248,9 +248,9 @@ export async function getComponnetMasterList(req: any, res: any) {
         pcf_status
     } = req.query;
 
-    const limit = Number(pageSize);
-    const page = Number(pageNumber) > 0 ? Number(pageNumber) : 1;
-    const offset = (page - 1) * limit;
+    const page = pageNumber;
+    const limit = pageSize;
+    const offset = (Number(page) - 1) * Number(limit);
 
     return withClient(async (client: any) => {
         try {
@@ -461,15 +461,31 @@ LIMIT $${idx++} OFFSET $${idx++};
 
             const result = await client.query(query, values);
 
-            const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM bom_pcf_request t;
+            `;
+
+            const countResult = await client.query(
+                countQuery,
+                values.slice(0, values.length - 2)
+            );
+
+            const total = Number(countResult.rows[0].total);
+
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
-                    page,
-                    pageSize: limit,
-                    totalCount,
-                    data: result.rows
+                    // page,
+                    // pageSize: limit,
+                    // totalCount,
+                    data: result.rows,
+                    pagination: {
+                        total,
+                        page: Number(page),
+                        limit: Number(limit),
+                        totalPages: Math.ceil(total / Number(limit))
+                    }
                 })
             );
 
