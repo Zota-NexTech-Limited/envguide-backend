@@ -230,7 +230,7 @@ async function updateScopeTwo(client: any, d: any) {
         'process_specific_energy_usage_questions',
         'pseu_id',
         d.process_specific_energy_usage_questions,
-        ['process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide']
+        ['process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'energy_type']
     );
 
     await updateByArray(
