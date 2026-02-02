@@ -843,7 +843,10 @@ export async function createTables() {
         `CREATE TABLE IF NOT EXISTS process_specific_energy_usage_questions (
             pseu_id VARCHAR(255) PRIMARY KEY,
             stide_id VARCHAR(255),
+            bom_id VARCHAR(255),
+            material_number VARCHAR(255),
             process_specific_energy_type VARCHAR(255),
+            energy_type VARCHAR(255),
             quantity_consumed NUMERIC(10,2),
             unit VARCHAR(50),
             support_from_enviguide BOOLEAN DEFAULT false,

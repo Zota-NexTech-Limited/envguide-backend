@@ -4132,13 +4132,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 payload: p
             });
 
-            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false];
+            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type];
         });
 
         childInserts.push(bulkInsert(
             client,
             'process_specific_energy_usage_questions',
-            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide'],
+            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type'],
             rows
         ));
 
