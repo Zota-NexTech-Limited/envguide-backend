@@ -3436,6 +3436,23 @@ export async function mirgation() {
     created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );`,
         // <=======================END<================
+
+        // Reports
+        `CREATE TABLE IF NOT EXISTS favorite_reports (
+    fr_id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) UNIQUE, 
+    is_product_footprint BOOLEAN DEFAULT FALSE,  
+    is_supplier_footprint BOOLEAN DEFAULT FALSE,  
+    is_material_footprint BOOLEAN DEFAULT FALSE,  
+    is_electricity_footprint BOOLEAN DEFAULT FALSE,  
+    is_transportation_footprint BOOLEAN DEFAULT FALSE, 
+    is_packaging_footprint BOOLEAN DEFAULT FALSE,
+    is_dqr_rating_footprint BOOLEAN DEFAULT FALSE, 
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
     ]
 
     // try {

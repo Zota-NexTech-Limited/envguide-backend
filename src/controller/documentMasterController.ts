@@ -560,12 +560,14 @@ export async function getDocumentMasterList(req: any, res: any) {
             let idx = 1;
 
             /* ---------- BASE CONDITIONS ---------- */
+             // need calrification is_bom_calculated above only need to show calculated one or not
+
             whereConditions.push(`pcf.is_task_created = TRUE`);
             whereConditions.push(`
                 EXISTS (
                     SELECT 1 FROM bom b
                     WHERE b.bom_pcf_id = pcf.id
-                    AND b.is_bom_calculated = TRUE
+                    /* ---------- AND b.is_bom_calculated = TRUE ---------- */
                 )
             `);
 

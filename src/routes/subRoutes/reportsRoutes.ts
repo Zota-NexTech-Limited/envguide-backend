@@ -10,5 +10,7 @@ Routes.get('/api/report/electricity-foot-print-list', authService.authenticate, 
 Routes.get('/api/report/transporation-foot-print-list', authService.authenticate, Controller.getTransportationFootPrint);
 Routes.get('/api/report/packaging-foot-print-list', authService.authenticate, Controller.getPackagingFootPrint);
 Routes.get('/api/report/supplier-dqr-rating-report', authService.authenticate, Controller.getSupplierDqrRatingReport);
+Routes.post('/api/report/upsert-favorite-report', authService.authenticate, Controller.upsertFavoriteReports);
+Routes.get('/api/report/fetch-favorite-report', authService.authenticate, Controller.getFavoriteReportsByUserId);
 
 export default Routes;

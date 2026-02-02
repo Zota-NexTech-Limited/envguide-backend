@@ -1,3 +1,4 @@
+import { ulid } from 'ulid';
 import { withClient } from '../util/database';
 import { generateResponse } from '../util/genRes';
 
@@ -3279,6 +3280,154 @@ LIMIT ${limit} OFFSET ${offset};
             return res.send(
                 generateResponse(false, error.message, 500, null)
             );
+        }
+    });
+}
+
+export async function upsertFavoriteReports(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const {
+                user_id,
+                is_product_footprint = false,
+                is_supplier_footprint = false,
+                is_material_footprint = false,
+                is_electricity_footprint = false,
+                is_transportation_footprint = false,
+                is_packaging_footprint = false,
+                is_dqr_rating_footprint = false
+            } = req.body;
+
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const query = `
+                INSERT INTO favorite_reports (
+                    fr_id,
+                    user_id,
+                    is_product_footprint,
+                    is_supplier_footprint,
+                    is_material_footprint,
+                    is_electricity_footprint,
+                    is_transportation_footprint,
+                    is_packaging_footprint,
+                    is_dqr_rating_footprint
+                )
+                VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9
+                )
+                ON CONFLICT (user_id)
+                DO UPDATE SET
+                    is_product_footprint = EXCLUDED.is_product_footprint,
+                    is_supplier_footprint = EXCLUDED.is_supplier_footprint,
+                    is_material_footprint = EXCLUDED.is_material_footprint,
+                    is_electricity_footprint = EXCLUDED.is_electricity_footprint,
+                    is_transportation_footprint = EXCLUDED.is_transportation_footprint,
+                    is_packaging_footprint = EXCLUDED.is_packaging_footprint,
+                    is_dqr_rating_footprint = EXCLUDED.is_dqr_rating_footprint,
+                    update_date = CURRENT_TIMESTAMP
+                RETURNING *;
+            `;
+
+            const values = [
+                ulid(),              // fr_id
+                user_id,
+                is_product_footprint,
+                is_supplier_footprint,
+                is_material_footprint,
+                is_electricity_footprint,
+                is_transportation_footprint,
+                is_packaging_footprint,
+                is_dqr_rating_footprint
+            ];
+
+            const result = await client.query(query, values);
+
+            return res.status(200).send({
+                success: true,
+                message: "Favorite reports saved successfully",
+                data: result.rows[0]
+            });
+
+        } catch (error: any) {
+            console.error("Favorite reports error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getFavoriteReportsByUserId(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+                SELECT
+                    fr_id,
+                    user_id,
+                    is_product_footprint,
+                    is_supplier_footprint,
+                    is_material_footprint,
+                    is_electricity_footprint,
+                    is_transportation_footprint,
+                    is_packaging_footprint,
+                    is_dqr_rating_footprint,
+                    created_by,
+                    updated_by,
+                    update_date,
+                    created_date
+                FROM favorite_reports
+                WHERE user_id = $1
+                LIMIT 1
+                `,
+                [user_id]
+            );
+
+            /* ---------- if no record ---------- */
+            if (result.rowCount === 0) {
+                return res.status(200).send({
+                    success: true,
+                    message: "No favorite reports found",
+                    data: {
+                        user_id,
+                        is_product_footprint: false,
+                        is_supplier_footprint: false,
+                        is_material_footprint: false,
+                        is_electricity_footprint: false,
+                        is_transportation_footprint: false,
+                        is_packaging_footprint: false,
+                        is_dqr_rating_footprint: false
+                    }
+                });
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "Favorite reports fetched successfully",
+                data: result.rows[0]
+            });
+
+        } catch (error: any) {
+            console.error("Fetch favorite reports error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
         }
     });
 }
