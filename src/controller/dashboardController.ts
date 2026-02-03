@@ -1153,3 +1153,214 @@ export async function getDistanceVsCorrelationEmission(req: any, res: any) {
         }
     });
 }
+
+// Energy Source 
+export async function getEnergySourceEmission(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            /* ---------- ENERGY DATA ---------- */
+            const energyResult = await client.query(
+                `
+                SELECT
+                    st.energy_source,
+                    st.energy_type,
+                    SUM(st.quantity)::numeric AS total_quantity,
+                    st.unit,
+                    st.annual_reporting_period
+                FROM bom_pcf_request bpr
+                JOIN supplier_general_info_questions sgiq
+                    ON sgiq.bom_pcf_id = bpr.id
+                JOIN scope_two_indirect_emissions_questions sw
+                    ON sw.sgiq_id = sgiq.sgiq_id
+                JOIN scope_two_indirect_emissions_from_purchased_energy_questions st
+                    ON st.stide_id = sw.stide_id
+                WHERE
+                    bpr.created_by = $1
+                GROUP BY
+                    st.energy_source,
+                    st.energy_type,
+                    st.unit,
+                    st.annual_reporting_period
+                `,
+                [client_id]
+            );
+
+            /* ---------- LOCATION ---------- */
+            const locationResult = await client.query(
+                `
+                SELECT psdq.location
+                FROM supplier_general_info_questions sgiq
+                JOIN supplier_product_questions spq
+                    ON spq.sgiq_id = sgiq.sgiq_id
+                JOIN production_site_details_questions psdq
+                    ON psdq.spq_id = spq.spq_id
+                LIMIT 1
+                `
+            );
+
+            const location =
+                locationResult.rows[0]?.location?.toLowerCase() || "global";
+
+            /* ---------- TOTAL QUANTITY (for share %) ---------- */
+            const grandTotalQuantity = energyResult.rows.reduce(
+                (sum: any, r: any) => sum + Number(r.total_quantity),
+                0
+            );
+
+            const response: any[] = [];
+
+            /* ---------- PROCESS EACH ENERGY ROW ---------- */
+            for (const Energy of energyResult.rows) {
+                if (!Energy.energy_source || typeof Energy.energy_source !== "string") {
+                    console.warn("Skipping row due to null energy_source:", Energy);
+                    continue;
+                }
+                const sourcePrefix = Energy.energy_source
+                    .trim()
+                    .split(" ")[0]
+                    .toLowerCase();
+
+                const energyType = Energy.energy_type ?? "Unknown";
+
+                let EnergyResponse = "";
+
+                if (sourcePrefix === "electricity") {
+                    EnergyResponse = `Electricity - ${energyType}`;
+                } else if (sourcePrefix === "heating") {
+                    EnergyResponse = `Heating - ${energyType}`;
+                } else if (sourcePrefix === "steam") {
+                    EnergyResponse = `Steam - ${energyType}`;
+                } else if (sourcePrefix === "cooling") {
+                    EnergyResponse = `Cooling - ${energyType}`;
+                } else {
+                    continue;
+                }
+
+                /* ---------- FETCH EMISSION FACTOR ---------- */
+                const efResult = await client.query(
+                    `
+                    SELECT
+                        ef_india_region,
+                        ef_eu_region,
+                        ef_global_region
+                    FROM electricity_emission_factor
+                    WHERE
+                        year = $1
+                        AND unit = $2
+                        AND type_of_energy = $3
+                    LIMIT 1
+                    `,
+                    [
+                        Energy.annual_reporting_period,
+                        Energy.unit,
+                        EnergyResponse
+                    ]
+                );
+
+                if (efResult.rows.length === 0) continue;
+
+                let emissionFactor = 0;
+
+                if (location === "india") {
+                    emissionFactor = Number(efResult.rows[0].ef_india_region);
+                } else if (location === "europe") {
+                    emissionFactor = Number(efResult.rows[0].ef_eu_region);
+                } else {
+                    emissionFactor = Number(efResult.rows[0].ef_global_region);
+                }
+
+                const totalEmission =
+                    Number(Energy.total_quantity) * emissionFactor;
+
+                const sharePercentage =
+                    grandTotalQuantity === 0
+                        ? 0
+                        : Number(
+                            (
+                                (Energy.total_quantity / grandTotalQuantity) *
+                                100
+                            ).toFixed(2)
+                        );
+
+                response.push({
+                    energy_source: EnergyResponse,
+                    total_quantity: Energy.total_quantity,
+                    unit: Energy.unit,
+                    energy_share_percentage: sharePercentage,
+                    emission_factor_used: emissionFactor,
+                    total_emission: Number(totalEmission.toFixed(2))
+                });
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "Energy source emission fetched successfully",
+                data: response
+            });
+
+        } catch (error: any) {
+            console.error("Energy source emission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getProcessWiseEnergyConsumption(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+                SELECT
+                    COALESCE(SUM(bemce.material_value), 0)::numeric AS material_value,
+                    COALESCE(SUM(bemce.production_value), 0)::numeric AS production_value,
+                    COALESCE(SUM(bemce.packaging_value), 0)::numeric AS packaging_value,
+                    COALESCE(SUM(bemce.logistic_value), 0)::numeric AS logistic_value,
+                    COALESCE(SUM(bemce.waste_value), 0)::numeric AS waste_value
+                FROM bom_pcf_request bpr
+                JOIN bom b
+                    ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_calculation_engine bemce
+                    ON bemce.bom_id = b.id
+                WHERE
+                    bpr.created_by = $1
+                    AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+                `,
+                [client_id, supplier_id || null]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Process wise energy consumption fetched successfully",
+                data: result.rows[0]   // 🔥 single aggregated row
+            });
+
+        } catch (error: any) {
+            console.error("Process wise energy consumption error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}

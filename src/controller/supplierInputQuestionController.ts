@@ -1576,17 +1576,18 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
                     energy_type: e.energy_type,
                     quantity: e.quantity,
                     unit: e.unit,
-                    sup_id: data.sup_id
+                    sup_id: data.sup_id,
+                    annual_reporting_period
                 }
             });
 
-            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.sup_id];
+            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.sup_id, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'scope_two_indirect_emissions_from_purchased_energy_questions',
-            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'sup_id'],
+            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'sup_id', 'annual_reporting_period'],
             rows
         ));
 

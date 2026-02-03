@@ -23,4 +23,8 @@ Routes.get('/api/dashboard/percentage-share-of-total-emission', authService.auth
 Routes.get('/api/dashboard/mode-of-transportation-emission', authService.authenticate, Controller.getModeOfTransportEmission);
 Routes.get('/api/dashboard/distance-vs-correlation-emission', authService.authenticate, Controller.getDistanceVsCorrelationEmission);
 
+// Energy Source 
+Routes.get('/api/dashboard/energy-source-emission', authService.authenticate, Controller.getEnergySourceEmission);
+Routes.get('/api/dashboard/process-wise-energy-consumption-emission', authService.authenticate, Controller.getProcessWiseEnergyConsumption);
+
 export default Routes;

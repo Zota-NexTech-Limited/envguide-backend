@@ -804,6 +804,7 @@ export async function createTables() {
             unit VARCHAR(50),
             sup_id VARCHAR(255),
             client_id VARCHAR(255),
+            annual_reporting_period VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
