@@ -1219,6 +1219,14 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
+            const userId = req.user_id;
+
+            /* ---------- USER FILTER ---------- */
+            if (userId) {
+                conditions.push(`pcf.created_by = $${idx++}`);
+                values.push(userId);
+            }
+
             /* ---------- BOOLEAN FILTERS ---------- */
             if (is_approved !== undefined) {
                 conditions.push(`pcf.is_approved = $${idx++}`);
@@ -1408,15 +1416,23 @@ WHERE 1=1
             const rows = result.rows;
             // const totalCount = rows.length > 0 ? rows.length : 0;
 
-            const countQuery = `
-                SELECT COUNT(*) AS total
-                FROM bom_pcf_request t;
-            `;
+            // const countQuery = `
+            //     SELECT COUNT(*) AS total
+            //     FROM bom_pcf_request t;
+            // `;
 
-            const countResult = await client.query(
-                countQuery,
-                values.slice(0, values.length - 2)
-            );
+            // const countResult = await client.query(
+            //     countQuery,
+            //     values.slice(0, values.length - 2)
+            // );
+
+            const countQuery = `
+    SELECT COUNT(*) AS total
+    FROM bom_pcf_request pcf
+    WHERE pcf.created_by = $1
+`;
+
+            const countResult = await client.query(countQuery, [userId]);
 
             const total = Number(countResult.rows[0].total);
 

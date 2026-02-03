@@ -12,4 +12,7 @@ Routes.get('/api/dashboard/supplier-emission', authService.authenticate, Control
 Routes.get('/api/dashboard/component-dropdown', authService.authenticate, Controller.getComponentDropdown);
 Routes.get('/api/dashboard/supplier-material-comparition-emission', authService.authenticate, Controller.getSupplierMaterialEmissionComparison);
 
+// Manufacturing
+Routes.get('/api/dashboard/manufacturing-process-emission', authService.authenticate, Controller.getManufacturingProcessEmission);
+
 export default Routes;
