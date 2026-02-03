@@ -19,5 +19,8 @@ Routes.get('/api/dashboard/material-composition-emission', authService.authentic
 Routes.get('/api/dashboard/material-carbon-intensity-emission', authService.authenticate, Controller.getMaterialCarbonIntensity);
 Routes.get('/api/dashboard/percentage-share-of-total-emission', authService.authenticate, Controller.getPercentageShareOfTotalEmission);
 
+// Transportation
+Routes.get('/api/dashboard/mode-of-transportation-emission', authService.authenticate, Controller.getModeOfTransportEmission);
+Routes.get('/api/dashboard/distance-vs-correlation-emission', authService.authenticate, Controller.getDistanceVsCorrelationEmission);
 
 export default Routes;

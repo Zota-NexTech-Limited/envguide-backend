@@ -1037,3 +1037,119 @@ export async function getPercentageShareOfTotalEmission(req: any, res: any) {
         }
     });
 }
+
+// Transportation emission
+export async function getModeOfTransportEmission(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+                WITH transport_agg AS (
+                    SELECT
+                        belce.mode_of_transport,
+
+                        SUM(belce.distance_km)::numeric AS distance_km,
+                        SUM(belce.leg_wise_transport_emissions_per_unit_kg_co2e)::numeric
+                            AS co2e_kg
+
+                    FROM bom_pcf_request bpr
+                    JOIN bom b
+                        ON b.bom_pcf_id = bpr.id
+                    JOIN bom_emission_logistic_calculation_engine belce
+                        ON belce.bom_id = b.id
+                    WHERE
+                        bpr.created_by = $1
+                    GROUP BY
+                        belce.mode_of_transport
+                )
+                SELECT
+                    mode_of_transport,
+                    distance_km,
+                    co2e_kg,
+                    ROUND(
+                        (co2e_kg / SUM(co2e_kg) OVER ()) * 100,
+                        2
+                    ) AS share_percentage
+                FROM transport_agg
+                ORDER BY share_percentage DESC
+                `,
+                [client_id]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Mode of transport emission fetched successfully",
+                data: result.rows
+            });
+
+        } catch (error: any) {
+            console.error("Mode of transport emission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getDistanceVsCorrelationEmission(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+                SELECT
+                    belce.mode_of_transport,
+                    belce.distance_km,
+                    belce.transport_mode_emission_factor_value_kg_co2e_t_km,
+                    ROUND(
+                        (belce.distance_km * belce.transport_mode_emission_factor_value_kg_co2e_t_km)::numeric,
+                        2
+                    ) AS total_emission
+                FROM bom_pcf_request bpr
+                JOIN bom b
+                    ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_logistic_calculation_engine belce
+                    ON belce.bom_id = b.id
+                WHERE
+                    bpr.created_by = $1
+                    AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+                ORDER BY
+                    belce.mode_of_transport,
+                    belce.distance_km
+                `,
+                [client_id, supplier_id || null]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Distance vs correlation emission fetched successfully",
+                data: result.rows
+            });
+
+        } catch (error: any) {
+            console.error("Distance vs correlation emission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
