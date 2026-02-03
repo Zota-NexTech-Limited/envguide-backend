@@ -3316,6 +3316,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const sgiq_id = ulid();
             const allDQRConfigs: any[] = [];
 
+            const annual_reporting_period = supplier_general_info_questions.annual_reporting_period;
             scope_two_indirect_emissions_questions.client_id = client_id;
 
             const own_emission_id = ulid();
@@ -3433,12 +3434,12 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             // SCOPE TWO
             if (scope_two_indirect_emissions_questions) {
-                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, product_bom_pcf_id));
+                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, product_bom_pcf_id, annual_reporting_period));
             }
 
             // SCOPE THREE
             if (scope_three_other_indirect_emissions_questions) {
-                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, product_bom_pcf_id));
+                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, product_bom_pcf_id, annual_reporting_period));
             }
 
             // SCOPE FOUR
@@ -3940,7 +3941,7 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, annual_reporting_period: string) {
     const stide_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -4032,17 +4033,18 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                     energy_type: e.energy_type,
                     quantity: e.quantity,
                     unit: e.unit,
-                    client_id: data.client_id
+                    client_id: data.client_id,
+                    annual_reporting_period
                 }
             });
 
-            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.client_id];
+            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.client_id, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'scope_two_indirect_emissions_from_purchased_energy_questions',
-            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'client_id'],
+            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'client_id', 'annual_reporting_period'],
             rows
         ));
 
@@ -4132,13 +4134,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 payload: p
             });
 
-            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type];
+            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'process_specific_energy_usage_questions',
-            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type'],
+            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type', 'annual_reporting_period'],
             rows
         ));
 
@@ -4667,7 +4669,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeThree(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+async function insertScopeThree(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, annual_reporting_period: string) {
     const stoie_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -4802,17 +4804,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                     product_bom_pcf_id: product_bom_pcf_id,
                     material_number: m.material_number,
                     material_name: m.material_name,
-                    percentage: m.percentage
+                    percentage: m.percentage,
+                    annual_reporting_period
                 }
             });
 
-            return [rmuicm_id, stoie_id, m.product_id, product_bom_pcf_id, m.material_number, m.material_name, m.percentage];
+            return [rmuicm_id, stoie_id, m.product_id, product_bom_pcf_id, m.material_number, m.material_name, m.percentage, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'raw_materials_used_in_component_manufacturing_questions',
-            ['rmuicm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage'],
+            ['rmuicm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage', 'annual_reporting_period'],
             rows
         ));
 
@@ -5408,7 +5411,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "Kg"]);
 
-                    let Material_Emission_Factor_kg_CO2E_kg = 0;
+                    let Material_Emission_Factor_kg_CO2E_kg = 0.01;
                     if (fetchEmissionMaterialFactorSupResult.rows) {
 
                         if (fetchQ13SupResult.rows[0]) {
@@ -5649,10 +5652,10 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetchQ13LocationSupResult = await client.query(fetchQ13Location, [BomData.product_id, BomData.bom_pcf_id]);
 
 
-                    let FetchElectricityTypeEmiassionValue = 0;
-                    let FetchHeatingTypeEmiassionValue = 0;
-                    let FetchSteamTypeEmiassionValue = 0;
-                    let FetchCoolingTypeEmiassionValue = 0;
+                    let FetchElectricityTypeEmiassionValue = 0.01;
+                    let FetchHeatingTypeEmiassionValue = 0.01;
+                    let FetchSteamTypeEmiassionValue = 0.01;
+                    let FetchCoolingTypeEmiassionValue = 0.01;
                     for (let Energy of fetchEnegryResult.rows) {
 
                         if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
@@ -5874,7 +5877,7 @@ export async function pcfCalculate(req: any, res: any) {
                     let packaginType = "";
                     let packaginSize = "";
                     let packaginWeight = 0;
-                    let Emission_Factor_Box_kg_CO2E_kg = 0;
+                    let Emission_Factor_Box_kg_CO2E_kg = 0.01;
                     let Packaging_Carbon_Emissions_kg_CO2e_or_box = 0;
 
                     const fetchQ61PcakingTypeProduct = `
@@ -6026,7 +6029,7 @@ export async function pcfCalculate(req: any, res: any) {
                         let Distance_Km = distance;
                         console.log("Distance_Km:", Distance_Km);
 
-                        let transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = 0;
+                        let transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = 0.01;
 
 
                         const fetchVehicleTypeEmissionFactor = `
@@ -6102,8 +6105,8 @@ export async function pcfCalculate(req: any, res: any) {
 
                     //=======> Emission Factor Box waste treatment (kg CO₂e/kg) 
 
-                    let emission_factor_box_waste_treatment_kg_CO2e_kg = 0;
-                    let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0;
+                    let emission_factor_box_waste_treatment_kg_CO2e_kg = 0.01;
+                    let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0.01;
 
                     const fetchQ40WasteQualityControl = `
                                 SELECT product_id,material_number,waste_type,

@@ -803,6 +803,7 @@ export async function mirgation() {
             unit VARCHAR(50),
             sup_id VARCHAR(255),
             client_id VARCHAR(255),
+            annual_reporting_period VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
@@ -849,6 +850,7 @@ export async function mirgation() {
             quantity_consumed NUMERIC(10,2),
             unit VARCHAR(50),
             support_from_enviguide BOOLEAN DEFAULT false,
+            annual_reporting_period VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
@@ -1086,6 +1088,7 @@ export async function mirgation() {
             material_number VARCHAR(255),
             material_name VARCHAR(255),
             percentage VARCHAR(50),
+            annual_reporting_period VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
