@@ -694,4 +694,346 @@ GROUP BY
     });
 }
 
+export async function processEnergyEmission(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id } = req.query;
 
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+                SELECT
+                    LOWER(TRIM(SPLIT_PART(pseq.energy_type, '-', 1))) AS energy_source,
+                    pseq.process_specific_energy_type,
+                    SUM(pseq.quantity_consumed) AS quantity_consumed,
+
+                    CASE
+                        WHEN psd.location = 'india'
+                            THEN AVG(eef.ef_india_region::numeric)
+                        WHEN psd.location = 'europe'
+                            THEN AVG(eef.ef_eu_region::numeric)
+                        ELSE
+                            AVG(eef.ef_global_region::numeric)
+                    END AS emission_value,
+
+                    SUM(
+                        pseq.quantity_consumed *
+                        CASE
+                            WHEN psd.location = 'india'
+                                THEN eef.ef_india_region::numeric
+                            WHEN psd.location = 'europe'
+                                THEN eef.ef_eu_region::numeric
+                            ELSE
+                                eef.ef_global_region::numeric
+                        END
+                    ) AS total_emission_value
+
+                FROM bom_pcf_request bpr
+                JOIN bom b ON b.bom_pcf_id = bpr.id
+                JOIN process_specific_energy_usage_questions pseq ON pseq.bom_id = b.id
+
+                JOIN (
+                    SELECT DISTINCT ON (bom_id)
+                        bom_id,
+                        LOWER(location) AS location
+                    FROM production_site_details_questions
+                    ORDER BY bom_id
+                ) psd ON psd.bom_id = b.id
+
+                JOIN electricity_emission_factor eef
+                    ON eef.type_of_energy = pseq.energy_type
+                    AND eef.unit = pseq.unit
+                    AND eef.year = pseq.annual_reporting_period
+
+                WHERE bpr.created_by = $1
+
+                GROUP BY
+                    energy_source,
+                    pseq.process_specific_energy_type,
+                    psd.location
+                `,
+                [client_id]
+            );
+
+            /* 🔥 Transform rows into energy-source based object */
+            const groupedData: any = {};
+
+            for (const row of result.rows) {
+                const source = row.energy_source;
+
+                if (!groupedData[source]) {
+                    groupedData[source] = [];
+                }
+
+                groupedData[source].push({
+                    process_specific_energy_type: row.process_specific_energy_type,
+                    quantity_consumed: row.quantity_consumed,
+                    emission_value: row.emission_value,
+                    total_emission_value: row.total_emission_value
+                });
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "Process energy emission fetched successfully",
+                data: groupedData
+            });
+
+        } catch (error: any) {
+            console.error("Process energy emission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getMaterialComposition(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                //                 `
+                //                 WITH material_agg AS (
+                //                     SELECT
+                //                         bemce.material_type,
+                //                         SUM(bemce.material_composition) AS material_composition,
+                //                         SUM(bemce.material_emission_factor) AS material_emission_factor,
+                //                         SUM(
+                //                             bemce.material_composition * bemce.material_emission_factor
+                //                         ) AS emission_contribution
+                //                     FROM bom_pcf_request bpr
+                //                     JOIN bom b
+                //                         ON b.bom_pcf_id = bpr.id
+                //                     JOIN bom_emission_material_calculation_engine bemce
+                //                         ON bemce.bom_id = b.id
+                //                     WHERE
+                //                         bpr.created_by = $1
+                //                         AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+                //                     GROUP BY
+                //                         bemce.material_type
+                //                 )
+                //                 SELECT
+                //                     material_type,
+                //                     material_composition,
+                //                     material_emission_factor,
+                //                     emission_contribution,
+                //                     ROUND(
+                //     (
+                //         emission_contribution /
+                //         SUM(emission_contribution) OVER ()
+                //     )::numeric * 100,
+                //     2
+                // ) AS share_of_total_percentage
+                //                 FROM material_agg
+                //                 ORDER BY emission_contribution DESC
+                //                 `,
+                `WITH material_agg AS (
+    SELECT
+        bemce.material_type,
+
+        /* total composition */
+        SUM(bemce.material_composition)::numeric AS material_composition,
+
+        /* total emission factor (as per your rule) */
+        SUM(bemce.material_emission_factor)::numeric AS material_emission_factor
+
+    FROM bom_pcf_request bpr
+    JOIN bom b
+        ON b.bom_pcf_id = bpr.id
+    JOIN bom_emission_material_calculation_engine bemce
+        ON bemce.bom_id = b.id
+    WHERE
+        bpr.created_by = $1
+        AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+    GROUP BY
+        bemce.material_type
+),
+final_calc AS (
+    SELECT
+        material_type,
+        material_composition,
+        material_emission_factor,
+
+        /* ✅ THIS IS THE KEY FIX */
+        (material_composition * material_emission_factor) AS emission_contribution
+    FROM material_agg
+)
+SELECT
+    material_type,
+    material_composition,
+    material_emission_factor,
+    emission_contribution,
+
+    ROUND(
+        (emission_contribution / SUM(emission_contribution) OVER ()) * 100,
+        2
+    ) AS share_of_total_percentage
+FROM final_calc
+ORDER BY emission_contribution DESC;
+`,
+                [client_id, supplier_id || null]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Material composition fetched successfully",
+                data: result.rows
+            });
+
+        } catch (error: any) {
+            console.error("Material composition error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getMaterialCarbonIntensity(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `WITH material_agg AS (
+    SELECT
+        bemce.material_type,
+
+        SUM(bemce.material_composition)::numeric AS material_composition,
+        SUM(bemce.material_emission_factor)::numeric AS material_emission_factor
+
+    FROM bom_pcf_request bpr
+    JOIN bom b
+        ON b.bom_pcf_id = bpr.id
+    JOIN bom_emission_material_calculation_engine bemce
+        ON bemce.bom_id = b.id
+    WHERE
+        bpr.created_by = $1
+        AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+    GROUP BY
+        bemce.material_type
+),
+final_calc AS (
+    SELECT
+        material_type,
+        material_composition,
+        material_emission_factor,
+        (material_composition * material_emission_factor) AS emission_contribution
+    FROM material_agg
+)
+SELECT
+    material_type,
+
+    material_emission_factor,          -- added
+    emission_contribution,             -- added
+
+    ROUND(
+        (emission_contribution / NULLIF(material_composition, 0))::numeric,
+        2
+    ) AS carbon_intensity
+
+FROM final_calc
+ORDER BY material_type;
+`,
+                [client_id, supplier_id || null]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Material carbon intensity fetched successfully",
+                data: {
+                    virgin_material: result.rows,
+                    recycled_material: []
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Material carbon intensity error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getPercentageShareOfTotalEmission(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+                WITH material_agg AS (
+                    SELECT
+                        bemce.material_type,
+                        SUM(bemce.material_composition)::numeric AS material_composition
+                    FROM bom_pcf_request bpr
+                    JOIN bom b
+                        ON b.bom_pcf_id = bpr.id
+                    JOIN bom_emission_material_calculation_engine bemce
+                        ON bemce.bom_id = b.id
+                    WHERE
+                        bpr.created_by = $1
+                        AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+                    GROUP BY
+                        bemce.material_type
+                )
+                SELECT
+                    material_type AS material,
+                    ROUND(
+                        (material_composition / SUM(material_composition) OVER ()) * 100,
+                        2
+                    ) AS percentage_share
+                FROM material_agg
+                ORDER BY percentage_share DESC
+                `,
+                [client_id, supplier_id || null]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Percentage share of total emission fetched successfully",
+                data: result.rows
+            });
+
+        } catch (error: any) {
+            console.error("Percentage share error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}

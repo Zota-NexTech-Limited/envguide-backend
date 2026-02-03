@@ -828,7 +828,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             // SCOPE THREE
             if (scope_three_other_indirect_emissions_questions) {
-                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id));
+                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, annual_reporting_period));
             }
 
             // SCOPE FOUR
@@ -2211,7 +2211,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeThree(client: any, data: any, sgiq_id: string) {
+async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_reporting_period: string) {
     const stoie_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -2425,17 +2425,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string) {
                     bom_id: m.bom_id,
                     material_number: m.material_number,
                     material_name: m.material_name,
-                    percentage: m.percentage
+                    percentage: m.percentage,
+                    annual_reporting_period
                 }
             });
 
-            return [rmuicm_id, stoie_id, m.bom_id, m.material_number, m.material_name, m.percentage];
+            return [rmuicm_id, stoie_id, m.bom_id, m.material_number, m.material_name, m.percentage, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'raw_materials_used_in_component_manufacturing_questions',
-            ['rmuicm_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage'],
+            ['rmuicm_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage', 'annual_reporting_period'],
             rows
         ));
 

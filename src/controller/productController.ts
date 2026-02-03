@@ -3439,7 +3439,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             // SCOPE THREE
             if (scope_three_other_indirect_emissions_questions) {
-                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, product_bom_pcf_id));
+                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, product_bom_pcf_id, annual_reporting_period));
             }
 
             // SCOPE FOUR
@@ -4133,13 +4133,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 payload: p
             });
 
-            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type,annual_reporting_period];
+            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'process_specific_energy_usage_questions',
-            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type','annual_reporting_period'],
+            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type', 'annual_reporting_period'],
             rows
         ));
 
@@ -4668,7 +4668,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeThree(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+async function insertScopeThree(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, annual_reporting_period: string) {
     const stoie_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -4803,17 +4803,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                     product_bom_pcf_id: product_bom_pcf_id,
                     material_number: m.material_number,
                     material_name: m.material_name,
-                    percentage: m.percentage
+                    percentage: m.percentage,
+                    annual_reporting_period
                 }
             });
 
-            return [rmuicm_id, stoie_id, m.product_id, product_bom_pcf_id, m.material_number, m.material_name, m.percentage];
+            return [rmuicm_id, stoie_id, m.product_id, product_bom_pcf_id, m.material_number, m.material_name, m.percentage, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'raw_materials_used_in_component_manufacturing_questions',
-            ['rmuicm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage'],
+            ['rmuicm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage', 'annual_reporting_period'],
             rows
         ));
 

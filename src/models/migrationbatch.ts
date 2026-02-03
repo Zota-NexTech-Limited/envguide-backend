@@ -1087,6 +1087,7 @@ export async function mirgation() {
             material_number VARCHAR(255),
             material_name VARCHAR(255),
             percentage VARCHAR(50),
+            annual_reporting_period VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)

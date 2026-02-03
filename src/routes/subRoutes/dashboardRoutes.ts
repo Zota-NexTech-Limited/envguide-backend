@@ -14,5 +14,10 @@ Routes.get('/api/dashboard/supplier-material-comparition-emission', authService.
 
 // Manufacturing
 Routes.get('/api/dashboard/manufacturing-process-emission', authService.authenticate, Controller.getManufacturingProcessEmission);
+Routes.get('/api/dashboard/process-energy-emission', authService.authenticate, Controller.processEnergyEmission);
+Routes.get('/api/dashboard/material-composition-emission', authService.authenticate, Controller.getMaterialComposition);
+Routes.get('/api/dashboard/material-carbon-intensity-emission', authService.authenticate, Controller.getMaterialCarbonIntensity);
+Routes.get('/api/dashboard/percentage-share-of-total-emission', authService.authenticate, Controller.getPercentageShareOfTotalEmission);
+
 
 export default Routes;
