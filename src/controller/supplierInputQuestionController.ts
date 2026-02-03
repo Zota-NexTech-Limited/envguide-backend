@@ -725,6 +725,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const bom_pcf_id = supplier_general_info_questions.bom_pcf_id;
             const bom_id = supplier_general_info_questions.bom_id;
             const sgiq_id = ulid();
+            const annual_reporting_period = supplier_general_info_questions.annual_reporting_period;
             const allDQRConfigs: any[] = [];
 
             scope_two_indirect_emissions_questions.sup_id = sup_id;
@@ -822,7 +823,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             // SCOPE TWO
             if (scope_two_indirect_emissions_questions) {
-                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id));
+                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, annual_reporting_period));
             }
 
             // SCOPE THREE
@@ -1354,7 +1355,7 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string) {
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
+async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_reporting_period: string) {
     const stide_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -1675,13 +1676,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string) {
                 payload: p
             });
 
-            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type];
+            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'process_specific_energy_usage_questions',
-            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type'],
+            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type', 'annual_reporting_period'],
             rows
         ));
 

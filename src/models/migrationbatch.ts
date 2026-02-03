@@ -849,6 +849,7 @@ export async function mirgation() {
             quantity_consumed NUMERIC(10,2),
             unit VARCHAR(50),
             support_from_enviguide BOOLEAN DEFAULT false,
+            annual_reporting_period VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(stide_id) REFERENCES scope_two_indirect_emissions_questions (stide_id)
