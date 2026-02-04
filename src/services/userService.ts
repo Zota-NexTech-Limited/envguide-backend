@@ -55,27 +55,46 @@ export async function addUser(userData: any) {
 
             // Execute the query with parameterized values
             const result = await client.query(insertQuery, values);
-            if (result.rows.length > 0) {
-                const user_id = userData.user_id
-                const getmodules = await getModule()
-                console.log(getmodules.rows, "getmodules.rows")
 
-                if (getmodules.rows.length > 0) {
-                    for (let i in getmodules.rows) {
+            const user_id = userData.user_id;
 
-                        let permissionobj = {
-                            permission_id: ulid(),
-                            user_id: user_id,
-                            module_name: getmodules.rows[i].module_name,
-                            module_id: getmodules.rows[i].module_id
-                        }
-                        console.log(permissionobj, "permissionobj")
-                        const userPermission = await addUserPermission(permissionobj)
-                        console.log(userPermission.rows, "userPermission")
-                    }
-                }
+            //  const [mainModules, modules, submodules] = await Promise.all([
+            //     client.query(`SELECT main_module_id AS id, main_module_name AS name FROM main_module_table`),
+            //     client.query(`SELECT module_id AS id, module_name AS name FROM module_table`),
+            //     client.query(`SELECT submodule_id AS id, submodule_name AS name FROM submodule_table`)
+            // ]);
+
+            const [mainModules, modules] = await Promise.all([
+                client.query(`SELECT main_module_id AS id, main_module_name AS name FROM main_module_table`),
+                client.query(`SELECT module_id AS id, module_name AS name FROM module_table`)
+            ]);
+
+            const permissions: any[] = [];
+
+            const pushPermission = (id: string, name: string) => {
+                permissions.push({
+                    permission_id: ulid(),
+                    user_id,
+                    module_id: id,
+                    module_name: name,
+                    create: false,
+                    update: false,
+                    delete: false,
+                    read: false,
+                    print: false,
+                    export: false,
+                    send: false,
+                    all: false
+                });
+            };
+
+            mainModules.rows.forEach((m: any) => pushPermission(m.id, m.name));
+            modules.rows.forEach((m: any) => pushPermission(m.id, m.name));
+            // submodules.rows.forEach((s: any) => pushPermission(s.id, s.name));
 
 
+            for (const perm of permissions) {
+                await addUserPermission(perm);
             }
 
             return result
@@ -469,33 +488,72 @@ export async function getUserModulePermission(query: any) {
     })
 }
 
+// export async function addUserPermission(permissionData: any) {
+//     return withClient(async (client: any) => {
+//         try {
+
+//             const columns = Object.keys(permissionData);
+//             const values = Object.values(permissionData);
+
+//             // Function to handle reserved keywords by enclosing them in double quotes
+//             const handleReservedKeywords = (column: any) => (column === 'create' || column === 'update' || column === 'delete' || column === 'read' ? `"${column}"` : column);
+
+//             // Modify columns to handle reserved keywords
+//             const columnsWithQuotes = columns.map(handleReservedKeywords);
+
+//             // Construct the parameterized query
+//             const insertQuery = ` INSERT INTO users_permission_table (${columnsWithQuotes.join(', ')})
+//         VALUES (${values.map((_, i) => `$${i + 1}`).join(', ')})
+//         RETURNING *;`;
+//             console.log(insertQuery);
+
+//             // Execute the query with parameterized values
+//             const result = await client.query(insertQuery, values);
+
+//             return result
+
+//         } catch (error: any) {
+//             console.log(error)
+//             throw new Error(error)
+//         }
+//     })
+// }
 export async function addUserPermission(permissionData: any) {
     return withClient(async (client: any) => {
         try {
-
             const columns = Object.keys(permissionData);
             const values = Object.values(permissionData);
 
-            // Function to handle reserved keywords by enclosing them in double quotes
-            const handleReservedKeywords = (column: any) => (column === 'create' || column === 'update' || column === 'delete' || column === 'read' ? `"${column}"` : column);
+            // ✅ Reserved SQL keywords
+            const reserved = new Set([
+                "create",
+                "update",
+                "delete",
+                "read",
+                "print",
+                "export",
+                "send",
+                "all"
+            ]);
 
-            // Modify columns to handle reserved keywords
-            const columnsWithQuotes = columns.map(handleReservedKeywords);
+            const handleReserved = (column: string) =>
+                reserved.has(column) ? `"${column}"` : column;
 
-            // Construct the parameterized query
-            const insertQuery = ` INSERT INTO users_permission_table (${columnsWithQuotes.join(', ')})
-        VALUES (${values.map((_, i) => `$${i + 1}`).join(', ')})
-        RETURNING *;`;
-            console.log(insertQuery);
+            // ✅ Apply quoting
+            const columnsWithQuotes = columns.map(handleReserved);
 
-            // Execute the query with parameterized values
+            const insertQuery = `
+            INSERT INTO users_permission_table (${columnsWithQuotes.join(", ")})
+            VALUES (${values.map((_, i) => `$${i + 1}`).join(", ")})
+            RETURNING *;
+        `;
+
             const result = await client.query(insertQuery, values);
-
-            return result
+            return result;
 
         } catch (error: any) {
-            console.log(error)
-            throw new Error(error)
+            console.error(error);
+            throw new Error(error.message);
         }
     })
 }
