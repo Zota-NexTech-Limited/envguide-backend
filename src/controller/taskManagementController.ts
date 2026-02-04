@@ -298,11 +298,12 @@ export async function createTask(req: any, res: any) {
             const updatePCFRequest = `
                     UPDATE bom_pcf_request
                     SET is_task_created = TRUE,
-                        update_date = NOW()
+                        update_date = NOW(),
+                        status = $2
                     WHERE id = $1;
                 `;
 
-            await client.query(updatePCFRequest, [bom_pcf_id]);
+            await client.query(updatePCFRequest, [bom_pcf_id, "In Progress"]);
 
             if (is_client) {
                 const dataCollectionId = ulid();
