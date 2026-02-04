@@ -514,8 +514,8 @@ export async function getTaskList(req: any, res: any) {
             `;
 
             const countResult = await client.query(
-                countQuery,
-                values.slice(0, values.length - 2)
+                countQuery
+                // values.slice(0, values.length - 2)
             );
 
             const total = Number(countResult.rows[0].total);

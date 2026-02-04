@@ -704,7 +704,7 @@ LIMIT $${idx++} OFFSET $${idx++};
 
             const countResult = await client.query(
                 countQuery,
-                values.slice(0, values.length - 2)
+                // values.slice(0, values.length - 2)
             );
 
             const total = Number(countResult.rows[0].total);

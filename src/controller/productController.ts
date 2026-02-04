@@ -401,8 +401,8 @@ export async function listProducts(req: any, res: any) {
             `;
 
             const countResult = await client.query(
-                countQuery,
-                params.slice(0, params.length - 2)
+                countQuery
+                // params.slice(0, params.length - 2)
             );
 
             const total = Number(countResult.rows[0].total);

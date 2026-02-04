@@ -20,5 +20,7 @@ Routes.post('/api/pcf-bom/update', authService.authenticate, Controller.updatePc
 Routes.post('/api/pcf-bom/add-comment', authService.authenticate, Controller.createPcfBomComment);
 Routes.get('/api/pcf-bom/list-comment', authService.authenticate, Controller.getPcfBomCommentsByBomId);
 Routes.post('/api/pcf-bom/calculate-bom', authService.authenticate, Controller.pcfCalculate);
+Routes.post('/api/pcf-bom/submit-pcf-request-internally', authService.authenticate, Controller.submitPcfRequestInternal);
+Routes.post('/api/pcf-bom/submit-pcf-request-client', authService.authenticate, Controller.submitPcfRequestClient);
 
 export default Routes;

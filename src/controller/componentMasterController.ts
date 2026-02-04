@@ -245,7 +245,8 @@ export async function getComponnetMasterList(req: any, res: any) {
         productCode,
         requestTitle,
         search,
-        pcf_status
+        pcf_status,
+        product_code
     } = req.query;
 
     const page = pageNumber;
@@ -277,6 +278,12 @@ export async function getComponnetMasterList(req: any, res: any) {
     `);
                 values.push(fromDate, toDate);
                 idx += 2;
+            }
+
+             if (product_code) {
+                whereConditions.push(`pcf.product_code = $${idx}`);
+                values.push(product_code);
+                idx++;
             }
 
             if (pcf_status) {
@@ -469,8 +476,8 @@ LIMIT $${idx++} OFFSET $${idx++};
             `;
 
             const countResult = await client.query(
-                countQuery,
-                values.slice(0, values.length - 2)
+                countQuery
+                // values.slice(0, values.length - 2)
             );
 
             const total = Number(countResult.rows[0].total);
