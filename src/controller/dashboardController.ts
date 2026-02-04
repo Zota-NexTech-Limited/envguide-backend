@@ -1364,3 +1364,332 @@ export async function getProcessWiseEnergyConsumption(req: any, res: any) {
         }
     });
 }
+
+// Recyclability
+
+export async function getRecyclability(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+WITH material_usage AS (
+    SELECT
+        bemce.material_type,
+        b.id AS bom_id,
+
+        /* 🔥 FIX: cast before SUM */
+        SUM(bemce.material_composition_weight::numeric)
+            AS total_material_used_in_kg
+
+    FROM bom_pcf_request bpr
+    JOIN bom b
+        ON b.bom_pcf_id = bpr.id
+    JOIN bom_emission_material_calculation_engine bemce
+        ON bemce.bom_id = b.id
+    WHERE
+        bpr.created_by = $1
+        AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+    GROUP BY
+        bemce.material_type,
+        b.id
+),
+recycled_percentage AS (
+    SELECT
+        rmpq.bom_id,
+        rmpq.material_name AS material_type,
+
+        /* 🔥 FIX: cast before SUM */
+        SUM(rmpq.percentage::numeric)
+            AS total_recycled_material_percentage
+
+    FROM recycled_materials_with_percentage_questions rmpq
+    GROUP BY
+        rmpq.bom_id,
+        rmpq.material_name
+)
+SELECT
+    mu.material_type,
+
+    SUM(mu.total_material_used_in_kg)
+        AS total_material_used_in_kg,
+
+    COALESCE(
+        SUM(rp.total_recycled_material_percentage),
+        0
+    ) AS total_recycled_material_percentage,
+
+    ROUND(
+        (
+            SUM(mu.total_material_used_in_kg)
+            *
+            COALESCE(SUM(rp.total_recycled_material_percentage), 0)
+        ) / 100,
+        2
+    ) AS total_recycled_content_used_in_kg
+
+FROM material_usage mu
+LEFT JOIN recycled_percentage rp
+    ON rp.bom_id = mu.bom_id
+    AND rp.material_type = mu.material_type
+
+GROUP BY
+    mu.material_type
+
+ORDER BY
+    mu.material_type
+`,
+                [client_id, supplier_id || null]
+            );
+
+
+            return res.status(200).send({
+                success: true,
+                message: "Recyclability data fetched successfully",
+                data: result.rows
+            });
+
+        } catch (error: any) {
+            console.error("Recyclability error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getVirginOrRecycledEmission(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+                WITH material_agg AS (
+                    SELECT
+                        bemce.material_type,
+
+                        /* total material % */
+                        SUM(bemce.material_composition::numeric)
+                            AS total_material_percentage,
+
+                        /* total emission factor */
+                        SUM(bemce.material_emission_factor::numeric)
+                            AS total_emission_factor
+
+                    FROM bom_pcf_request bpr
+                    JOIN bom b
+                        ON b.bom_pcf_id = bpr.id
+                    JOIN bom_emission_material_calculation_engine bemce
+                        ON bemce.bom_id = b.id
+
+                    WHERE
+                        bpr.created_by = $1
+                        AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+
+                    GROUP BY
+                        bemce.material_type
+                )
+                SELECT
+                    material_type,
+                    total_material_percentage,
+                    total_emission_factor,
+
+                    /* final CO2 emission */
+                    ROUND(
+                        (total_material_percentage * total_emission_factor),
+                        2
+                    ) AS total_co2_emission
+
+                FROM material_agg
+                ORDER BY total_co2_emission DESC
+                `,
+                [client_id, supplier_id || null]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Virgin or recycled emission fetched successfully",
+                data: result.rows
+            });
+
+        } catch (error: any) {
+            console.error("Virgin/Recycled emission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Waste
+export async function getWasteEmissionDetails(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            /* ---------------------------------------------------
+               1️⃣ FETCH WASTE DATA (GROUPED BY TREATMENT TYPE)
+            --------------------------------------------------- */
+            const wasteResult = await client.query(
+                `
+                SELECT
+                    wpwq.treatment_type,
+                    wpwq.waste_type,
+                    wpwq.unit,
+                    wpwq.annual_reporting_period,
+                    wpwq.stoie_id,
+                    SUM(wpwq.waste_weight::numeric) AS total_waste_weight
+                FROM bom_pcf_request bpr
+                JOIN bom b
+                    ON b.bom_pcf_id = bpr.id
+                JOIN weight_of_pro_packaging_waste_questions wpwq
+                    ON wpwq.bom_id = b.id
+                WHERE
+                    bpr.created_by = $1
+                    AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+                GROUP BY
+                    wpwq.treatment_type,
+                    wpwq.waste_type,
+                    wpwq.unit,
+                    wpwq.annual_reporting_period,
+                    wpwq.stoie_id
+                `,
+                [client_id, supplier_id || null]
+            );
+
+            /* ---------------------------------------------------
+               2️⃣ FETCH LOCATION (ONCE)
+            --------------------------------------------------- */
+            const locationResult = await client.query(
+                `
+                SELECT psdq.location
+                FROM scope_three_other_indirect_emissions_questions stoie
+                JOIN supplier_product_questions spq
+                    ON spq.sgiq_id = stoie.sgiq_id
+                JOIN production_site_details_questions psdq
+                    ON psdq.spq_id = spq.spq_id
+                LIMIT 1
+                `
+            );
+
+            const location =
+                locationResult.rows[0]?.location?.toLowerCase() || "global";
+
+            /* ---------------------------------------------------
+           3️⃣ AGGREGATE BY TREATMENT TYPE
+        --------------------------------------------------- */
+
+            const treatmentMap: any = {};
+            let totalWasteGenerated = 0;
+            let totalEmissionGenerated = 0;
+
+            for (const row of wasteResult.rows) {
+
+                const efResult = await client.query(
+                    `
+        SELECT
+            pmttef.ef_india_region,
+            pmttef.ef_eu_region,
+            pmttef.ef_global_region
+        FROM packaging_material_treatment_type_emission_factor pmttef
+        JOIN packaging_treatment_type ptt
+            ON pmttef.ptt_id = ptt.ptt_id
+        WHERE
+            pmttef.material_type = $1
+            AND pmttef.year = $2
+            AND pmttef.unit = $3
+            AND ptt.name = $4
+        LIMIT 1
+        `,
+                    [
+                        row.waste_type,
+                        row.annual_reporting_period,
+                        row.unit,
+                        row.treatment_type
+                    ]
+                );
+
+                if (!efResult.rows.length) continue;
+
+                let emissionFactor = 0;
+                if (location === "india") {
+                    emissionFactor = Number(efResult.rows[0].ef_india_region);
+                } else if (location === "europe") {
+                    emissionFactor = Number(efResult.rows[0].ef_eu_region);
+                } else {
+                    emissionFactor = Number(efResult.rows[0].ef_global_region);
+                }
+
+                const wasteWeight = Number(row.total_waste_weight);
+                const emission = wasteWeight * emissionFactor;
+
+                /* 🔁 GROUP BY TREATMENT TYPE */
+                if (!treatmentMap[row.treatment_type]) {
+                    treatmentMap[row.treatment_type] = {
+                        treatment_type: row.treatment_type,
+                        total_waste_weight: 0,
+                        unit: row.unit,
+                        total_co2_emission: 0
+                    };
+                }
+
+                treatmentMap[row.treatment_type].total_waste_weight += wasteWeight;
+                treatmentMap[row.treatment_type].total_co2_emission += emission;
+
+                /* 🔢 GRAND TOTALS */
+                totalWasteGenerated += wasteWeight;
+                totalEmissionGenerated += emission;
+            }
+
+
+            const finalData = Object.values(treatmentMap).map((item: any) => ({
+                ...item,
+                total_waste_weight: Number(item.total_waste_weight.toFixed(4)),
+                total_co2_emission: Number(item.total_co2_emission.toFixed(4))
+            }));
+
+            return res.status(200).send({
+                success: true,
+                message: "Waste emission details fetched successfully",
+                data: finalData,
+                totals: {
+                    total_waste_generated_kg: Number(totalWasteGenerated.toFixed(2)),
+                    total_emission_generated_kg_co2e: Number(totalEmissionGenerated.toFixed(2))
+                }
+            });
+
+
+        } catch (error: any) {
+            console.error("Waste emission details error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
