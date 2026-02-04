@@ -43,7 +43,7 @@ export async function createProduct(req: any, res: any) {
 
             let product_code = "PRO00001";
             if (lastCodeRes.rows.length > 0) {
-                const lastCode = lastCodeRes.rows[0].code; // e.g. "PRO00012"
+                const lastCode = lastCodeRes.rows[0].product_code; // e.g. "PRO00012"
                 const numPart = parseInt(lastCode.replace("PRO", ""), 10);
                 const nextNum = numPart + 1;
                 product_code = "PRO" + String(nextNum).padStart(5, "0");
