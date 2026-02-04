@@ -1187,6 +1187,7 @@ export async function mirgation() {
             waste_type VARCHAR(255),
             waste_weight VARCHAR(255),
             unit VARCHAR(50),
+            annual_reporting_period VARCHAR(50),
             treatment_type VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

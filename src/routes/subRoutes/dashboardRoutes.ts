@@ -27,4 +27,16 @@ Routes.get('/api/dashboard/distance-vs-correlation-emission', authService.authen
 Routes.get('/api/dashboard/energy-source-emission', authService.authenticate, Controller.getEnergySourceEmission);
 Routes.get('/api/dashboard/process-wise-energy-consumption-emission', authService.authenticate, Controller.getProcessWiseEnergyConsumption);
 
+// Recyclibitily
+Routes.get('/api/dashboard/recyclibility-emission', authService.authenticate, Controller.getRecyclability);
+Routes.get('/api/dashboard/virgin-or-recyclibility-emission', authService.authenticate, Controller.getVirginOrRecycledEmission);
+
+// Waste
+Routes.get('/api/dashboard/waste-emission', authService.authenticate, Controller.getWasteEmissionDetails);
+
+// PCF Visualisation Trends
+Routes.get('/api/dashboard/pcf-reduction-emission', authService.authenticate, Controller.getPcfReductionGraph);
+Routes.get('/api/dashboard/pcf-actual-emission', authService.authenticate, Controller.getActualPcfEmission);
+Routes.get('/api/dashboard/forecasted-emission', authService.authenticate, Controller.getForecastedEmission);
+
 export default Routes;

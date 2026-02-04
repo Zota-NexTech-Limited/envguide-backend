@@ -5614,17 +5614,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                     waste_type: w.waste_type,
                     waste_weight: w.waste_weight,
                     unit: w.unit,
-                    treatment_type: w.treatment_type
+                    treatment_type: w.treatment_type,
+                    annual_reporting_period
                 }
             });
 
-            return [woppw_id, stoie_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
+            return [woppw_id, stoie_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_pro_packaging_waste_questions',
-            ['woppw_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
+            ['woppw_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type', 'annual_reporting_period'],
             rows
         ));
 
