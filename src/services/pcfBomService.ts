@@ -5,9 +5,9 @@ export const bomService = {
                 id, request_title, priority, request_organization,
                 due_date, request_description, product_category_id, component_category_id,
                 component_type_id, product_code,manufacturer_id,model_version,created_by,
-                 technical_specification_file,product_images,is_draft,code,status
+                 technical_specification_file,product_images,is_draft,status,code
             ) VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'PCF' || LPAD(nextval('pcf_code_seq')::text, 5, '0')
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'PCF' || LPAD(nextval('pcf_code_seq')::text, 5, '0')
             )
         `;
         const values = [
