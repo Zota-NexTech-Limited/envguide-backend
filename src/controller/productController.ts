@@ -1,7 +1,6 @@
 import { withClient } from '../util/database';
 import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes';
-import e from 'express';
 
 export async function createProduct(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -124,16 +123,11 @@ export async function updateProduct(req: any, res: any) {
                 ed_life_cycle_stage_id,
                 ed_renewable_energy,
                 product_status,
-                own_emission_id,
                 own_emission_status
             } = req.body;
 
             const updated_by = req.user_id;
 
-            // 🔐 REQUIRED FIELD VALIDATION
-            // if (!product_code || product_code.trim() === "") {
-            //     return res.send(generateResponse(false, "product_code is required", 400, null));
-            // }
             if (!product_name || product_name.trim() === "") {
                 return res.send(generateResponse(false, "product_name is required", 400, null));
             }
@@ -141,15 +135,6 @@ export async function updateProduct(req: any, res: any) {
                 return res.send(generateResponse(false, "product_category_id is required", 400, null));
             }
 
-            // 🔍 CHECK UNIQUE CODE FOR OTHER PRODUCTS
-            // const codeCheck = await client.query(
-            //     `SELECT id FROM product WHERE product_code = $1 AND id <> $2`,
-            //     [product_code, id]
-            // );
-
-            // if (codeCheck.rows.length > 0) {
-            //     return res.send(generateResponse(false, "Product code already exists", 400, null));
-            // }
 
             const updateQuery = `
                 UPDATE product
@@ -195,6 +180,8 @@ export async function updateProduct(req: any, res: any) {
                 product_status
             ]);
 
+            const own_emission_id = result.rows[0].own_emission_id
+
             if (own_emission_id) {
                 const updateStatusOwnEmission = `
                 UPDATE own_emission
@@ -222,7 +209,7 @@ export async function updateProduct(req: any, res: any) {
 export async function getProductById(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { id } = req.query;
+            const { id, bom_pcf_id } = req.query;
 
             const productQuery = `
                 SELECT p.*,
@@ -254,43 +241,67 @@ export async function getProductById(req: any, res: any) {
 
             let product = productResult.rows[0];
 
-            // ---------- Fetch Own Emission (Separate) ----------
+            /* ---------- OWN EMISSION ---------- */
             const ownEmissionQuery = `
                 SELECT oe.*,
                        cm.name AS calculation_method_name,
-                       fc.name AS fuel_combustion_name,
-                       pe.name AS process_emission_name,
-                       fe.name AS fugitive_emission_name,
-                       elb.name AS electicity_location_based_name,
-                       emb.name AS electicity_market_based_name,
-                       shc.name AS steam_heat_cooling_name,
                        u1.user_name AS created_by_name,
                        u2.user_name AS updated_by_name
                 FROM own_emission oe
                 LEFT JOIN calculation_method cm ON oe.id = cm.id
-                LEFT JOIN fuel_combustion fc ON oe.id = fc.id
-                LEFT JOIN process_emission pe ON oe.id = pe.id
-                LEFT JOIN fugitive_emission fe ON oe.id = fe.id
-                LEFT JOIN electicity_location_based elb ON oe.id = elb.id
-                LEFT JOIN electicity_market_based emb ON oe.id = emb.id
-                LEFT JOIN steam_heat_cooling shc ON oe.id = shc.id
                 LEFT JOIN users_table u1 ON oe.created_by = u1.user_id
                 LEFT JOIN users_table u2 ON oe.updated_by = u2.user_id
-                WHERE oe.product_id = $1;
+                WHERE oe.product_id = $1
+                ${bom_pcf_id ? `AND oe.bom_pcf_id = $2` : ``}
             `;
 
-            const ownEmissionResult = await client.query(ownEmissionQuery, [id]);
+            const ownEmissionParams = bom_pcf_id ? [id, bom_pcf_id] : [id];
+            const ownEmissionResult = await client.query(
+                ownEmissionQuery,
+                ownEmissionParams
+            );
 
-            // Add separate nested object
-            product.own_emission = ownEmissionResult.rows.length ? ownEmissionResult.rows[0] : null;
+            product.own_emission = ownEmissionResult.rows || [];
 
-            if (product.own_emission) {
-                const docs = await client.query(
-                    `SELECT * FROM own_emission_supporting_document WHERE own_emission_id = $1;`,
-                    [ownEmissionResult.rows[0].id]
-                );
-                product.own_emission.supporting_documents = docs.rows;
+            /* ---------- ATTACH PCF DETAILS ---------- */
+            for (const oe of product.own_emission) {
+                oe.pcf_details = oe.bom_pcf_id
+                    ? await getOwnEmissionWithBOMDetailsById(
+                        client,
+                        oe.bom_pcf_id,
+                        oe.client_id
+                    )
+                    : null;
             }
+
+            // ---------- Fetch Own Emission (Separate) ----------
+            // const ownEmissionQuery = `
+            //     SELECT oe.*,
+            //            cm.name AS calculation_method_name,
+            //            u1.user_name AS created_by_name,
+            //            u2.user_name AS updated_by_name
+            //     FROM own_emission oe
+            //     LEFT JOIN calculation_method cm ON oe.id = cm.id
+            //     LEFT JOIN users_table u1 ON oe.created_by = u1.user_id
+            //     LEFT JOIN users_table u2 ON oe.updated_by = u2.user_id
+            //     WHERE oe.product_id = $1;
+            // `;
+
+            // const ownEmissionResult = await client.query(ownEmissionQuery, [id]);
+            // product.own_emission = ownEmissionResult.rows || [];
+
+            // /* ---------- ATTACH PCF DETAILS PER OWN EMISSION ---------- */
+            // for (const oe of product.own_emission) {
+            //     if (oe.bom_pcf_id) {
+            //         oe.pcf_details = await getOwnEmissionWithBOMDetailsById(
+            //             client,
+            //             oe.bom_pcf_id,
+            //             oe.client_id
+            //         );
+            //     } else {
+            //         oe.pcf_details = null;
+            //     }
+            // }
 
             return res.send(generateResponse(true, "Fetched successfully", 200, product));
 
@@ -299,6 +310,549 @@ export async function getProductById(req: any, res: any) {
             return res.send(generateResponse(false, err.message, 400, null));
         }
     });
+}
+
+// export async function getOwnEmissionWithBOMDetailsById(
+//     client: any,
+//     bom_pcf_id: string,
+//     client_id: string
+// ) {
+
+//     const result = await client.query(
+//         `
+// WITH base_pcf AS (
+//     SELECT
+//         pcf.id,
+//         pcf.code,
+//         pcf.request_title,
+//         pcf.priority,
+//         pcf.request_organization,
+//         pcf.due_date,
+//         pcf.request_description,
+//         pcf.status,
+//         pcf.model_version,
+//         pcf.overall_pcf,
+//         pcf.is_approved,
+//         pcf.is_rejected,
+//         pcf.reject_reason,
+//         pcf.rejected_by,
+//         pcf.is_draft,
+//         pcf.created_date,
+//         pcf.product_code,
+//         pcf.client_id,
+
+//         pcf.product_category_id,
+//         pcf.component_category_id,
+//         pcf.component_type_id,
+//         pcf.manufacturer_id
+
+//     FROM bom_pcf_request pcf
+//     WHERE pcf.id = $1 AND pcf.client_id =$2
+// )
+
+// SELECT
+//     base_pcf.*,
+
+//     /* ---------------- Category Details ---------------- */
+//     jsonb_build_object(
+//         'id', pc.id,
+//         'code', pc.code,
+//         'name', pc.name
+//     ) AS product_category,
+
+//     jsonb_build_object(
+//         'id', cc.id,
+//         'code', cc.code,
+//         'name', cc.name
+//     ) AS component_category,
+
+//     jsonb_build_object(
+//         'id', ct.id,
+//         'code', ct.code,
+//         'name', ct.name
+//     ) AS component_type,
+
+//     jsonb_build_object(
+//         'id', m.id,
+//         'code', m.code,
+//         'name', m.name,
+//         'address', m.address,
+//         'lat', m.lat,
+//         'long', m.long
+//     ) AS manufacturer,
+
+//     jsonb_build_object(
+//         'user_id', urb.user_id,
+//         'user_role', urb.user_role,
+//         'user_name', urb.user_name
+//     ) AS rejectedBy,
+
+//     /* ---------------- Product Specifications ---------------- */
+//     COALESCE(
+//         jsonb_agg(
+//             DISTINCT jsonb_build_object(
+//                 'id', ps.id,
+//                 'specification_name', ps.specification_name,
+//                 'specification_value', ps.specification_value,
+//                 'specification_unit', ps.specification_unit
+//             )
+//         ) FILTER (WHERE ps.id IS NOT NULL),
+//         '[]'
+//     ) AS product_specifications,
+
+// /* ---------------- BOM List (FULL DETAILS) ---------------- */
+// COALESCE(
+//     jsonb_agg(
+//         DISTINCT jsonb_build_object(
+//             'id', b.id,
+//             'code', b.code,
+//             'product_id', b.product_id,
+//             'bom_pcf_id', b.bom_pcf_id,
+//             'client_id', b.client_id
+
+
+//             /* ---------- MATERIAL EMISSION ---------- */
+//             'material_emission', (
+//                 SELECT jsonb_agg(to_jsonb(mem))
+//                 FROM bom_emission_material_calculation_engine mem
+//                 WHERE mem.product_bom_pcf_id = b.bom_pcf_id AND mem.product_id = b.product_id AND bom_id IS NULL
+//             ),
+
+//             /* ---------- PRODUCTION EMISSION ---------- */
+//             'production_emission_calculation', (
+//                 SELECT to_jsonb(mep)
+//                 FROM bom_emission_production_calculation_engine mep
+//                 WHERE mep.product_bom_pcf_id = b.bom_pcf_id AND mep.product_id = b.product_id AND bom_id IS NULL
+//                 LIMIT 1
+//             ),
+
+//             /* ---------- PACKAGING EMISSION ---------- */
+//             'packaging_emission_calculation', (
+//                 SELECT to_jsonb(mpk)
+//                 FROM bom_emission_packaging_calculation_engine mpk
+//                 WHERE mpk.product_bom_pcf_id = b.bom_pcf_id AND mpk.product_id = b.product_id AND bom_id IS NULL
+//                 LIMIT 1
+//             ),
+
+//             /* ---------- WASTE EMISSION ---------- */
+//             'waste_emission_calculation', (
+//                 SELECT to_jsonb(mw)
+//                 FROM bom_emission_waste_calculation_engine mw
+//                 WHERE mw.product_bom_pcf_id = b.bom_pcf_id AND mw.product_id = b.product_id AND bom_id IS NULL
+//                 LIMIT 1
+//             ),
+
+//             /* ---------- LOGISTIC EMISSION ---------- */
+//             'logistic_emission_calculation', (
+//                 SELECT to_jsonb(ml)
+//                 FROM bom_emission_logistic_calculation_engine ml
+//                 WHERE ml.product_bom_pcf_id = b.bom_pcf_id AND ml.product_id = b.product_id AND bom_id IS NULL
+//                 LIMIT 1
+//             ),
+
+//             /* ---------- TOTAL PCF ---------- */
+//             'pcf_total_emission_calculation', (
+//                 SELECT to_jsonb(pcfe)
+//                 FROM bom_emission_calculation_engine pcfe
+//                 WHERE pcfe.product_bom_pcf_id = b.bom_pcf_id AND pcfe.product_id = b.product_id AND bom_id IS NULL
+//                 LIMIT 1
+//             ),
+
+//             /* ---------- ALLOCATION METHODOLOGY ---------- */
+//             'allocation_methodology', (
+//                 SELECT to_jsonb(am)
+//                 FROM allocation_methodology am
+//                 WHERE am.product_bom_pcf_id = b.bom_pcf_id AND am.product_id = b.product_id AND bom_id IS NULL
+//                 LIMIT 1
+//             )
+//         )
+//     ) FILTER (WHERE b.id IS NOT NULL),
+//     '[]'
+// ) AS bom_list,
+
+//     /* ---------------- PCF STAGES (1–1 OBJECT) ---------------- */
+//     jsonb_build_object(
+//         'id', st.id,
+//         'bom_pcf_id', st.bom_pcf_id,
+//         'is_pcf_request_created', st.is_pcf_request_created,
+//         'is_pcf_request_submitted', st.is_pcf_request_submitted,
+//         'is_bom_verified', st.is_bom_verified,
+//         'is_data_collected', st.is_data_collected,
+//         'is_dqr_completed', st.is_dqr_completed,
+//         'is_pcf_calculated', st.is_pcf_calculated,
+//         'is_result_validation_verified', st.is_result_validation_verified,
+//         'is_result_submitted', st.is_result_submitted,
+//         'pcf_request_created_by', st.pcf_request_created_by,
+//         'pcf_request_submitted_by', st.pcf_request_submitted_by,
+//         'bom_verified_by', st.bom_verified_by,
+//         'dqr_completed_by', st.dqr_completed_by,
+//         'pcf_calculated_by', st.pcf_calculated_by,
+//         'result_validation_verified_by', st.result_validation_verified_by,
+//         'result_submitted_by', st.result_submitted_by,
+//         'pcf_request_created_date', st.pcf_request_created_date,
+//         'pcf_request_submitted_date', st.pcf_request_submitted_date,
+//         'bom_verified_date', st.bom_verified_date,
+//         'dqr_completed_date', st.dqr_completed_date,
+//         'pcf_calculated_date', st.pcf_calculated_date,
+//         'result_validation_verified_date', st.result_validation_verified_date,
+//         'result_submitted_date', st.result_submitted_date,
+//         'update_date', st.update_date,
+//         'created_date', st.created_date,
+//         'pcf_request_created_by', jsonb_build_object(
+//             'user_id', ucb.user_id,
+//             'user_role', ucb.user_role,
+//             'user_name', ucb.user_name
+//         ),
+//         'pcf_request_submitted_by', jsonb_build_object(
+//             'user_id', usb.user_id,
+//             'user_role', usb.user_role,
+//             'user_name', usb.user_name
+//         ),
+//          'bom_verified_by', jsonb_build_object(
+//             'user_id', uvb.user_id,
+//             'user_role', uvb.user_role,
+//             'user_name', uvb.user_name
+//         )
+//     ) AS pcf_request_stages,
+
+// /* ---------------- PCF DQR DATA COLLECTION STAGE ---------------- */
+// COALESCE(
+//     (
+//         SELECT jsonb_agg(
+//             jsonb_build_object(
+//                 'id', dcsr.id,
+//                /*  'bom_id', dcsr.bom_id,*/
+//                 'submitted_by', dcsr.submitted_by,
+
+//                 /* ---------- Client (from users_table) ---------- */
+//                 'client', jsonb_build_object(
+//                     'user_id', uc.user_id,
+//                     'user_name', uc.user_name,
+//                     'user_role', uc.user_role
+//                 ),
+
+//                 'submittedBy', jsonb_build_object(
+//                     'user_id', usmb.user_id,
+//                     'user_role', usmb.user_role,
+//                     'user_name', usmb.user_name
+//                 ),
+
+//                 'is_submitted', dcsr.is_submitted,
+//                 'completed_date', dcsr.completed_date,
+//                 'created_date', dcsr.created_date,
+//                 'update_date', dcsr.update_date
+//             )
+//         )
+//         FROM pcf_request_data_rating_stage dcsr
+//         LEFT JOIN users_table uc ON uc.user_id = dcsr.client_id
+//         LEFT JOIN users_table usmb ON usmb.user_id = dcsr.submitted_by
+//         WHERE dcsr.bom_pcf_id = base_pcf.id AND dcsr.sup_id IS NULL
+//     ),
+//     '[]'
+// ) AS pcf_data_dqr_rating_stage
+
+
+// FROM base_pcf
+// LEFT JOIN product_category pc ON pc.id = base_pcf.product_category_id
+// LEFT JOIN component_category cc ON cc.id = base_pcf.component_category_id
+// LEFT JOIN component_type ct ON ct.id = base_pcf.component_type_id
+// LEFT JOIN manufacturer m ON m.id = base_pcf.manufacturer_id
+// LEFT JOIN users_table urb ON urb.user_id = base_pcf.rejected_by
+// LEFT JOIN bom_pcf_request_product_specification ps ON ps.bom_pcf_id = base_pcf.id
+// LEFT JOIN own_emission b ON b.bom_pcf_id = base_pcf.id AND b.client_id = base_pcf.client_id AND from base pcf take product_code compare with product table fetch id then compare with own emission product_id
+// LEFT JOIN supplier_details s ON s.sup_id = b.supplier_id
+// LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id
+// LEFT JOIN users_table ucb ON ucb.user_id = st.pcf_request_created_by
+// LEFT JOIN users_table usb ON usb.user_id = st.pcf_request_submitted_by
+// LEFT JOIN users_table uvb ON uvb.user_id = st.bom_verified_by
+// 'code', b.code,
+//             'product_id', b.product_id,
+//             'bom_pcf_id', b.bom_pcf_id,
+//             'client_id', b.client_id
+// GROUP BY
+//     base_pcf.id,
+//     base_pcf.code,
+//     base_pcf.product_id,
+//     base_pcf.bom_pcf_id,
+//     base_pcf.client_id,
+//     base_pcf.due_date,
+//     base_pcf.request_description,
+//     base_pcf.status,
+//     base_pcf.model_version,
+//     base_pcf.overall_pcf,
+//     base_pcf.is_approved,
+//     base_pcf.is_rejected,
+//     base_pcf.is_draft,
+//     base_pcf.created_date,
+//     base_pcf.product_category_id,
+//     base_pcf.component_category_id,
+//     base_pcf.component_type_id,
+//     base_pcf.manufacturer_id,
+//     usb.user_id,
+//     ucb.user_id,
+//     uvb.user_id,
+//     base_pcf.reject_reason,
+//     base_pcf.rejected_by,
+//     urb.user_id,
+//     pc.id,
+//     cc.id,
+//     ct.id,
+//     m.id,
+//     st.id;
+
+// `,
+//         [bom_pcf_id, client_id]
+//     );
+
+//     return result.rows.length ? result.rows[0] : null;
+// }
+
+export async function getOwnEmissionWithBOMDetailsById(
+    client: any,
+    bom_pcf_id: string,
+    client_id: string
+) {
+    const result = await client.query(
+        `
+WITH base_pcf AS (
+    SELECT *
+    FROM bom_pcf_request
+    WHERE id = $1
+      AND client_id = $2
+)
+
+SELECT
+    base_pcf.id,
+    base_pcf.code,
+    base_pcf.request_title,
+    base_pcf.priority,
+    base_pcf.request_organization,
+    base_pcf.due_date,
+    base_pcf.request_description,
+    base_pcf.status,
+    base_pcf.model_version,
+    base_pcf.overall_pcf,
+    base_pcf.is_approved,
+    base_pcf.is_rejected,
+    base_pcf.reject_reason,
+    base_pcf.is_draft,
+    base_pcf.created_date,
+    base_pcf.product_code,
+    base_pcf.client_id,
+
+    /* ---------- CATEGORY DETAILS ---------- */
+    jsonb_build_object('id', pc.id, 'code', pc.code, 'name', pc.name) AS product_category,
+    jsonb_build_object('id', cc.id, 'code', cc.code, 'name', cc.name) AS component_category,
+    jsonb_build_object('id', ct.id, 'code', ct.code, 'name', ct.name) AS component_type,
+    jsonb_build_object('id', m.id, 'code', m.code, 'name', m.name) AS manufacturer,
+
+    /* ---------- REJECTED BY ---------- */
+    jsonb_build_object(
+        'user_id', urb.user_id,
+        'user_name', urb.user_name,
+        'user_role', urb.user_role
+    ) AS rejected_by,
+
+    /* ---------- PRODUCT SPECIFICATIONS ---------- */
+    COALESCE(
+        jsonb_agg(
+            DISTINCT jsonb_build_object(
+                'id', ps.id,
+                'specification_name', ps.specification_name,
+                'specification_value', ps.specification_value,
+                'specification_unit', ps.specification_unit
+            )
+        ) FILTER (WHERE ps.id IS NOT NULL),
+        '[]'
+    ) AS product_specifications,
+
+    /* ---------- OWN EMISSION (ARRAY) ---------- */
+    COALESCE(
+        jsonb_agg(
+            DISTINCT jsonb_build_object(
+                'id', oe.id,
+                'product_id', oe.product_id,
+                'bom_pcf_id', oe.bom_pcf_id,
+                'client_id', oe.client_id,
+
+                'material_emission', (
+                    SELECT jsonb_agg(to_jsonb(mem))
+                    FROM bom_emission_material_calculation_engine mem
+                    WHERE mem.product_bom_pcf_id = oe.bom_pcf_id
+                      AND mem.product_id = oe.product_id
+                      AND mem.bom_id IS NULL
+                ),
+
+                'production_emission', (
+                    SELECT to_jsonb(mep)
+                    FROM bom_emission_production_calculation_engine mep
+                    WHERE mep.product_bom_pcf_id = oe.bom_pcf_id
+                      AND mep.product_id = oe.product_id
+                      AND mep.bom_id IS NULL
+                    LIMIT 1
+                ),
+
+                'packaging_emission', (
+                    SELECT to_jsonb(mpk)
+                    FROM bom_emission_packaging_calculation_engine mpk
+                    WHERE mpk.product_bom_pcf_id = oe.bom_pcf_id
+                      AND mpk.product_id = oe.product_id
+                      AND mpk.bom_id IS NULL
+                    LIMIT 1
+                ),
+
+                'waste_emission', (
+                    SELECT to_jsonb(mw)
+                    FROM bom_emission_waste_calculation_engine mw
+                    WHERE mw.product_bom_pcf_id = oe.bom_pcf_id
+                      AND mw.product_id = oe.product_id
+                      AND mw.bom_id IS NULL
+                    LIMIT 1
+                ),
+
+                'logistic_emission', (
+                    SELECT to_jsonb(ml)
+                    FROM bom_emission_logistic_calculation_engine ml
+                    WHERE ml.product_bom_pcf_id = oe.bom_pcf_id
+                      AND ml.product_id = oe.product_id
+                      AND ml.bom_id IS NULL
+                    LIMIT 1
+                ),
+
+                'total_emission', (
+                    SELECT to_jsonb(pcfe)
+                    FROM bom_emission_calculation_engine pcfe
+                    WHERE pcfe.product_bom_pcf_id = oe.bom_pcf_id
+                      AND pcfe.product_id = oe.product_id
+                      AND pcfe.bom_id IS NULL
+                    LIMIT 1
+                ),
+
+                'allocation_methodology', (
+                    SELECT to_jsonb(am)
+                    FROM allocation_methodology am
+                    WHERE am.product_bom_pcf_id = oe.bom_pcf_id
+                      AND am.product_id = oe.product_id
+                      AND am.bom_id IS NULL
+                    LIMIT 1
+                )
+            )
+        ) FILTER (WHERE oe.id IS NOT NULL),
+        '[]'
+    ) AS own_emission_details,
+
+    /* ---------- PCF STAGES ---------- */
+    jsonb_build_object(
+        'id', st.id,
+        'is_pcf_request_created', st.is_pcf_request_created,
+        'is_pcf_request_submitted', st.is_pcf_request_submitted,
+        'is_bom_verified', st.is_bom_verified,
+        'is_data_collected', st.is_data_collected,
+        'is_dqr_completed', st.is_dqr_completed,
+        'is_pcf_calculated', st.is_pcf_calculated,
+        'is_result_validation_verified', st.is_result_validation_verified,
+        'is_result_submitted', st.is_result_submitted,
+
+        'pcf_request_created_by', jsonb_build_object(
+            'user_id', ucb.user_id,
+            'user_name', ucb.user_name,
+            'user_role', ucb.user_role
+        ),
+        'pcf_request_submitted_by', jsonb_build_object(
+            'user_id', usb.user_id,
+            'user_name', usb.user_name,
+            'user_role', usb.user_role
+        ),
+        'bom_verified_by', jsonb_build_object(
+            'user_id', uvb.user_id,
+            'user_name', uvb.user_name,
+            'user_role', uvb.user_role
+        )
+    ) AS pcf_request_stages,
+
+    /* ---------- PCF DQR DATA COLLECTION STAGE ---------- */
+    COALESCE(
+        (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'id', dqr.id,
+                    'is_submitted', dqr.is_submitted,
+                    'completed_date', dqr.completed_date,
+
+                    'client', jsonb_build_object(
+                        'user_id', uc.user_id,
+                        'user_name', uc.user_name,
+                        'user_role', uc.user_role
+                    ),
+
+                    'submitted_by', jsonb_build_object(
+                        'user_id', us.user_id,
+                        'user_name', us.user_name,
+                        'user_role', us.user_role
+                    ),
+
+                    'created_date', dqr.created_date,
+                    'update_date', dqr.update_date
+                )
+            )
+            FROM pcf_request_data_rating_stage dqr
+            LEFT JOIN users_table uc ON uc.user_id = dqr.client_id
+            LEFT JOIN users_table us ON us.user_id = dqr.submitted_by
+            WHERE dqr.bom_pcf_id = base_pcf.id
+              AND dqr.sup_id IS NULL
+              AND dqr.client_id = base_pcf.client_id
+        ),
+        '[]'
+    ) AS pcf_dqr_data_collection_stage
+
+FROM base_pcf
+LEFT JOIN product p ON p.product_code = base_pcf.product_code
+LEFT JOIN own_emission oe
+       ON oe.bom_pcf_id = base_pcf.id
+      AND oe.client_id = base_pcf.client_id
+      AND oe.product_id = p.id
+
+LEFT JOIN product_category pc ON pc.id = base_pcf.product_category_id
+LEFT JOIN component_category cc ON cc.id = base_pcf.component_category_id
+LEFT JOIN component_type ct ON ct.id = base_pcf.component_type_id
+LEFT JOIN manufacturer m ON m.id = base_pcf.manufacturer_id
+LEFT JOIN users_table urb ON urb.user_id = base_pcf.rejected_by
+LEFT JOIN bom_pcf_request_product_specification ps ON ps.bom_pcf_id = base_pcf.id
+LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id AND st.client_id = base_pcf.client_id
+LEFT JOIN users_table ucb ON ucb.user_id = st.pcf_request_created_by
+LEFT JOIN users_table usb ON usb.user_id = st.pcf_request_submitted_by
+LEFT JOIN users_table uvb ON uvb.user_id = st.bom_verified_by
+
+GROUP BY
+     base_pcf.id,
+    base_pcf.code,
+    base_pcf.request_title,
+    base_pcf.priority,
+    base_pcf.request_organization,
+    base_pcf.due_date,
+    base_pcf.request_description,
+    base_pcf.status,
+    base_pcf.model_version,
+    base_pcf.overall_pcf,
+    base_pcf.is_approved,
+    base_pcf.is_rejected,
+    base_pcf.reject_reason,
+    base_pcf.is_draft,
+    base_pcf.created_date,
+    base_pcf.product_code,
+    base_pcf.client_id,
+    pc.id, cc.id, ct.id, m.id,
+    urb.user_id,
+    st.id,
+    ucb.user_id,
+    usb.user_id,
+    uvb.user_id,
+    p.id;
+        `,
+        [bom_pcf_id, client_id]
+    );
+
+    return result.rows.length ? result.rows[0] : null;
 }
 
 export async function listProducts(req: any, res: any) {
@@ -471,6 +1025,7 @@ export async function pcfDropDown(req: any, res: any) {
                 );
             }
 
+            const client_id = req.user_id;
             const query = `
                  SELECT
                     bpr.id,
@@ -481,11 +1036,11 @@ export async function pcfDropDown(req: any, res: any) {
                 FROM bom_pcf_request bpr
                 LEFT JOIN own_emission oe
                     ON oe.bom_pcf_id = bpr.id
-                WHERE bpr.product_code = $1
+                WHERE bpr.product_code = $1 AND bpr.created_by =$2
                 ORDER BY bpr.created_date DESC
             `;
 
-            const result = await client.query(query, [product_code]);
+            const result = await client.query(query, [product_code, client_id]);
 
             return res.send(
                 generateResponse(true, "Dropdown fetched successfully", 200, result.rows)
@@ -754,6 +1309,13 @@ COALESCE(
                     'supplier_phone_number', sd.supplier_phone_number
                 ),
 
+                /* ---------- Client (from users_table) ---------- */
+                'client', jsonb_build_object(
+                    'user_id', uc.user_id,
+                    'user_name', uc.user_name,
+                    'user_role', uc.user_role
+                ),
+
                 /* ---------- BOM ARRAY (via bom_pcf_id + supplier) ---------- 
                 'bom',
                 COALESCE(
@@ -782,6 +1344,7 @@ COALESCE(
         )
         FROM pcf_request_data_collection_stage dcs
         LEFT JOIN supplier_details sd ON sd.sup_id = dcs.sup_id
+        LEFT JOIN users_table uc ON uc.user_id = dcs.client_id
         WHERE dcs.bom_pcf_id = base_pcf.id
     ),
     '[]'::jsonb
@@ -3221,7 +3784,7 @@ export async function getLinkedPCFsUsingProductCode(req: any, res: any) {
         pcf.overall_pcf,
         pcf.created_date
     FROM bom_pcf_request pcf
-    WHERE pcf.product_code = $1
+    WHERE pcf.product_code = $1 AND pcf.created_by =$2
 )
 
 SELECT
@@ -3248,7 +3811,7 @@ GROUP BY
     base_pcf.overall_pcf,
     base_pcf.created_date;
 `,
-                [product_code]
+                [product_code, req.user_id]
             );
 
             return res.status(200).send(
@@ -3297,6 +3860,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                 supporting_document_ids,
                 additional_notes,
                 client_id,
+                product_id,
                 supplier_general_info_questions,
                 supplier_product_questions,
                 scope_one_direct_emissions_questions,
@@ -3324,9 +3888,9 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const OwnEmissionInsert = `
                 INSERT INTO own_emission (
                     id, code, bom_pcf_id, supporting_document_ids,
-                    additional_notes, client_id
+                    additional_notes, client_id, product_id
                 )
-                VALUES ($1,$2,$3,$4,$5,$6)
+                VALUES ($1,$2,$3,$4,$5,$6,$7)
                 RETURNING *;
             `;
 
@@ -3336,7 +3900,8 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                 bom_pcf_id,
                 supporting_document_ids,
                 additional_notes,
-                client_id
+                client_id,
+                product_id
             ]);
 
 
@@ -3454,10 +4019,16 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             // STEP 3: Update PCF stages
             // ============================================
 
+            // await client.query(
+            //     `UPDATE pcf_request_data_collection_stage SET is_submitted = true,completed_date=NOW()
+            //      WHERE bom_pcf_id = $1 AND client_id=$2;`,
+            //     [bom_pcf_id, client_id]
+            // );
+
             await client.query(
-                `UPDATE pcf_request_data_collection_stage SET is_submitted = true,completed_date=NOW()
-                 WHERE bom_pcf_id = $1 AND client_id=$2;`,
-                [bom_pcf_id, client_id]
+                `UPDATE own_emission SET is_quetions_filled = true , 
+                 WHERE bom_pcf_id = $1 AND client_id=$2 AND product_id=$3;`,
+                [bom_pcf_id, client_id, product_id]
             );
 
             console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
@@ -5333,25 +5904,25 @@ export async function pcfCalculate(req: any, res: any) {
             }
 
             // Check PCF request stage
-            // const checkQuery = `
-            //     SELECT is_pcf_calculated
-            //     FROM pcf_request_stages
-            //     WHERE bom_pcf_id = $1 AND client_id IS NOT NULL;
-            // `;
+            const checkQuery = `
+                SELECT is_own_emission_calculated
+                FROM own_emission
+                WHERE bom_pcf_id = $1 AND client_id IS NOT NULL AND product_id=$2;
+            `;
 
-            // const result = await client.query(checkQuery, [bom_pcf_id]);
+            const result = await client.query(checkQuery, [bom_pcf_id, product_id]);
 
-            // if (result.rowCount === 0) {
-            //     return res.send(
-            //         generateResponse(false, "No PCF request found for given bom_pcf_id", 404, null)
-            //     );
-            // }
+            if (result.rowCount === 0) {
+                return res.send(
+                    generateResponse(false, "No Own emission request found for given bom_pcf_id", 404, null)
+                );
+            }
 
-            // if (result.rows[0].is_pcf_calculated === true) {
-            //     return res.send(
-            //         generateResponse(false, "PCF is already calculated for this BOM", 400, null)
-            //     );
-            // }
+            if (result.rows[0].is_own_emission_calculated === true) {
+                return res.send(
+                    generateResponse(false, "Own emission is already calculated for this BOM", 400, null)
+                );
+            }
 
             let overall_pcf = 0;
             // To fetch ALL BOM for particular PCF 
@@ -5359,14 +5930,30 @@ export async function pcfCalculate(req: any, res: any) {
             const fetchParticularProduct = `
                 SELECT id,bom_pcf_id,product_id,client_id
                 FROM own_emission
-                WHERE bom_pcf_id = $1
+                WHERE bom_pcf_id = $1 AND product_id = $2
                 LIMIT 1;
             `;
 
-            const particularProductResult = await client.query(fetchParticularProduct, [bom_pcf_id]);
+            const particularProductResult = await client.query(fetchParticularProduct, [bom_pcf_id, product_id]);
+
+            const fetchWeightInKg = `
+                SELECT ts_weight_kg
+                FROM product
+                WHERE id=$1;
+            `;
+
+            const WeightInKgResult = await client.query(fetchWeightInKg, [product_id]);
+
+            if (!WeightInKgResult) {
+                return res.send(
+                    generateResponse(false, "Product not found", 400, null)
+                );
+            }
 
             const TotalBomDetails = [];
             for (let BomData of particularProductResult.rows) {
+
+                const weightInKg = WeightInKgResult.rows[0].ts_weight_kg / 1000;
 
                 BomData.product_id = product_id;
                 const fetchSGIQID = `
@@ -5433,7 +6020,7 @@ export async function pcfCalculate(req: any, res: any) {
                     }
 
                     // for this component weight i need to ask abhiram
-                    const weightInKg = 1 / 1000;
+
 
                     const material_composition = ProductData.percentage;
                     const material_composition_weight = ((weightInKg / 100) * ProductData.percentage);
@@ -5822,7 +6409,7 @@ export async function pcfCalculate(req: any, res: any) {
                     Total_Housing_Component_Emissions += Manufacturing_Emissions_kg_CO2e;
 
                     // const weightInKg = parseFloat(BomData.weight_gms) / 1000;
-                    const weightInKg = 1 / 1000;
+                    // const weightInKg = 1 / 1000;
 
                     // ====> Insert into bom_emission_production_calculation_engine table
                     const queryProd = `
@@ -5993,7 +6580,7 @@ export async function pcfCalculate(req: any, res: any) {
                         typeof packaginWeight === 'string'
                             ? parseFloat(packaginWeight)
                             : packaginWeight || 0;
-                    const bomWeightKg = 1 / 1000;
+                    const bomWeightKg = WeightInKgResult.rows[0].ts_weight_kg / 1000;;
 
                     console.log("packaginWeightNum:", packaginWeightNum, "packaginWeight:", bomWeightKg);
 
@@ -6232,7 +6819,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                     let waste_disposal_emissions_kg_CO2e = 0;
 
-                    const weightInKg68 = 1 / 1000;
+                    const weightInKg68 = WeightInKgResult.rows[0].ts_weight_kg / 1000;
 
                     const weightOfTenPercent = ((weightInKg68 / 100) * 10);
 
@@ -6318,11 +6905,11 @@ export async function pcfCalculate(req: any, res: any) {
 
 
             // Update status of bom calculation Pcf level
-            await client.query(
-                `UPDATE pcf_request_stages SET is_pcf_calculated = true
-                 WHERE bom_pcf_id = $1 AND client_id IS NOT NULL AND client_id = $2;`,
-                [bom_pcf_id, particularProductResult.rows[0].client_id]
-            );
+            // await client.query(
+            //     `UPDATE pcf_request_stages SET is_pcf_calculated = true
+            //      WHERE bom_pcf_id = $1 AND client_id IS NOT NULL AND client_id = $2;`,
+            //     [bom_pcf_id, particularProductResult.rows[0].client_id]
+            // );
 
             await client.query(
                 `UPDATE bom_pcf_request SET overall_pcf = $1
@@ -6332,12 +6919,12 @@ export async function pcfCalculate(req: any, res: any) {
 
             await client.query(
                 `UPDATE own_emission SET is_own_emission_calculated = true
-                 WHERE bom_pcf_id = $1 AND client_id IS NOT NULL AND client_id = $2;`,
-                [bom_pcf_id, particularProductResult.rows[0].client_id]
+                 WHERE bom_pcf_id = $1 AND client_id IS NOT NULL AND client_id = $2 AND product_id=$3;`,
+                [bom_pcf_id, particularProductResult.rows[0].client_id, product_id]
             );
 
             return res.send(
-                generateResponse(true, "PCF calculation can be initiated", 200, TotalBomDetails)
+                generateResponse(true, "Own emission calculation can be initiated", 200, TotalBomDetails)
             );
 
         } catch (error: any) {
