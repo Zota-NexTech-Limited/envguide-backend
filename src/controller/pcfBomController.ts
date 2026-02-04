@@ -3752,3 +3752,139 @@ export async function pcfCalculate(req: any, res: any) {
         }
     });
 }
+
+export async function submitPcfRequestInternal(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id } = req.body;
+            const userId = req.user_id;
+
+            if (!bom_pcf_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "bom_pcf_id is required"
+                });
+            }
+
+            await client.query("BEGIN");
+
+            /* ---------- UPDATE BOM PCF REQUEST ---------- */
+            const pcfResult = await client.query(
+                `
+                UPDATE bom_pcf_request
+                SET status = 'Submitted'
+                WHERE id = $1
+                  AND client_id IS NULL
+                RETURNING id
+                `,
+                [bom_pcf_id]
+            );
+
+            if (pcfResult.rowCount === 0) {
+                await client.query("ROLLBACK");
+                return res.status(404).send({
+                    success: false,
+                    message: "PCF request not found or already submitted"
+                });
+            }
+
+            /* ---------- UPDATE STAGES ---------- */
+            await client.query(
+                `
+                UPDATE pcf_request_stages
+                SET
+                    is_result_validation_verified = true,
+                    is_result_submitted = true,
+                    result_validation_verified_by = $2,
+                    result_submitted_by = $2
+                WHERE bom_pcf_id = $1
+                  AND client_id IS NULL
+                `,
+                [bom_pcf_id, userId]
+            );
+
+            await client.query("COMMIT");
+
+            return res.status(200).send({
+                success: true,
+                message: "PCF request submitted successfully (internal)"
+            });
+
+        } catch (error: any) {
+            await client.query("ROLLBACK");
+            console.error("Internal submission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function submitPcfRequestClient(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id } = req.body;
+            const userId = req.user_id;
+
+            if (!bom_pcf_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "bom_pcf_id is required"
+                });
+            }
+
+            await client.query("BEGIN");
+
+            /* ---------- UPDATE BOM PCF REQUEST ---------- */
+            const pcfResult = await client.query(
+                `
+                UPDATE bom_pcf_request
+                SET status = 'Submitted'
+                WHERE id = $1
+                  AND client_id IS NOT NULL
+                RETURNING id
+                `,
+                [bom_pcf_id]
+            );
+
+            if (pcfResult.rowCount === 0) {
+                await client.query("ROLLBACK");
+                return res.status(404).send({
+                    success: false,
+                    message: "PCF request not found or already submitted"
+                });
+            }
+
+            /* ---------- UPDATE STAGES ---------- */
+            await client.query(
+                `
+                UPDATE pcf_request_stages
+                SET
+                    is_result_validation_verified = true,
+                    is_result_submitted = true,
+                    result_validation_verified_by = $2,
+                    result_submitted_by = $2
+                WHERE bom_pcf_id = $1
+                  AND client_id IS NOT NULL
+                `,
+                [bom_pcf_id, userId]
+            );
+
+            await client.query("COMMIT");
+
+            return res.status(200).send({
+                success: true,
+                message: "PCF request submitted successfully (client)"
+            });
+
+        } catch (error: any) {
+            await client.query("ROLLBACK");
+            console.error("Client submission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
