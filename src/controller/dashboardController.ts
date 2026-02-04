@@ -1693,3 +1693,225 @@ export async function getWasteEmissionDetails(req: any, res: any) {
         }
     });
 }
+
+// PCF Visualisation Trends
+export async function getPcfReductionGraph(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            /* ---------------------------------------------------
+               1️⃣ FETCH YEARLY PCF (NO DUPLICATES)
+            --------------------------------------------------- */
+            const result = await client.query(
+                `
+                SELECT
+                    sgiq.annual_reporting_period AS year,
+                    bpr.product_code,
+                    p.product_name,
+                    SUM(bpr.overall_pcf::numeric) AS total_emission
+                FROM bom_pcf_request bpr
+                JOIN supplier_general_info_questions sgiq
+                    ON bpr.id = sgiq.bom_pcf_id
+                JOIN product p
+                    ON p.product_code = bpr.product_code
+                WHERE
+                    bpr.created_by = $1
+                    AND ($2::varchar IS NULL OR sgiq.sup_id = $2::varchar)
+                GROUP BY
+                    sgiq.annual_reporting_period,
+                    bpr.product_code,
+                    p.product_name
+                ORDER BY
+                    p.product_name,
+                    sgiq.annual_reporting_period
+                `,
+                [client_id, supplier_id || null]
+            );
+
+            /* ---------------------------------------------------
+               2️⃣ CALCULATE % REDUCTION FROM PREVIOUS YEAR
+            --------------------------------------------------- */
+            const finalData: any[] = [];
+            const productYearMap: any = {};
+
+            for (const row of result.rows) {
+                const key = row.product_code;
+
+                if (!productYearMap[key]) {
+                    productYearMap[key] = [];
+                }
+
+                productYearMap[key].push({
+                    year: Number(row.year),
+                    product_name: row.product_name,
+                    total_emission: Number(row.total_emission)
+                });
+            }
+
+            for (const productCode in productYearMap) {
+                const records = productYearMap[productCode];
+
+                records.sort((a: any, b: any) => a.year - b.year);
+
+                for (let i = 0; i < records.length; i++) {
+                    const current = records[i];
+                    const previous = records[i - 1];
+
+                    let reductionPercentage = null;
+
+                    if (previous) {
+                        reductionPercentage =
+                            ((previous.total_emission - current.total_emission) /
+                                previous.total_emission) *
+                            100;
+                    }
+
+                    finalData.push({
+                        year: current.year,
+                        product_name: current.product_name,
+                        total_emission_kg_co2_eq: Number(
+                            current.total_emission.toFixed(2)
+                        ),
+                        reduction_from_previous_period_percentage:
+                            reductionPercentage !== null
+                                ? Number(reductionPercentage.toFixed(2))
+                                : null
+                    });
+                }
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "PCF reduction graph data fetched successfully",
+                data: finalData
+            });
+
+        } catch (error: any) {
+            console.error("PCF reduction graph error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getActualPcfEmission(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            /* ---------------------------------------------------
+               FETCH ACTUAL PCF EMISSION (PRODUCT LEVEL)
+            --------------------------------------------------- */
+            const result = await client.query(
+                `
+                SELECT
+                    p.product_name,
+                    SUM(bpr.overall_pcf::numeric) AS total_overall_pcf_emission
+                FROM bom_pcf_request bpr
+                JOIN product p
+                    ON p.product_code = bpr.product_code
+                LEFT JOIN supplier_general_info_questions sgiq
+                    ON sgiq.bom_pcf_id = bpr.id
+                WHERE
+                    bpr.created_by = $1
+                    AND ($2::varchar IS NULL OR sgiq.sup_id = $2::varchar)
+                GROUP BY
+                    p.product_name
+                ORDER BY
+                    p.product_name
+                `,
+                [client_id, supplier_id || null]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Actual PCF emission fetched successfully",
+                data: result.rows.map((row: any) => ({
+                    product_name: row.product_name,
+                    total_overall_pcf_emission: Number(
+                        Number(row.total_overall_pcf_emission || 0).toFixed(2)
+                    )
+                }))
+            });
+
+        } catch (error: any) {
+            console.error("Actual PCF emission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+export async function getForecastedEmission(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id, supplier_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            /* ---------------------------------------------------
+               FETCH FORECASTED EMISSION (YEAR LEVEL)
+            --------------------------------------------------- */
+            const result = await client.query(
+                `
+                SELECT
+                    sgiq.annual_reporting_period AS year,
+                    SUM(bpr.overall_pcf::numeric) AS total_forecasted_emission
+                FROM bom_pcf_request bpr
+                JOIN supplier_general_info_questions sgiq
+                    ON sgiq.bom_pcf_id = bpr.id
+                WHERE
+                    bpr.created_by = $1
+                    AND ($2::varchar IS NULL OR sgiq.sup_id = $2::varchar)
+                GROUP BY
+                    sgiq.annual_reporting_period
+                ORDER BY
+                    sgiq.annual_reporting_period
+                `,
+                [client_id, supplier_id || null]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Forecasted emission fetched successfully",
+                data: result.rows.map((row: any) => ({
+                    year: Number(row.year),
+                    total_forecasted_emission_kg_co2_eq: Number(
+                        Number(row.total_forecasted_emission || 0).toFixed(2)
+                    )
+                }))
+            });
+
+        } catch (error: any) {
+            console.error("Forecasted emission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
