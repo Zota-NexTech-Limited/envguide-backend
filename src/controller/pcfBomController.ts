@@ -1200,6 +1200,7 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
         component_category,
         component_type,
         manufacturer,
+        pcf_status,
 
         // common
         search,
@@ -1245,6 +1246,11 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
 
 
             /* ---------- COLUMN FILTERS ---------- */
+             if (pcf_status) {
+                conditions.push(`pcf.status ILIKE $${idx++}`);
+                values.push(`%${pcf_status}%`);
+            }
+
             if (code) {
                 conditions.push(`pcf.code ILIKE $${idx++}`);
                 values.push(`%${code}%`);
