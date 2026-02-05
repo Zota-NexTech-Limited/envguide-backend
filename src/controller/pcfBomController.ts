@@ -1401,7 +1401,7 @@ LEFT JOIN LATERAL (
 ) ps ON TRUE
 
 /* ---------- PCF Stages ---------- */
-LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id AND prs.client_id IS NULL
+LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
 LEFT JOIN users_table usb ON usb.user_id = prs.pcf_request_submitted_by
 
@@ -2121,7 +2121,7 @@ LEFT JOIN users_table urb ON urb.user_id = base_pcf.rejected_by
 LEFT JOIN bom_pcf_request_product_specification ps ON ps.bom_pcf_id = base_pcf.id
 LEFT JOIN bom b ON b.bom_pcf_id = base_pcf.id
 LEFT JOIN supplier_details s ON s.sup_id = b.supplier_id
-LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id AND st.client_id IS NULL
+LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id
 LEFT JOIN users_table ucb ON ucb.user_id = st.pcf_request_created_by
 LEFT JOIN users_table usb ON usb.user_id = st.pcf_request_submitted_by
 LEFT JOIN users_table uvb ON uvb.user_id = st.bom_verified_by
@@ -2709,7 +2709,7 @@ export async function pcfCalculate(req: any, res: any) {
             const checkQuery = `
                 SELECT is_pcf_calculated
                 FROM pcf_request_stages
-                WHERE bom_pcf_id = $1 AND client_id IS NULL;
+                WHERE bom_pcf_id = $1;
             `;
 
             const result = await client.query(checkQuery, [bom_pcf_id]);
@@ -3730,7 +3730,7 @@ export async function pcfCalculate(req: any, res: any) {
             // Update status of bom calculation Pcf level
             await client.query(
                 `UPDATE pcf_request_stages SET is_pcf_calculated = true
-                 WHERE bom_pcf_id = $1 AND client_id IS NULL;`,
+                 WHERE bom_pcf_id = $1;`,
                 [bom_pcf_id]
             );
 
@@ -3798,7 +3798,6 @@ export async function submitPcfRequestInternal(req: any, res: any) {
                     result_validation_verified_by = $2,
                     result_submitted_by = $2
                 WHERE bom_pcf_id = $1
-                  AND client_id IS NULL
                 `,
                 [bom_pcf_id, userId]
             );
@@ -3866,7 +3865,6 @@ export async function submitPcfRequestClient(req: any, res: any) {
                     result_validation_verified_by = $2,
                     result_submitted_by = $2
                 WHERE bom_pcf_id = $1
-                  AND client_id IS NOT NULL
                 `,
                 [bom_pcf_id, userId]
             );
