@@ -174,7 +174,7 @@ export const DQR_CONFIG: Record<string, { table: string; pk: string }> = {
 };
 
 // ============== NEW APIsssssss
-export async function getSupplierDetailsList(req: any, res: any) {
+export async function getSupplierDQRDetailsList(req: any, res: any) {
     try {
         const page = Number(req.query.pageNumber) || 1;
         const limit = Number(req.query.pageSize) || 10;
@@ -319,7 +319,22 @@ LIMIT $${idx} OFFSET $${idx + 1};
             );
 
             const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+
+            const dqrCountQuery = `
+    SELECT
+        COUNT(*) AS total_dqr_count,
+        COUNT(*) FILTER (WHERE is_submitted = false) AS pending_dqr_count,
+        COUNT(*) FILTER (WHERE is_submitted = true) AS completed_dqr_count
+    FROM pcf_request_data_rating_stage;
+`;
+
+            const dqrCountResult = await client.query(dqrCountQuery);
+
+            const {
+                total_dqr_count,
+                pending_dqr_count,
+                completed_dqr_count
+            } = dqrCountResult.rows[0];
 
             return res.status(200).json({
                 status: true,
@@ -330,6 +345,11 @@ LIMIT $${idx} OFFSET $${idx + 1};
                     totalRecords,
                     totalPages,
                     totalCount: totalRecords
+                },
+                dqr_summary: {
+                    total_dqr_count: Number(total_dqr_count),
+                    pending_dqr_count: Number(pending_dqr_count),
+                    completed_dqr_count: Number(completed_dqr_count)
                 },
                 data: result.rows
             });
