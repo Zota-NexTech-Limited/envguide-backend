@@ -401,7 +401,7 @@ export async function updateDqrRatingService(
             if (!hasIncomplete) {
                 // ✅ ALL rows across ALL tables are complete
                 const fetchIdsQuery = `
-        SELECT bom_pcf_id, sup_id
+        SELECT bom_pcf_id, sup_id ,own_emission_id
         FROM supplier_general_info_questions
         WHERE sgiq_id = $1
         LIMIT 1;
@@ -409,7 +409,7 @@ export async function updateDqrRatingService(
 
                 const idsResult = await client.query(fetchIdsQuery, [sgiqId]);
 
-                if (idsResult.rows[0]) {
+                if (idsResult.rows[0] && idsResult.rows[0].own_emission_id === null) {
 
                     const { bom_pcf_id, sup_id } = idsResult.rows[0];
 
@@ -428,6 +428,26 @@ export async function updateDqrRatingService(
                         updated_by
                     ]);
                 }
+                else if (idsResult.rows[0] && idsResult.rows[0].own_emission_id != null) {
+
+                    const { bom_pcf_id, own_emission_id } = idsResult.rows[0];
+
+                    const updatePCFDataRating = `
+        UPDATE pcf_request_data_rating_stage
+        SET is_submitted = TRUE,
+            completed_date = NOW(),
+            submitted_by = $3
+        WHERE bom_pcf_id = $1
+          AND own_emission_id = $2;
+    `;
+
+                    await client.query(updatePCFDataRating, [
+                        bom_pcf_id,
+                        own_emission_id,
+                        updated_by
+                    ]);
+                }
+
             }
 
             await client.query("COMMIT");

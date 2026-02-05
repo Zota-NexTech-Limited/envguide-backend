@@ -2599,7 +2599,8 @@ export async function getSupplierDqrRatingReport(req: any, res: any) {
         sgiq.sup_id,
         sup.supplier_name,
         sup.code AS supplier_code,
-        sup.supplier_email
+        sup.supplier_email,
+        sgiq.own_emission_id
     FROM supplier_general_info_questions sgiq
     JOIN pcf_request_data_rating_stage prdrs
         ON prdrs.bom_pcf_id = sgiq.bom_pcf_id
