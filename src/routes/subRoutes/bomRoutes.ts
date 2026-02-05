@@ -22,5 +22,6 @@ Routes.get('/api/pcf-bom/list-comment', authService.authenticate, Controller.get
 Routes.post('/api/pcf-bom/calculate-bom', authService.authenticate, Controller.pcfCalculate);
 Routes.post('/api/pcf-bom/submit-pcf-request-internally', authService.authenticate, Controller.submitPcfRequestInternal);
 Routes.post('/api/pcf-bom/submit-pcf-request-client', authService.authenticate, Controller.submitPcfRequestClient);
+Routes.get('/api/supplier/questionnaire-status', Controller.supplierQuestionnaireStatus);
 
 export default Routes;

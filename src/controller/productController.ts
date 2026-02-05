@@ -1484,6 +1484,7 @@ WITH base_pcf AS (
         pcf.rejected_by,
         pcf.is_draft,
         pcf.created_date,
+        pcf.product_code,
 
         pcf.product_category_id,
         pcf.component_category_id,
@@ -1685,6 +1686,7 @@ GROUP BY
     base_pcf.component_category_id,
     base_pcf.component_type_id,
     base_pcf.manufacturer_id,
+    base_pcf.product_code,
     usb.user_id,
     ucb.user_id,
     uvb.user_id,
