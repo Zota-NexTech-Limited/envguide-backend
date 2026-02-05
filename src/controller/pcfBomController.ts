@@ -1802,6 +1802,7 @@ WITH base_pcf AS (
         pcf.rejected_by,
         pcf.is_draft,
         pcf.created_date,
+        pcf.product_code,
 
         pcf.product_category_id,
         pcf.component_category_id,
@@ -2143,6 +2144,7 @@ GROUP BY
     base_pcf.component_category_id,
     base_pcf.component_type_id,
     base_pcf.manufacturer_id,
+    base_pcf.product_code,
     usb.user_id,
     ucb.user_id,
     uvb.user_id,
@@ -3882,6 +3884,54 @@ export async function submitPcfRequestClient(req: any, res: any) {
             return res.status(500).send({
                 success: false,
                 message: error.message
+            });
+        }
+    });
+}
+
+export async function supplierQuestionnaireStatus(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id, sup_id } = req.query;
+
+            if (!bom_pcf_id || !sup_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "bom_pcf_id and sup_id are required"
+                });
+            }
+
+            const query = `
+                SELECT is_submitted
+                FROM pcf_request_data_collection_stage
+                WHERE bom_pcf_id = $1
+                  AND sup_id = $2
+                LIMIT 1
+            `;
+
+            const result = await client.query(query, [
+                bom_pcf_id,
+                sup_id
+            ]);
+
+            const isSubmitted =
+                result.rows.length > 0
+                    ? result.rows[0].is_submitted
+                    : false;
+
+            return res.status(200).json(
+                generateResponse(true, "Success!", 200, {
+                    bom_pcf_id,
+                    sup_id,
+                    is_submitted: isSubmitted
+                })
+            );
+
+        } catch (error: any) {
+            console.error("Error fetching supplier questionnaire status:", error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to fetch supplier questionnaire status"
             });
         }
     });
