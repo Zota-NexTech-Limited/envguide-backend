@@ -180,7 +180,7 @@ export async function getSupplierDQRDetailsList(req: any, res: any) {
         const limit = Number(req.query.pageSize) || 10;
         const offset = (page - 1) * limit;
 
-        const { search, bom_pcf_id } = req.query;
+        const { search, bom_pcf_id, client_id, supplier_id } = req.query;
 
         const conditions: string[] = [];
         const values: any[] = [];
@@ -204,6 +204,20 @@ export async function getSupplierDQRDetailsList(req: any, res: any) {
         if (bom_pcf_id) {
             conditions.push(`sgiq.bom_pcf_id = $${idx}`);
             values.push(bom_pcf_id);
+            idx++;
+        }
+
+        /* ---------- CLIENT FILTER ---------- */
+        if (client_id) {
+            conditions.push(`sgiq.client_id = $${idx}`);
+            values.push(client_id);
+            idx++;
+        }
+
+        /* ---------- SUPPLIER FILTER ---------- */
+        if (supplier_id) {
+            conditions.push(`sgiq.sup_id = $${idx}`);
+            values.push(supplier_id);
             idx++;
         }
 
@@ -247,6 +261,14 @@ export async function getSupplierDQRDetailsList(req: any, res: any) {
             'supplier_phone_number', sd.supplier_phone_number
         ) AS supplier_details,
 
+
+        ---Client Details
+         json_build_object(
+            'user_id', ucl.user_id,
+            'user_name', ucl.user_name,
+            'user_role', ucl.user_role
+        ) AS client_details,
+
         -- BOM ARRAY (IMPORTANT CHANGE)
         (
             SELECT COALESCE(
@@ -280,6 +302,8 @@ export async function getSupplierDQRDetailsList(req: any, res: any) {
     FROM supplier_general_info_questions sgiq
     LEFT JOIN supplier_details sd 
         ON sd.sup_id = sgiq.sup_id
+    LEFT JOIN users_table ucl 
+        ON ucl.user_id = sgiq.client_id
     LEFT JOIN bom_pcf_request pcf 
         ON pcf.id = sgiq.bom_pcf_id
         ${whereClause}
@@ -318,25 +342,25 @@ LIMIT $${idx} OFFSET $${idx + 1};
                 [...values, limit, offset]
             );
 
-//             const dqrCountQuery = `
-//    SELECT
-//     COUNT(*) AS total_dqr_count,
-//     COUNT(*) FILTER (WHERE dqr_completed = true) AS completed_dqr_count,
-//     COUNT(*) FILTER (WHERE dqr_completed = false) AS pending_dqr_count
-// FROM (
-//     SELECT
-//         sgiq.bom_pcf_id,
-//         sgiq.sup_id,
-//         COALESCE(BOOL_OR(prdrs.is_submitted), false) AS dqr_completed
-//     FROM supplier_general_info_questions sgiq
-//     LEFT JOIN pcf_request_data_rating_stage prdrs
-//         ON prdrs.bom_pcf_id = sgiq.bom_pcf_id
-//        AND prdrs.sup_id = sgiq.sup_id
-//     WHERE sgiq.bom_pcf_id IS NOT NULL
-//     GROUP BY sgiq.bom_pcf_id, sgiq.sup_id
-// ) dqr_status;
+            //             const dqrCountQuery = `
+            //    SELECT
+            //     COUNT(*) AS total_dqr_count,
+            //     COUNT(*) FILTER (WHERE dqr_completed = true) AS completed_dqr_count,
+            //     COUNT(*) FILTER (WHERE dqr_completed = false) AS pending_dqr_count
+            // FROM (
+            //     SELECT
+            //         sgiq.bom_pcf_id,
+            //         sgiq.sup_id,
+            //         COALESCE(BOOL_OR(prdrs.is_submitted), false) AS dqr_completed
+            //     FROM supplier_general_info_questions sgiq
+            //     LEFT JOIN pcf_request_data_rating_stage prdrs
+            //         ON prdrs.bom_pcf_id = sgiq.bom_pcf_id
+            //        AND prdrs.sup_id = sgiq.sup_id
+            //     WHERE sgiq.bom_pcf_id IS NOT NULL
+            //     GROUP BY sgiq.bom_pcf_id, sgiq.sup_id
+            // ) dqr_status;
 
-// `;
+            // `;
             const dqrCountQuery = `
   SELECT
     COUNT(*) AS total_dqr_count,
