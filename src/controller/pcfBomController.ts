@@ -1471,7 +1471,7 @@ WHERE pcf.created_by = $1
 `;
 
 
-            const statsResult = await client.query(statsQuery,[userId]);
+            const statsResult = await client.query(statsQuery, [userId]);
 
             const stats = statsResult.rows[0];
 
@@ -1488,7 +1488,7 @@ WHERE pcf.created_by = $1
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
                     },
-                    stats:stats
+                    stats: stats
                 })
             );
 
@@ -1847,7 +1847,9 @@ WITH base_pcf AS (
         pcf.product_category_id,
         pcf.component_category_id,
         pcf.component_type_id,
-        pcf.manufacturer_id
+        pcf.manufacturer_id,
+        pcf.technical_specification_file,
+        pcf.product_images
 
     FROM bom_pcf_request pcf
     WHERE pcf.id = $1
@@ -2190,6 +2192,8 @@ GROUP BY
     uvb.user_id,
     base_pcf.reject_reason,
     base_pcf.rejected_by,
+    base_pcf.technical_specification_file,
+    base_pcf.product_images,
     urb.user_id,
     pc.id,
     cc.id,
