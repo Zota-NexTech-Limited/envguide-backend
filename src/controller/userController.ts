@@ -361,89 +361,186 @@ export async function getPermission(req: any, res: any) {
 }
 
 
+// export async function getUserPermissionById(req: any, res: any) {
+//     try {
+//         const getPermission = await userService.getUserModulePermission(req.query);
+//         if (getPermission.rows.length > 0) {
+//             let permissions = getPermission.rows;
+
+//             // Group permissions by main module name
+//             const groupedPermissions: any = {};
+//             permissions.forEach((permission: any) => {
+//                 const mainModuleName = permission.main_module_name;
+//                 if (!groupedPermissions[mainModuleName]) {
+//                     groupedPermissions[mainModuleName] = [];
+//                 }
+//                 groupedPermissions[mainModuleName].push(permission);
+//             });
+
+//             // Construct the response array
+//             const response: any = [];
+//             const settingItems: any = [];
+
+//             for (const mainModuleName in groupedPermissions) {
+//                 const permissionsForModule = groupedPermissions[mainModuleName];
+
+//                 if (mainModuleName.endsWith("setting")) {
+//                     // Add to settingItems if mainModuleName ends with 'setting'
+//                     const hasItems = permissionsForModule.map((permission: any) => ({
+//                         ...permission,
+//                         main_module_name: undefined,
+//                         main_module_id: undefined,
+//                         parent_main_module_id: undefined
+//                     }));
+
+//                     settingItems.push({
+//                         module_name: mainModuleName,
+//                         hasItems
+//                     });
+//                 } else if (permissionsForModule.length === 1 && !permissionsForModule[0].module_name.includes('_')) {
+//                     // If there's only one item and it's not part of a nested structure, add it directly
+//                     response.push({
+//                         module: mainModuleName,
+//                         ...permissionsForModule[0]
+//                     });
+//                 } else {
+//                     // Create a nested structure
+//                     const hasItems = permissionsForModule.map((permission: any) => ({
+//                         ...permission,
+//                         main_module_name: undefined,
+//                         main_module_id: undefined,
+//                         parent_main_module_id: undefined
+//                     }));
+
+//                     response.push({
+//                         module_name: mainModuleName,
+//                         hasItems
+//                     });
+//                 }
+//             }
+
+//             // Add settingItems under a single settings module
+//             if (settingItems.length > 0) {
+//                 response.push({
+//                     module_name: "settings",
+//                     hasItems: settingItems
+//                 });
+//             }
+
+//             response.sort((a: any, b: any) => {
+//                 const nameA = a.module_name || a.module || '';
+//                 const nameB = b.module_name || b.module || '';
+//                 return nameA.localeCompare(nameB);
+//             });
+
+//             return res.status(200).send(
+//                 generateResponse(true, "permission fetched successfully", 200, response)
+//             );
+//         } else {
+//             return res.status(400).send(
+//                 generateResponse(false, "permission fetching unsuccessful", 400, null)
+//             );
+//         }
+//     } catch (error: any) {
+//         return res.status(400).send(generateResponse(false, error, 400, null));
+//     }
+// }
 export async function getUserPermissionById(req: any, res: any) {
-    try {
-        const getPermission = await userService.getUserModulePermission(req.query);
-        if (getPermission.rows.length > 0) {
-            let permissions = getPermission.rows;
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
 
-            // Group permissions by main module name
-            const groupedPermissions: any = {};
-            permissions.forEach((permission: any) => {
-                const mainModuleName = permission.main_module_name;
-                if (!groupedPermissions[mainModuleName]) {
-                    groupedPermissions[mainModuleName] = [];
+            if (!user_id) {
+                return res.status(400).send(generateResponse(false, "user_id is required", 400, null));
+            }
+
+            const result = await userService.getUserModulePermission({ user_id }, client);
+            const tree: any = {};
+
+            for (const row of result.rows) {
+                // ================= MAIN MODULE =================
+                if (!tree[row.main_module_id]) {
+                    tree[row.main_module_id] = {
+                        main_module_id: row.main_module_id,
+                        main_module_name: row.main_module_name,
+                        permission_id: row.main_permission_id ?? null,
+                        user_id: row.main_user_id ?? user_id,
+                        create: row.main_create,
+                        update: row.main_update,
+                        delete: row.main_delete,
+                        print: row.main_print,
+                        export: row.main_export,
+                        send: row.main_send,
+                        read: row.main_read,
+                        all: row.main_all,
+                        modules: {}
+                    };
                 }
-                groupedPermissions[mainModuleName].push(permission);
-            });
 
-            // Construct the response array
-            const response: any = [];
-            const settingItems: any = [];
+                // ================= MODULE =================
+                if (row.module_id) {
+                    if (!tree[row.main_module_id].modules[row.module_id]) {
+                        tree[row.main_module_id].modules[row.module_id] = {
+                            module_name: row.module_name,
+                            permission_id: row.module_permission_id ?? null,
+                            user_id: row.module_user_id ?? user_id,
+                            create: row.module_create,
+                            update: row.module_update,
+                            delete: row.module_delete,
+                            print: row.module_print,
+                            export: row.module_export,
+                            send: row.module_send,
+                            read: row.module_read,
+                            all: row.module_all,
+                            submodules: []
+                        };
+                    }
 
-            for (const mainModuleName in groupedPermissions) {
-                const permissionsForModule = groupedPermissions[mainModuleName];
-
-                if (mainModuleName.endsWith("setting")) {
-                    // Add to settingItems if mainModuleName ends with 'setting'
-                    const hasItems = permissionsForModule.map((permission: any) => ({
-                        ...permission,
-                        main_module_name: undefined,
-                        main_module_id: undefined,
-                        parent_main_module_id: undefined
-                    }));
-
-                    settingItems.push({
-                        module_name: mainModuleName,
-                        hasItems
-                    });
-                } else if (permissionsForModule.length === 1 && !permissionsForModule[0].module_name.includes('_')) {
-                    // If there's only one item and it's not part of a nested structure, add it directly
-                    response.push({
-                        module: mainModuleName,
-                        ...permissionsForModule[0]
-                    });
-                } else {
-                    // Create a nested structure
-                    const hasItems = permissionsForModule.map((permission: any) => ({
-                        ...permission,
-                        main_module_name: undefined,
-                        main_module_id: undefined,
-                        parent_main_module_id: undefined
-                    }));
-
-                    response.push({
-                        module_name: mainModuleName,
-                        hasItems
-                    });
+                    // ================= SUBMODULE =================
+                    if (row.submodule_id) {
+                        tree[row.main_module_id].modules[row.module_id].submodules.push({
+                            submodule_id: row.submodule_id,
+                            submodule_name: row.submodule_name,
+                            permission_id: row.submodule_permission_id ?? null,
+                            user_id: row.submodule_user_id ?? user_id,
+                            create: row.submodule_create,
+                            update: row.submodule_update,
+                            delete: row.submodule_delete,
+                            print: row.submodule_print,
+                            export: row.submodule_export,
+                            send: row.submodule_send,
+                            read: row.submodule_read,
+                            all: row.submodule_all
+                        });
+                    }
                 }
             }
 
-            // Add settingItems under a single settings module
-            if (settingItems.length > 0) {
-                response.push({
-                    module_name: "settings",
-                    hasItems: settingItems
-                });
-            }
-
-            response.sort((a: any, b: any) => {
-                const nameA = a.module_name || a.module || '';
-                const nameB = b.module_name || b.module || '';
-                return nameA.localeCompare(nameB);
-            });
+            // ================= FINAL RESPONSE =================
+            const response = Object.values(tree).map((main: any) => ({
+                main_module_id: main.main_module_id,
+                main_module_name: main.main_module_name,
+                permission_id: main.permission_id,
+                user_id: main.user_id,
+                create: main.create,
+                update: main.update,
+                delete: main.delete,
+                print: main.print,
+                export: main.export,
+                send: main.send,
+                read: main.read,
+                all: main.all,
+                modules: Object.values(main.modules)
+            }));
 
             return res.status(200).send(
-                generateResponse(true, "permission fetched successfully", 200, response)
+                generateResponse(true, "Permission fetched successfully", 200, response)
             );
-        } else {
-            return res.status(400).send(
-                generateResponse(false, "permission fetching unsuccessful", 400, null)
-            );
+        } catch (error: any) {
+            console.error(error);
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
         }
-    } catch (error: any) {
-        return res.status(400).send(generateResponse(false, error, 400, null));
-    }
+    });
 }
 
 
@@ -621,6 +718,28 @@ export async function addMainModule(req: any, res: any) {
         }
     }
     catch (error: any) {
+        return res.status(400).send(generateResponse(false, error.message, 400, null));
+    }
+}
+
+export async function addSubModule(req: any, res: any) {
+    try {
+        const moduleBody = req.body;
+        moduleBody.submodule_id = ulid(); // Generate unique module_id
+
+        const addModuleResult = await userService.addSubModule(moduleBody);
+
+        if (addModuleResult) {
+            return res.status(200).send(
+                generateResponse(true, "Submodule added successfully", 200, addModuleResult.rows)
+            );
+        } else {
+            return res.status(400).send(
+                generateResponse(false, "Submodule creation unsuccessful", 400, null)
+            );
+        }
+
+    } catch (error: any) {
         return res.status(400).send(generateResponse(false, error.message, 400, null));
     }
 }
@@ -872,6 +991,11 @@ export async function deleteUserById(req: any, res: any) {
             }
 
             await client.query('BEGIN'); // Start transaction
+
+            await client.query(
+                `DELETE FROM users_permission_table WHERE user_id = $1`,
+                [user_id]
+            );
 
             // Delete user
             await client.query(

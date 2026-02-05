@@ -145,6 +145,15 @@ export async function createTables() {
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )`,
 
+        ` CREATE TABLE IF NOT EXISTS submodule_table (
+    submodule_id VARCHAR(255) PRIMARY KEY,
+    submodule_name VARCHAR(255) UNIQUE,
+    description VARCHAR(255),
+    module_id VARCHAR(255),
+    FOREIGN KEY (module_id) REFERENCES module_table(module_id),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+)`,
         ` CREATE TABLE IF NOT EXISTS main_module_table
         (
             main_module_id
