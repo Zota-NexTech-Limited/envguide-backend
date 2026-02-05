@@ -563,13 +563,20 @@ export async function getDocumentMasterList(req: any, res: any) {
             // need calrification is_bom_calculated above only need to show calculated one or not
 
             whereConditions.push(`pcf.is_task_created = TRUE`);
-            whereConditions.push(`
-                EXISTS (
-                    SELECT 1 FROM bom b
-                    WHERE b.bom_pcf_id = pcf.id
-                    /* ---------- AND b.is_bom_calculated = TRUE ---------- */
-                )
-            `);
+
+             if (req.user_id) {
+                whereConditions.push(`pcf.created_by = $${idx}`);
+                values.push(req.user_id);
+                idx++;
+            }
+
+            // whereConditions.push(`
+            //     EXISTS (
+            //         SELECT 1 FROM bom b
+            //         WHERE b.bom_pcf_id = pcf.id
+            //         /* ---------- AND b.is_bom_calculated = TRUE ---------- */
+            //     )
+            // `);
 
             /* ---------- DATE RANGE ---------- */
             if (fromDate && toDate) {
@@ -700,7 +707,12 @@ SELECT
 
     COUNT(*) FILTER (
         WHERE pcf.status = 'Approved'
+        OR pcf.status ='Submitted'
     ) AS approved_count,
+
+    COUNT(*) FILTER (
+        WHERE pcf.status = 'In Progress'
+    ) AS in_progress_count,
 
     COUNT(*) FILTER (
         WHERE pcf.status = 'Rejected'
@@ -723,23 +735,23 @@ LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
 LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
 LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
-WHERE pcf.is_task_created = TRUE;
+WHERE pcf.is_task_created = TRUE AND pcf.created_by =$1;
 `;
 
 
-            const statsResult = await client.query(statsQuery);
+            const statsResult = await client.query(statsQuery, [req.user_id]);
 
             const stats = statsResult.rows[0];
 
             const countQuery = `
                 SELECT COUNT(*) AS total
                 FROM bom_pcf_request t
-                WHERE t.is_task_created = TRUE;
+                WHERE t.is_task_created = TRUE AND t.created_by =$1;
             `;
 
             const countResult = await client.query(
                 countQuery,
-                // values.slice(0, values.length - 2)
+                 [req.user_id]
             );
 
             const total = Number(countResult.rows[0].total);

@@ -1053,6 +1053,10 @@ export async function createPcfRequestWithBOMDetails(req: any, res: any) {
                 }
             }
 
+            let status_update = "Open";
+            if (bom_pcf_request.is_draft) {
+                status_update = "Draft"
+            }
             const created_by = req.user_id;
 
             // Insert into bom_pcf_request
@@ -1066,7 +1070,7 @@ export async function createPcfRequestWithBOMDetails(req: any, res: any) {
                 ...bom_pcf_request
             };
 
-            await bomService.insertPCFBOMRequest(client, bomPcfData);
+            await bomService.insertPCFBOMRequest(client, bomPcfData, status_update);
 
             // Insert into bom_pcf_request_product_specification
             if (Array.isArray(bom_pcf_request_product_specification)) {
@@ -1246,7 +1250,7 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
 
 
             /* ---------- COLUMN FILTERS ---------- */
-             if (pcf_status) {
+            if (pcf_status) {
                 conditions.push(`pcf.status ILIKE $${idx++}`);
                 values.push(`%${pcf_status}%`);
             }
@@ -1419,19 +1423,6 @@ WHERE 1=1
                 values
             );
 
-            const rows = result.rows;
-            // const totalCount = rows.length > 0 ? rows.length : 0;
-
-            // const countQuery = `
-            //     SELECT COUNT(*) AS total
-            //     FROM bom_pcf_request t;
-            // `;
-
-            // const countResult = await client.query(
-            //     countQuery,
-            //     values.slice(0, values.length - 2)
-            // );
-
             const countQuery = `
     SELECT COUNT(*) AS total
     FROM bom_pcf_request pcf
@@ -1441,6 +1432,48 @@ WHERE 1=1
             const countResult = await client.query(countQuery, [userId]);
 
             const total = Number(countResult.rows[0].total);
+
+            const statsQuery = `
+SELECT
+    COUNT(*) AS total_pcf_count,
+
+    COUNT(*) FILTER (
+        WHERE pcf.status = 'Approved'
+        OR pcf.status ='Submitted'
+    ) AS approved_count,
+
+    COUNT(*) FILTER (
+        WHERE pcf.status = 'In Progress'
+    ) AS in_progress_count,
+
+    COUNT(*) FILTER (
+        WHERE pcf.status = 'Rejected'
+    ) AS rejected_count,
+
+    COUNT(*) FILTER (
+        WHERE pcf.is_draft = TRUE
+    ) AS draft_count,
+
+    COUNT(*) FILTER (
+        WHERE 
+            pcf.status = 'Open'
+            OR pcf.status IS NULL
+    ) AS pending_count
+
+FROM bom_pcf_request pcf
+LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
+LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
+LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
+LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
+LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
+LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
+WHERE pcf.created_by = $1
+`;
+
+
+            const statsResult = await client.query(statsQuery,[userId]);
+
+            const stats = statsResult.rows[0];
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
@@ -1454,7 +1487,8 @@ WHERE 1=1
                         page: Number(page),
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
-                    }
+                    },
+                    stats:stats
                 })
             );
 
@@ -2425,8 +2459,20 @@ export async function updatePcfRequestWithBOMDetails(req: any, res: any) {
                 bomPcfId,
                 bom_pcf_request.technical_specification_file,
                 bom_pcf_request.product_images,
-                bom_pcf_request.is_draft
+                bom_pcf_request.is_draft,
+
             ]);
+
+            if (bom_pcf_request.is_draft) {
+                const updateStatus = `
+                UPDATE bom_pcf_request
+                SET
+                    status = $2
+                WHERE id = $1
+            `;
+
+                await client.query(updateStatus, [bomPcfId, 'Draft']);
+            }
 
             /* --------------------------------------------------
                2️⃣ UPSERT Product Specifications
