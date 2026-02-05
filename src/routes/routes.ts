@@ -16,6 +16,8 @@ import ecoinventEmissionFactorDataSetup from './subRoutes/ecoinventEmissionFacto
 import componentMaster from './subRoutes/componentMasterRoutes';
 import reports from './subRoutes/reportsRoutes';
 import dashboard from './subRoutes/dashboardRoutes';
+import notification from './subRoutes/notification.routes';
+
 
 
 export function routes(app: any) {
@@ -37,6 +39,7 @@ export function routes(app: any) {
     app.use(componentMaster);
     app.use(reports);
     app.use(dashboard);
+    app.use(notification);
     app.get('/health', (req: any, res: any) => {
         res.send('ok');
     });

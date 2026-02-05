@@ -193,6 +193,16 @@ export async function createTables() {
       created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
+        `ALTER TABLE whatsapp_config
+ADD COLUMN IF NOT EXISTS template_name VARCHAR(255),
+ADD COLUMN IF NOT EXISTS api_version VARCHAR(255),
+ADD COLUMN IF NOT EXISTS phone_number_id VARCHAR(255),
+ADD COLUMN IF NOT EXISTS language VARCHAR(255),
+ADD COLUMN IF NOT EXISTS event_name VARCHAR(255),
+ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
+
+`,
+
         `CREATE TABLE IF NOT EXISTS sms_config (
       id VARCHAR(255) PRIMARY KEY,
       api_key VARCHAR(255),
@@ -202,6 +212,14 @@ export async function createTables() {
       update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+
+        `ALTER TABLE sms_config
+ADD COLUMN IF NOT EXISTS template_id VARCHAR(255),
+ADD COLUMN IF NOT EXISTS sender_id VARCHAR(255),
+ADD COLUMN IF NOT EXISTS event_name VARCHAR(255),
+ADD COLUMN IF NOT EXISTS path VARCHAR(255),
+ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
+`,
 
         `CREATE TABLE IF NOT EXISTS email_config (
             id VARCHAR(255) PRIMARY KEY,
@@ -3476,6 +3494,100 @@ export async function createTables() {
     update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );`,
+
+        // ========AMS
+
+        `CREATE TABLE IF NOT EXISTS notification (
+    ntf_id VARCHAR(255) PRIMARY KEY,
+    notification_code VARCHAR(50),
+    alert_name VARCHAR(50),
+    event_type VARCHAR(255),
+    priority VARCHAR(50),
+    condition_type VARCHAR(50),
+    transaction_type VARCHAR(50),
+    table_names TEXT,
+    column_condition TEXT,
+    frequency VARCHAR(50),
+    frequency_accurrence VARCHAR(50),
+    frequency_time_gap VARCHAR(50),
+    frequency_first_alert VARCHAR(50),
+    is_email BOOLEAN DEFAULT FALSE,
+    is_sms BOOLEAN DEFAULT FALSE,
+    is_push_notification BOOLEAN DEFAULT FALSE,
+    is_whatsapp BOOLEAN DEFAULT FALSE,
+    sql_query TEXT,
+    status VARCHAR(50),
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    start_or_stop BOOLEAN DEFAULT FALSE,
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS notification_communication_channel (
+    ntfcc_id VARCHAR(255) PRIMARY KEY,
+    ntf_id VARCHAR(255),
+    template_id VARCHAR(255),
+    template_name VARCHAR(50),
+    subject TEXT,
+    body TEXT,
+    attachments TEXT,
+    is_email BOOLEAN DEFAULT FALSE,
+    is_sms BOOLEAN DEFAULT FALSE,
+    is_push_notification BOOLEAN DEFAULT FALSE,
+    is_whatsapp BOOLEAN DEFAULT FALSE,
+    transaction_status BOOLEAN DEFAULT FALSE,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    sms_config_id VARCHAR(255),
+    whatsapp_config_id VARCHAR(255),
+    notification_config_id VARCHAR(255),
+    type VARCHAR(50)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS notification_recipient (
+    ntfr_id VARCHAR(255) PRIMARY KEY,
+    ntf_id VARCHAR(255),
+    ntfcc_id VARCHAR(255),
+    recipient_group TEXT[],
+    recipient_users TEXT[],
+    specific_users TEXT[],
+    is_email BOOLEAN DEFAULT FALSE,
+    is_sms BOOLEAN DEFAULT FALSE,
+    is_push_notification BOOLEAN DEFAULT FALSE,
+    is_whatsapp BOOLEAN DEFAULT FALSE,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    type VARCHAR(50)
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS notification_triggered_history (
+    nth_id VARCHAR(255) PRIMARY KEY,
+    ntf_id VARCHAR(255),
+    status VARCHAR(50),
+   update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );`,
+
+        `CREATE TABLE IF NOT EXISTS notification_config (
+    id VARCHAR(255) PRIMARY KEY,
+    event_name VARCHAR(100) NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    fcm_topic VARCHAR(100),
+    priority VARCHAR(10) DEFAULT 'high',
+    sound VARCHAR(50) DEFAULT 'default',
+    data JSONB,
+    status BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+`,
+
     ]
 
     // try {
