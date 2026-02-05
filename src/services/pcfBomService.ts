@@ -1,5 +1,5 @@
 export const bomService = {
-    insertPCFBOMRequest: async (client: any, data: any) => {
+    insertPCFBOMRequest: async (client: any, data: any, status_update: string) => {
         const query = `
             INSERT INTO bom_pcf_request (
                 id, request_title, priority, request_organization,
@@ -14,7 +14,7 @@ export const bomService = {
             data.id, data.request_title, data.priority, data.request_organization,
             data.due_date, data.request_description, data.product_category_id, data.component_category_id,
             data.component_type_id, data.product_code, data.manufacturer_id, data.model_version, data.created_by,
-            data.technical_specification_file, data.product_images, data.is_draft, 'Open'
+            data.technical_specification_file, data.product_images, data.is_draft, status_update
         ];
         await client.query(query, values);
     },

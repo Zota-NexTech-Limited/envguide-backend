@@ -743,35 +743,6 @@ SELECT
         '[]'
     ) AS own_emission_details,
 
-    /* ---------- PCF STAGES ---------- */
-    jsonb_build_object(
-        'id', st.id,
-        'is_pcf_request_created', st.is_pcf_request_created,
-        'is_pcf_request_submitted', st.is_pcf_request_submitted,
-        'is_bom_verified', st.is_bom_verified,
-        'is_data_collected', st.is_data_collected,
-        'is_dqr_completed', st.is_dqr_completed,
-        'is_pcf_calculated', st.is_pcf_calculated,
-        'is_result_validation_verified', st.is_result_validation_verified,
-        'is_result_submitted', st.is_result_submitted,
-
-        'pcf_request_created_by', jsonb_build_object(
-            'user_id', ucb.user_id,
-            'user_name', ucb.user_name,
-            'user_role', ucb.user_role
-        ),
-        'pcf_request_submitted_by', jsonb_build_object(
-            'user_id', usb.user_id,
-            'user_name', usb.user_name,
-            'user_role', usb.user_role
-        ),
-        'bom_verified_by', jsonb_build_object(
-            'user_id', uvb.user_id,
-            'user_name', uvb.user_name,
-            'user_role', uvb.user_role
-        )
-    ) AS pcf_request_stages,
-
     /* ---------- PCF DQR DATA COLLECTION STAGE ---------- */
     COALESCE(
         (
@@ -803,6 +774,7 @@ SELECT
             WHERE dqr.bom_pcf_id = base_pcf.id
               AND dqr.sup_id IS NULL
               AND dqr.client_id = base_pcf.client_id
+              AND dqr.own_emission_id IS NOT NULL
         ),
         '[]'
     ) AS pcf_dqr_data_collection_stage
@@ -820,10 +792,6 @@ LEFT JOIN component_type ct ON ct.id = base_pcf.component_type_id
 LEFT JOIN manufacturer m ON m.id = base_pcf.manufacturer_id
 LEFT JOIN users_table urb ON urb.user_id = base_pcf.rejected_by
 LEFT JOIN bom_pcf_request_product_specification ps ON ps.bom_pcf_id = base_pcf.id
-LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id AND st.client_id = base_pcf.client_id AND st.own_emission_id IS NOT NULL
-LEFT JOIN users_table ucb ON ucb.user_id = st.pcf_request_created_by
-LEFT JOIN users_table usb ON usb.user_id = st.pcf_request_submitted_by
-LEFT JOIN users_table uvb ON uvb.user_id = st.bom_verified_by
 
 GROUP BY
      base_pcf.id,
@@ -845,10 +813,6 @@ GROUP BY
     base_pcf.client_id,
     pc.id, cc.id, ct.id, m.id,
     urb.user_id,
-    st.id,
-    ucb.user_id,
-    usb.user_id,
-    uvb.user_id,
     p.id;
         `,
         [bom_pcf_id, client_id]
@@ -3943,6 +3907,21 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                 own_emission_id
             ]);
 
+            // DQR Rating Stage=====>
+            const dataRatingId = ulid();
+
+            const insertPCFDataRatingQuery = `
+             INSERT INTO pcf_request_data_rating_stage (
+                    id, bom_pcf_id, client_id ,own_emission_id
+                )
+                VALUES ($1,$2,$3,$4)
+                RETURNING *;
+            `;
+
+            await client.query(insertPCFDataRatingQuery, [dataRatingId, bom_pcf_id, client_id, own_emission_id]);
+
+            // ========> END
+
             // Insert scope questions (nested in general info) - BULK
             const scopeGeneralQuestions = supplier_general_info_questions.availability_of_scope_one_two_three_emissions_questions;
             if (Array.isArray(scopeGeneralQuestions) && scopeGeneralQuestions.length > 0) {
@@ -7025,8 +7004,8 @@ export async function pcfCalculate(req: any, res: any) {
             //     [bom_pcf_id, particularProductResult.rows[0].client_id]
             // );
 
-            console.log(overall_pcf, bom_pcf_id, particularProductResult.rows[0].client_id,"llllllllllll");
-            
+            console.log(overall_pcf, bom_pcf_id, particularProductResult.rows[0].client_id, "llllllllllll");
+
             await client.query(
                 `UPDATE bom_pcf_request SET overall_own_emission_pcf = $1,
                 is_own_emission_calculated = TRUE

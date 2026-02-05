@@ -305,30 +305,30 @@ export async function createTask(req: any, res: any) {
 
             await client.query(updatePCFRequest, [bom_pcf_id, "In Progress"]);
 
-            if (is_client) {
-                const dataCollectionId = ulid();
-                const dataRatingId = ulid();
+            // if (is_client) {
+            //     const dataCollectionId = ulid();
+            //     const dataRatingId = ulid();
 
-                const insertPCFQuery = `
-            INSERT INTO pcf_request_data_collection_stage (
-                    id, bom_pcf_id, client_id
-                )
-                VALUES ($1,$2,$3)
-                RETURNING *;
-            `;
+            //     const insertPCFQuery = `
+            // INSERT INTO pcf_request_data_collection_stage (
+            //         id, bom_pcf_id, client_id
+            //     )
+            //     VALUES ($1,$2,$3)
+            //     RETURNING *;
+            // `;
 
-                await client.query(insertPCFQuery, [dataCollectionId, bom_pcf_id, client_id]);
+            //     await client.query(insertPCFQuery, [dataCollectionId, bom_pcf_id, client_id]);
 
-                const insertPCFDataRatingQuery = `
-             INSERT INTO pcf_request_data_rating_stage (
-                    id, bom_pcf_id, client_id
-                )
-                VALUES ($1,$2,$3)
-                RETURNING *;
-            `;
+            //     const insertPCFDataRatingQuery = `
+            //  INSERT INTO pcf_request_data_rating_stage (
+            //         id, bom_pcf_id, client_id
+            //     )
+            //     VALUES ($1,$2,$3)
+            //     RETURNING *;
+            // `;
 
-                await client.query(insertPCFDataRatingQuery, [dataRatingId, bom_pcf_id, client_id]);
-            }
+            //     await client.query(insertPCFDataRatingQuery, [dataRatingId, bom_pcf_id, client_id]);
+            // }
 
             await client.query("COMMIT");
 
