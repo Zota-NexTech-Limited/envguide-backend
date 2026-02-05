@@ -534,7 +534,7 @@ WHERE pcf.is_task_created = TRUE;
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
                     },
-                    stats:stats
+                    stats: stats
                 })
             );
 
