@@ -1141,9 +1141,9 @@ export async function getManufacturerList(req: any, res: any) {
         search
     } = req.query;
 
-    const limit = parseInt(pageSize);
-    const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
-    const offset = (page - 1) * limit;
+    const page = pageNumber;
+    const limit = pageSize;
+    const offset = (Number(page) - 1) * Number(limit);
 
     const conditions: string[] = [];
     const values: any[] = [];
@@ -1213,14 +1213,33 @@ export async function getManufacturerList(req: any, res: any) {
                 LIMIT $${limitIndex} OFFSET $${offsetIndex}
             `;
 
+
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM manufacturer t;
+            `;
+
+            const countResult = await client.query(
+                countQuery
+                // params.slice(0, params.length - 2)
+            );
+
+            const total = Number(countResult.rows[0].total);
+
             const result = await client.query(query, values);
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
-                    page,
-                    pageSize: limit,
-                    totalCount: result.rows.length,
-                    data: result.rows
+                    // page,
+                    // pageSize: limit,
+                    // totalCount: result.rows.length,
+                    data: result.rows,
+                    pagination: {
+                        total,
+                        page: Number(page),
+                        limit: Number(limit),
+                        totalPages: Math.ceil(total / Number(limit))
+                    }
                 })
             );
 
@@ -1415,9 +1434,9 @@ export async function getSupplierList(req: any, res: any) {
         search
     } = req.query;
 
-    const limit = parseInt(pageSize);
-    const page = parseInt(pageNumber) > 0 ? parseInt(pageNumber) : 1;
-    const offset = (page - 1) * limit;
+    const page = pageNumber;
+    const limit = pageSize;
+    const offset = (Number(page) - 1) * Number(limit);
 
     const conditions: string[] = [];
     const values: any[] = [];
@@ -1491,12 +1510,31 @@ export async function getSupplierList(req: any, res: any) {
 
             const rows = result.rows;
 
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM supplier_details t;
+            `;
+
+            const countResult = await client.query(
+                countQuery
+                // params.slice(0, params.length - 2)
+            );
+
+            const total = Number(countResult.rows[0].total);
+
+
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
-                    page,
-                    pageSize: limit,
-                    totalCount: rows.length,
-                    data: rows
+                    // page,
+                    // pageSize: limit,
+                    // totalCount: rows.length,
+                    data: rows,
+                    pagination: {
+                        total,
+                        page: Number(page),
+                        limit: Number(limit),
+                        totalPages: Math.ceil(total / Number(limit))
+                    }
                 })
             );
 
