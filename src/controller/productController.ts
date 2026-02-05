@@ -263,6 +263,7 @@ export async function getProductById(req: any, res: any) {
 
             product.own_emission = ownEmissionResult.rows || [];
 
+
             /* ---------- ATTACH PCF DETAILS ---------- */
             for (const oe of product.own_emission) {
                 oe.pcf_details = oe.bom_pcf_id
@@ -273,6 +274,13 @@ export async function getProductById(req: any, res: any) {
                         oe.id
                     )
                     : null;
+
+                oe.pcf_dqr_data_collection_stage =
+                    await getPcfDqrDataCollectionStage(
+                        client,
+                        oe.bom_pcf_id,
+                        oe.client_id
+                    );
             }
 
             // ---------- Fetch Own Emission (Separate) ----------
@@ -741,9 +749,9 @@ SELECT
             )
         ) FILTER (WHERE oe.id IS NOT NULL),
         '[]'
-    ) AS own_emission_details,
+    ) AS own_emission_details
 
-    /* ---------- PCF DQR DATA COLLECTION STAGE ---------- */
+    /* ---------- PCF DQR DATA COLLECTION STAGE 
     COALESCE(
         (
             SELECT jsonb_agg(
@@ -777,7 +785,7 @@ SELECT
               AND dqr.own_emission_id IS NOT NULL
         ),
         '[]'
-    ) AS pcf_dqr_data_collection_stage
+    ) AS pcf_dqr_data_collection_stage ---------- */
 
 FROM base_pcf
 LEFT JOIN product p ON p.product_code = base_pcf.product_code
@@ -819,6 +827,49 @@ GROUP BY
     );
 
     return result.rows.length ? result.rows[0] : null;
+}
+
+export async function getPcfDqrDataCollectionStage(
+    client: any,
+    bom_pcf_id: string,
+    client_id: string
+) {
+    const result = await client.query(
+        `
+        SELECT jsonb_agg(
+            jsonb_build_object(
+                'id', dqr.id,
+                'is_submitted', dqr.is_submitted,
+                'completed_date', dqr.completed_date,
+
+                'client', jsonb_build_object(
+                    'user_id', uc.user_id,
+                    'user_name', uc.user_name,
+                    'user_role', uc.user_role
+                ),
+
+                'submitted_by', jsonb_build_object(
+                    'user_id', us.user_id,
+                    'user_name', us.user_name,
+                    'user_role', us.user_role
+                ),
+
+                'created_date', dqr.created_date,
+                'update_date', dqr.update_date
+            )
+        ) AS pcf_dqr_data_collection_stage
+        FROM pcf_request_data_rating_stage dqr
+        LEFT JOIN users_table uc ON uc.user_id = dqr.client_id
+        LEFT JOIN users_table us ON us.user_id = dqr.submitted_by
+        WHERE dqr.bom_pcf_id = $1
+          AND dqr.client_id = $2
+          AND dqr.sup_id IS NULL
+          AND dqr.own_emission_id IS NOT NULL;
+        `,
+        [bom_pcf_id, client_id]
+    );
+
+    return result.rows[0]?.pcf_dqr_data_collection_stage || [];
 }
 
 export async function listProducts(req: any, res: any) {
