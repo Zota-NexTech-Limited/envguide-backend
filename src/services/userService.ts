@@ -58,16 +58,16 @@ export async function addUser(userData: any) {
 
             const user_id = userData.user_id;
 
-            //  const [mainModules, modules, submodules] = await Promise.all([
-            //     client.query(`SELECT main_module_id AS id, main_module_name AS name FROM main_module_table`),
-            //     client.query(`SELECT module_id AS id, module_name AS name FROM module_table`),
-            //     client.query(`SELECT submodule_id AS id, submodule_name AS name FROM submodule_table`)
-            // ]);
-
-            const [mainModules, modules] = await Promise.all([
+            const [mainModules, modules, submodules] = await Promise.all([
                 client.query(`SELECT main_module_id AS id, main_module_name AS name FROM main_module_table`),
-                client.query(`SELECT module_id AS id, module_name AS name FROM module_table`)
+                client.query(`SELECT module_id AS id, module_name AS name FROM module_table`),
+                client.query(`SELECT submodule_id AS id, submodule_name AS name FROM submodule_table`)
             ]);
+
+            // const [mainModules, modules] = await Promise.all([
+            //     client.query(`SELECT main_module_id AS id, main_module_name AS name FROM main_module_table`),
+            //     client.query(`SELECT module_id AS id, module_name AS name FROM module_table`)
+            // ]);
 
             const permissions: any[] = [];
 
@@ -90,7 +90,7 @@ export async function addUser(userData: any) {
 
             mainModules.rows.forEach((m: any) => pushPermission(m.id, m.name));
             modules.rows.forEach((m: any) => pushPermission(m.id, m.name));
-            // submodules.rows.forEach((s: any) => pushPermission(s.id, s.name));
+            submodules.rows.forEach((s: any) => pushPermission(s.id, s.name));
 
 
             for (const perm of permissions) {
@@ -408,84 +408,162 @@ export async function addModule(moduleData: any) {
     })
 }
 
-export async function getUserModulePermission(query: any) {
-    return withClient(async (client: any) => {
-        try {
-            console.log(query, "query")
-            let findQuery;
-            if (query.module_name) {
-                // Using parameterized query to prevent SQL injection
-                findQuery = {
+// export async function getUserModulePermission(query: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             console.log(query, "query")
+//             let findQuery;
+//             if (query.module_name) {
+//                 // Using parameterized query to prevent SQL injection
+//                 findQuery = {
 
-                    text: `SELECT 
-        u.permission_id,
-        u.module_name,
-        u.module_id,
-        u.user_id,
-        u.create,
-        u.update,
-        u.delete,
-        u.print,
-        u.export,
-        u.send,
-        u.read,
-        u.all,
-        mmt.main_module_name,
-        mmt.main_module_id 
+//                     text: `SELECT 
+//         u.permission_id,
+//         u.module_name,
+//         u.module_id,
+//         u.user_id,
+//         u.create,
+//         u.update,
+//         u.delete,
+//         u.print,
+//         u.export,
+//         u.send,
+//         u.read,
+//         u.all,
+//         mmt.main_module_name,
+//         mmt.main_module_id 
 
 
-    FROM 
-        users_permission_table u
-    JOIN 
-        module_table mt ON u.module_id = mt.module_id
-    JOIN 
-        main_module_table mmt ON mt.main_module_id = mmt.main_module_id
-    WHERE 
-    u.module_name ILIKE $1 AND u.user_id = $2`,
+//     FROM 
+//         users_permission_table u
+//     JOIN 
+//         module_table mt ON u.module_id = mt.module_id
+//     JOIN 
+//         main_module_table mmt ON mt.main_module_id = mmt.main_module_id
+//     WHERE 
+//     u.module_name ILIKE $1 AND u.user_id = $2`,
 
-                    values: [`%${query.module_name}%`, query.user_id],
-                };
-            } else {
-                findQuery = {
-                    text: `SELECT 
-        u.permission_id,
-        u.module_name,
-        u.module_id,
-        u.user_id,
-        u.create,
-        u.update,
-        u.delete,
-        u.print,
-        u.export,
-        u.send,
-        u.read,
-        u.all,
-        mmt.main_module_name,
-        mmt.main_module_id 
-    FROM 
-        users_permission_table u
-    JOIN 
-        module_table mt ON u.module_id = mt.module_id
-    JOIN 
-        main_module_table mmt ON mt.main_module_id = mmt.main_module_id
-    WHERE 
-        u.user_id = $1`,
-                    values: [query.user_id],
-                };
-            }
+//                     values: [`%${query.module_name}%`, query.user_id],
+//                 };
+//             } else {
+//                 findQuery = {
+//                     text: `SELECT 
+//         u.permission_id,
+//         u.module_name,
+//         u.module_id,
+//         u.user_id,
+//         u.create,
+//         u.update,
+//         u.delete,
+//         u.print,
+//         u.export,
+//         u.send,
+//         u.read,
+//         u.all,
+//         mmt.main_module_name,
+//         mmt.main_module_id 
+//     FROM 
+//         users_permission_table u
+//     JOIN 
+//         module_table mt ON u.module_id = mt.module_id
+//     JOIN 
+//         main_module_table mmt ON mt.main_module_id = mmt.main_module_id
+//     WHERE 
+//         u.user_id = $1`,
+//                     values: [query.user_id],
+//                 };
+//             }
 
-            console.log(findQuery, "findQuery");
+//             console.log(findQuery, "findQuery");
 
-            const result = await client.query(findQuery);
-            console.log(result.rows)
+//             const result = await client.query(findQuery);
+//             console.log(result.rows)
 
-            return result
+//             return result
 
-        } catch (error: any) {
-            console.log(error)
-            throw new Error(error)
-        }
-    })
+//         } catch (error: any) {
+//             console.log(error)
+//             throw new Error(error)
+//         }
+//     })
+// }
+export async function getUserModulePermission({ user_id }: any ,client:any) {
+    const query = `
+    SELECT 
+      -- MAIN MODULE
+      mmt.main_module_id,
+      mmt.main_module_name,
+      
+      -- MAIN MODULE PERMISSION
+      mup.permission_id AS main_permission_id,
+      mup.user_id AS main_user_id,
+      COALESCE(mup."create", false) AS main_create,
+      COALESCE(mup."update", false) AS main_update,
+      COALESCE(mup."delete", false) AS main_delete,
+      COALESCE(mup."print", false) AS main_print,
+      COALESCE(mup."export", false) AS main_export,
+      COALESCE(mup."send", false) AS main_send,
+      COALESCE(mup."read", false) AS main_read,
+      COALESCE(mup."all", false) AS main_all,
+      
+      -- MODULE
+      mt.module_id,
+      mt.module_name,
+      
+      -- MODULE PERMISSION (separate from submodule permission)
+      up_module.permission_id AS module_permission_id,
+      up_module.user_id AS module_user_id,
+      COALESCE(up_module."create", false) AS module_create,
+      COALESCE(up_module."update", false) AS module_update,
+      COALESCE(up_module."delete", false) AS module_delete,
+      COALESCE(up_module."print", false) AS module_print,
+      COALESCE(up_module."export", false) AS module_export,
+      COALESCE(up_module."send", false) AS module_send,
+      COALESCE(up_module."read", false) AS module_read,
+      COALESCE(up_module."all", false) AS module_all,
+      
+      -- SUBMODULE
+      sm.submodule_id,
+      sm.submodule_name,
+      
+      -- SUBMODULE PERMISSION
+      up_submodule.permission_id AS submodule_permission_id,
+      up_submodule.user_id AS submodule_user_id,
+      COALESCE(up_submodule."create", false) AS submodule_create,
+      COALESCE(up_submodule."update", false) AS submodule_update,
+      COALESCE(up_submodule."delete", false) AS submodule_delete,
+      COALESCE(up_submodule."print", false) AS submodule_print,
+      COALESCE(up_submodule."export", false) AS submodule_export,
+      COALESCE(up_submodule."send", false) AS submodule_send,
+      COALESCE(up_submodule."read", false) AS submodule_read,
+      COALESCE(up_submodule."all", false) AS submodule_all
+      
+    FROM main_module_table mmt
+    
+    LEFT JOIN users_permission_table mup 
+      ON mup.module_id = mmt.main_module_id 
+      AND mup.user_id = $1
+    
+    LEFT JOIN module_table mt 
+      ON mt.main_module_id = mmt.main_module_id
+    
+    -- MODULE-LEVEL PERMISSIONS (for the module itself)
+    LEFT JOIN users_permission_table up_module 
+      ON up_module.module_id = mt.module_id 
+      AND up_module.user_id = $1
+    
+    LEFT JOIN submodule_table sm 
+      ON sm.module_id = mt.module_id
+    
+    -- SUBMODULE-LEVEL PERMISSIONS (for submodules)
+    LEFT JOIN users_permission_table up_submodule 
+      ON up_submodule.module_id = sm.submodule_id 
+      AND up_submodule.user_id = $1
+    
+    ORDER BY mmt.main_module_name, mt.module_name, sm.submodule_name;
+  `;
+
+    return client.query(query, [user_id]);
 }
 
 // export async function addUserPermission(permissionData: any) {
@@ -652,6 +730,49 @@ export async function addMainModule(moduleData: any) {
     })
 }
 
+export async function addSubModule(moduleData: any) {
+    return withClient(async (client: any) => {
+        try {
+            await client.query('BEGIN');
+
+            const columns = Object.keys(moduleData);
+            const values = Object.values(moduleData);
+
+            // Construct parameterized query
+            const insertQuery = `
+            INSERT INTO submodule_table (${columns.join(', ')})
+            VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')})
+            RETURNING *;
+        `;
+
+            const result = await client.query(insertQuery, values);
+
+            if (result.rows.length > 0) {
+                // Assign default permissions to all users
+                const getAllUsersQuery = 'SELECT * FROM users_table';
+                const allUsers = await client.query(getAllUsersQuery);
+
+                for (let user of allUsers.rows) {
+                    const permissionObj = {
+                        permission_id: ulid(),
+                        user_id: user.user_id,
+                        module_name: result.rows[0].submodule_name,
+                        module_id: result.rows[0].submodule_id
+                    };
+                    await addUserPermission(permissionObj);
+                }
+            }
+
+            await client.query('COMMIT');
+            return result;
+
+        } catch (error: any) {
+            await client.query('ROLLBACK');  // Reset transaction
+            console.error('Transaction failed:', error);
+            throw error;
+        }
+    })
+}
 
 export async function addUpdateUpdateModule(subModuleData: any) {
     return withClient(async (client: any) => {

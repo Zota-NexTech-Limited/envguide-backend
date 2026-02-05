@@ -41,6 +41,8 @@ userRoutes.post('/api/submodule/update', userController.addUpdateUpdateModule)
 
 userRoutes.post('/api/main/module/add', userController.addMainModule)
 
+userRoutes.post('/api/sub-submodule/add', authService.authenticate, userController.addSubModule)
+
 userRoutes.post('/api/user/forgot/password', userController.forgotPassword)
 
 userRoutes.post('/api/user/reset/password', userController.resetPassword)
