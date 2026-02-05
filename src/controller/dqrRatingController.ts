@@ -318,14 +318,42 @@ LIMIT $${idx} OFFSET $${idx + 1};
                 [...values, limit, offset]
             );
 
-            const rows = result.rows;
+//             const dqrCountQuery = `
+//    SELECT
+//     COUNT(*) AS total_dqr_count,
+//     COUNT(*) FILTER (WHERE dqr_completed = true) AS completed_dqr_count,
+//     COUNT(*) FILTER (WHERE dqr_completed = false) AS pending_dqr_count
+// FROM (
+//     SELECT
+//         sgiq.bom_pcf_id,
+//         sgiq.sup_id,
+//         COALESCE(BOOL_OR(prdrs.is_submitted), false) AS dqr_completed
+//     FROM supplier_general_info_questions sgiq
+//     LEFT JOIN pcf_request_data_rating_stage prdrs
+//         ON prdrs.bom_pcf_id = sgiq.bom_pcf_id
+//        AND prdrs.sup_id = sgiq.sup_id
+//     WHERE sgiq.bom_pcf_id IS NOT NULL
+//     GROUP BY sgiq.bom_pcf_id, sgiq.sup_id
+// ) dqr_status;
 
+// `;
             const dqrCountQuery = `
+  SELECT
+    COUNT(*) AS total_dqr_count,
+    COUNT(*) FILTER (WHERE dqr_completed = true) AS completed_dqr_count,
+    COUNT(*) FILTER (WHERE dqr_completed = false) AS pending_dqr_count
+FROM (
     SELECT
-        COUNT(*) AS total_dqr_count,
-        COUNT(*) FILTER (WHERE is_submitted = false) AS pending_dqr_count,
-        COUNT(*) FILTER (WHERE is_submitted = true) AS completed_dqr_count
-    FROM pcf_request_data_rating_stage;
+        sgiq.sgiq_id, -- IMPORTANT: use sgiq_id instead
+        COALESCE(BOOL_OR(prdrs.is_submitted), false) AS dqr_completed
+    FROM supplier_general_info_questions sgiq
+    LEFT JOIN pcf_request_data_rating_stage prdrs
+        ON prdrs.bom_pcf_id = sgiq.bom_pcf_id
+       AND prdrs.sup_id = sgiq.sup_id
+    WHERE sgiq.bom_pcf_id IS NOT NULL
+    GROUP BY sgiq.sgiq_id
+) dqr_status;
+
 `;
 
             const dqrCountResult = await client.query(dqrCountQuery);

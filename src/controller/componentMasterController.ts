@@ -280,7 +280,7 @@ export async function getComponnetMasterList(req: any, res: any) {
                 idx += 2;
             }
 
-             if (product_code) {
+            if (product_code) {
                 whereConditions.push(`pcf.product_code = $${idx}`);
                 values.push(product_code);
                 idx++;
@@ -464,15 +464,54 @@ ${whereClause}
 ORDER BY pcf.created_date DESC
 LIMIT $${idx++} OFFSET $${idx++};
 `;
- // need calrification is_bom_calculated above only need to show calculated one or not
+            // need calrification is_bom_calculated above only need to show calculated one or not
 
             values.push(limit, offset);
 
             const result = await client.query(query, values);
 
+
+            const statsQuery = `
+SELECT
+    COUNT(*) AS total_pcf_count,
+
+    COUNT(*) FILTER (
+        WHERE pcf.status = 'Approved'
+    ) AS approved_count,
+
+    COUNT(*) FILTER (
+        WHERE pcf.status = 'Rejected'
+    ) AS rejected_count,
+
+    COUNT(*) FILTER (
+        WHERE pcf.is_draft = TRUE
+    ) AS draft_count,
+
+    COUNT(*) FILTER (
+        WHERE 
+            pcf.status = 'Open'
+            OR pcf.status IS NULL
+    ) AS pending_count
+
+FROM bom_pcf_request pcf
+LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
+LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
+LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
+LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
+LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
+LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
+WHERE pcf.is_task_created = TRUE;
+`;
+
+
+            const statsResult = await client.query(statsQuery);
+
+            const stats = statsResult.rows[0];
+
             const countQuery = `
                 SELECT COUNT(*) AS total
-                FROM bom_pcf_request t;
+                FROM bom_pcf_request t
+                WHERE t.is_task_created = TRUE;
             `;
 
             const countResult = await client.query(
@@ -494,7 +533,8 @@ LIMIT $${idx++} OFFSET $${idx++};
                         page: Number(page),
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
-                    }
+                    },
+                    stats:stats
                 })
             );
 

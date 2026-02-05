@@ -1200,6 +1200,7 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
         component_category,
         component_type,
         manufacturer,
+        pcf_status,
 
         // common
         search,
@@ -1245,6 +1246,11 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
 
 
             /* ---------- COLUMN FILTERS ---------- */
+             if (pcf_status) {
+                conditions.push(`pcf.status ILIKE $${idx++}`);
+                values.push(`%${pcf_status}%`);
+            }
+
             if (code) {
                 conditions.push(`pcf.code ILIKE $${idx++}`);
                 values.push(`%${code}%`);
@@ -1956,7 +1962,7 @@ COALESCE(
                     ON stoie.sgiq_id = sgiq.sgiq_id
                 JOIN mode_of_transport_used_for_transportation_questions mt
                     ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id AND sgiq.client_id = NULL
+                WHERE sgiq.sup_id = b.supplier_id AND sgiq.own_emission_id IS NULL
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -2711,7 +2717,7 @@ export async function pcfCalculate(req: any, res: any) {
             const checkQuery = `
                 SELECT is_pcf_calculated
                 FROM pcf_request_stages
-                WHERE bom_pcf_id = $1;
+                WHERE bom_pcf_id = $1 AND own_emission_id IS NULL;
             `;
 
             const result = await client.query(checkQuery, [bom_pcf_id]);
@@ -2746,7 +2752,7 @@ export async function pcfCalculate(req: any, res: any) {
                 const fetchSGIQID = `
                 SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
                 FROM supplier_general_info_questions
-                WHERE bom_pcf_id = $1 AND sup_id =$2 AND supplier_general_info_questions.client_id = NULL;
+                WHERE bom_pcf_id = $1 AND sup_id =$2 AND own_emission_id IS NULL;
             `;
 
                 const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id, BomData.supplier_id]);
@@ -2760,7 +2766,7 @@ export async function pcfCalculate(req: any, res: any) {
                 SELECT rmuicm_id,stoie_id,bom_id,
                 material_number,material_name,percentage
                 FROM raw_materials_used_in_component_manufacturing_questions
-                WHERE bom_id = $1;
+                WHERE bom_id = $1 AND own_emission_id IS NULL;
             `;
 
                 const fetchQ52SupResult = await client.query(fetchQ52, [BomData.id]);
@@ -2770,7 +2776,7 @@ export async function pcfCalculate(req: any, res: any) {
                 SELECT bom_id,
                 material_number,product_name,location
                 FROM production_site_details_questions
-                WHERE bom_id = $1;
+                WHERE bom_id = $1 AND own_emission_id IS NULL;
             `;
 
                     const fetchQ13SupResult = await client.query(fetchQ13, [BomData.id]);
@@ -2854,7 +2860,7 @@ export async function pcfCalculate(req: any, res: any) {
                 SELECT pcm_id,spq_id,bom_id,
                 material_number,product_name,price
                 FROM product_component_manufactured_questions
-                WHERE bom_id = $1;
+                WHERE bom_id = $1 AND own_emission_id IS NULL;
             `;
 
                 const fetchQ15SupResult = await client.query(fetchQ15, [BomData.id]);
@@ -2865,7 +2871,7 @@ export async function pcfCalculate(req: any, res: any) {
                 SELECT bom_id,
                 material_number,product_name,price_per_product
                 FROM co_product_component_economic_value_questions
-                WHERE bom_id = $1;
+                WHERE bom_id = $1 AND own_emission_id IS NULL;
             `;
 
                 const fetchQ15PointOneSupResult = await client.query(fetchQ15PointOne, [BomData.id]);
@@ -2889,7 +2895,7 @@ export async function pcfCalculate(req: any, res: any) {
                 const fetchSTIDEID = `
                 SELECT sgiq_id,stide_id
                 FROM scope_two_indirect_emissions_questions
-                WHERE sgiq_id = $1;
+                WHERE sgiq_id = $1 AND own_emission_id IS NULL;
             `;
 
                 const fetchSTIDEIDSupResult = await client.query(fetchSTIDEID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
@@ -2900,7 +2906,7 @@ export async function pcfCalculate(req: any, res: any) {
                 SELECT stidefpe_id,stide_id,sup_id,
                 energy_source,energy_type,quantity,unit
                 FROM scope_two_indirect_emissions_from_purchased_energy_questions
-                WHERE stide_id = $1 AND sup_id=$2;
+                WHERE stide_id = $1 AND sup_id=$2 AND own_emission_id IS NULL;
             `;
 
 
@@ -2985,7 +2991,7 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetcSPQID = `
                 SELECT spq_id,sgiq_id
                 FROM supplier_product_questions
-                WHERE sgiq_id = $1;
+                WHERE sgiq_id = $1 AND own_emission_id IS NULL;
             `;
 
                     const fetcSPQIDSupResult = await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
@@ -2994,7 +3000,7 @@ export async function pcfCalculate(req: any, res: any) {
                     const someOfAllProductQues = `
                 SELECT spq_id, bom_id,material_number,weight_per_unit,price,quantity
                 FROM product_component_manufactured_questions
-                WHERE bom_id = $1;
+                WHERE bom_id = $1 AND own_emission_id IS NULL;
             `;
 
                     const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [BomData.id]);
@@ -3014,7 +3020,7 @@ export async function pcfCalculate(req: any, res: any) {
                     const partcularProductQuanty = `
                 SELECT spq_id,bom_id,material_number,quantity
                 FROM product_component_manufactured_questions
-                WHERE bom_id = $1;
+                WHERE bom_id = $1 AND own_emission_id IS NULL;
             `;
 
                     const partcularProductQuantySupResult = await client.query(partcularProductQuanty, [BomData.id]);
@@ -3058,7 +3064,7 @@ export async function pcfCalculate(req: any, res: any) {
                         SELECT bom_id,
                         material_number,product_name,location
                         FROM production_site_details_questions
-                        WHERE bom_id = $1;
+                        WHERE bom_id = $1 AND own_emission_id IS NULL;
                      `;
 
                     const fetchQ13LocationSupResult = await client.query(fetchQ13Location, [BomData.id]);
@@ -3293,7 +3299,7 @@ export async function pcfCalculate(req: any, res: any) {
                         SELECT bom_id,
                         material_number,packagin_type,unit
                         FROM type_of_pack_mat_used_for_delivering_questions
-                        WHERE bom_id = $1;
+                        WHERE bom_id = $1 AND own_emission_id IS NULL;
                      `;
 
                     const fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.id]);
@@ -3306,7 +3312,7 @@ export async function pcfCalculate(req: any, res: any) {
                         SELECT bom_id,
                         material_number,packagin_weight,unit
                         FROM weight_of_packaging_per_unit_product_questions
-                        WHERE bom_id = $1;
+                        WHERE bom_id = $1 AND own_emission_id IS NULL;
                      `;
 
                     const fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.id]);
@@ -3390,7 +3396,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT bom_id,material_number,mode_of_transport,
                                 weight_transported,distance
                                 FROM mode_of_transport_used_for_transportation_questions
-                                WHERE bom_id = $1;
+                                WHERE bom_id = $1 AND own_emission_id IS NULL;
                              `;
 
 
@@ -3519,7 +3525,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT bom_id,material_number,waste_type,
                                 waste_weight,unit,treatment_type
                                 FROM weight_of_quality_control_waste_generated_questions
-                                WHERE bom_id = $1;
+                                WHERE bom_id = $1 AND own_emission_id IS NULL;
                              `;
 
 
@@ -3579,7 +3585,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT bom_id,material_number,waste_type,
                                 waste_weight,unit,treatment_type
                                 FROM weight_of_pro_packaging_waste_questions
-                                WHERE bom_id = $1;
+                                WHERE bom_id = $1 AND own_emission_id IS NULL;
                              `;
 
 
@@ -3732,7 +3738,7 @@ export async function pcfCalculate(req: any, res: any) {
             // Update status of bom calculation Pcf level
             await client.query(
                 `UPDATE pcf_request_stages SET is_pcf_calculated = true
-                 WHERE bom_pcf_id = $1;`,
+                 WHERE bom_pcf_id = $1 AND own_emission_id IS NULL;`,
                 [bom_pcf_id]
             );
 
@@ -3776,7 +3782,7 @@ export async function submitPcfRequestInternal(req: any, res: any) {
                 UPDATE bom_pcf_request
                 SET status = 'Submitted'
                 WHERE id = $1
-                  AND client_id IS NULL
+                  AND own_emission_id IS NULL
                 RETURNING id
                 `,
                 [bom_pcf_id]
@@ -3843,7 +3849,7 @@ export async function submitPcfRequestClient(req: any, res: any) {
                 UPDATE bom_pcf_request
                 SET status = 'Submitted'
                 WHERE id = $1
-                  AND client_id IS NOT NULL
+                  AND own_emission_id IS NOT NULL
                 RETURNING id
                 `,
                 [bom_pcf_id]

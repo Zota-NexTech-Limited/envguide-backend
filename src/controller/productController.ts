@@ -269,7 +269,8 @@ export async function getProductById(req: any, res: any) {
                     ? await getOwnEmissionWithBOMDetailsById(
                         client,
                         oe.bom_pcf_id,
-                        oe.client_id
+                        oe.client_id,
+                        oe.id
                     )
                     : null;
             }
@@ -610,7 +611,8 @@ export async function getProductById(req: any, res: any) {
 export async function getOwnEmissionWithBOMDetailsById(
     client: any,
     bom_pcf_id: string,
-    client_id: string
+    client_id: string,
+    own_emission_id: string
 ) {
     const result = await client.query(
         `
@@ -818,7 +820,7 @@ LEFT JOIN component_type ct ON ct.id = base_pcf.component_type_id
 LEFT JOIN manufacturer m ON m.id = base_pcf.manufacturer_id
 LEFT JOIN users_table urb ON urb.user_id = base_pcf.rejected_by
 LEFT JOIN bom_pcf_request_product_specification ps ON ps.bom_pcf_id = base_pcf.id
-LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id AND st.client_id = base_pcf.client_id
+LEFT JOIN pcf_request_stages st ON st.bom_pcf_id = base_pcf.id AND st.client_id = base_pcf.client_id AND st.own_emission_id IS NOT NULL
 LEFT JOIN users_table ucb ON ucb.user_id = st.pcf_request_created_by
 LEFT JOIN users_table usb ON usb.user_id = st.pcf_request_submitted_by
 LEFT JOIN users_table uvb ON uvb.user_id = st.bom_verified_by
@@ -1031,8 +1033,7 @@ export async function pcfDropDown(req: any, res: any) {
                     bpr.id,
                     bpr.code,
                     bpr.request_title,
-                    COALESCE(oe.is_own_emission_calculated, false)
-                        AS is_own_emission_calculated
+                    bpr.is_own_emission_calculated
                 FROM bom_pcf_request bpr
                 LEFT JOIN own_emission oe
                     ON oe.bom_pcf_id = bpr.id
@@ -1232,7 +1233,7 @@ COALESCE(
                     ON stoie.sgiq_id = sgiq.sgiq_id
                 JOIN mode_of_transport_used_for_transportation_questions mt
                     ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id AND sgiq.client_id IS NULL
+                WHERE sgiq.sup_id = b.supplier_id AND sgiq.own_emission_id IS NOT NULL
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -1638,7 +1639,7 @@ COALESCE(
                     ON stoie.sgiq_id = sgiq.sgiq_id
                 JOIN mode_of_transport_used_for_transportation_questions mt
                     ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id AND sgiq.client_id IS NULL
+                WHERE sgiq.sup_id = b.supplier_id AND sgiq.own_emission_id IS NULL
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -2906,7 +2907,7 @@ supplier_sgiq AS (
     JOIN supplier_details sup
         ON sup.sup_id = sgiq.sup_id
     WHERE prdrs.is_submitted = TRUE
-      AND sgiq.bom_pcf_id = $1 AND sgiq.client_id IS NULL
+      AND sgiq.bom_pcf_id = $1 AND sgiq.own_emission_id IS NULL
 ),
 
 /* ================= DQR UNION (ALL QUESTIONS) ================= */
@@ -3957,19 +3958,20 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                             country_iso_three: scope.country_iso_three,
                             scope_one: scope.scope_one,
                             scope_two: scope.scope_two,
-                            scope_three: scope.scope_three
+                            scope_three: scope.scope_three,
+                            own_emission_id
                         }
                     });
 
                     // Return row for bulk insert
-                    return [aosotte_id, sgiq_id, scope.country_iso_three, scope.scope_one, scope.scope_two, scope.scope_three];
+                    return [aosotte_id, sgiq_id, scope.country_iso_three, scope.scope_one, scope.scope_two, scope.scope_three, own_emission_id];
                 });
 
                 // Bulk insert
                 await bulkInsert(
                     client,
                     'availability_of_scope_one_two_three_emissions_questions',
-                    ['aosotte_id', 'sgiq_id', 'country_iso_three', 'scope_one', 'scope_two', 'scope_three'],
+                    ['aosotte_id', 'sgiq_id', 'country_iso_three', 'scope_one', 'scope_two', 'scope_three', 'own_emission_id'],
                     insertRows
                 );
 
@@ -3991,27 +3993,27 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             // SUPPLIER PRODUCT QUESTIONS
             if (supplier_product_questions) {
-                insertPromises.push(insertSupplierProduct(client, supplier_product_questions, sgiq_id, product_bom_pcf_id));
+                insertPromises.push(insertSupplierProduct(client, supplier_product_questions, sgiq_id, product_bom_pcf_id, own_emission_id));
             }
 
             // SCOPE ONE
             if (scope_one_direct_emissions_questions) {
-                insertPromises.push(insertScopeOne(client, scope_one_direct_emissions_questions, sgiq_id, product_bom_pcf_id));
+                insertPromises.push(insertScopeOne(client, scope_one_direct_emissions_questions, sgiq_id, product_bom_pcf_id, own_emission_id));
             }
 
             // SCOPE TWO
             if (scope_two_indirect_emissions_questions) {
-                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, product_bom_pcf_id, annual_reporting_period));
+                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, product_bom_pcf_id, annual_reporting_period, own_emission_id));
             }
 
             // SCOPE THREE
             if (scope_three_other_indirect_emissions_questions) {
-                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, product_bom_pcf_id, annual_reporting_period));
+                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, product_bom_pcf_id, annual_reporting_period, own_emission_id));
             }
 
             // SCOPE FOUR
             if (scope_four_avoided_emissions_questions) {
-                insertPromises.push(insertScopeFour(client, scope_four_avoided_emissions_questions, sgiq_id, product_bom_pcf_id));
+                insertPromises.push(insertScopeFour(client, scope_four_avoided_emissions_questions, sgiq_id, product_bom_pcf_id, own_emission_id));
             }
 
             // Execute all inserts in parallel
@@ -4028,7 +4030,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             // );
 
             await client.query(
-                `UPDATE own_emission SET is_quetions_filled = true , 
+                `UPDATE own_emission SET is_quetions_filled = true
                  WHERE bom_pcf_id = $1 AND client_id=$2 AND product_id=$3;`,
                 [bom_pcf_id, client_id, product_id]
             );
@@ -4051,7 +4053,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 }
 
 // HELPER FUNCTIONS - Each section in separate function
-async function insertSupplierProduct(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+async function insertSupplierProduct(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, own_emission_id: string) {
     const spq_id = ulid();
     const dqrQ11: any[] = [];
     const allDQRConfigs: any[] = [];
@@ -4060,10 +4062,12 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
     await client.query(
         `INSERT INTO supplier_product_questions (
             spq_id, sgiq_id, do_you_have_an_existing_pcf_report, pcf_methodology_used,
-            upload_pcf_report, required_environmental_impact_methods, any_co_product_have_economic_value
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            upload_pcf_report, required_environmental_impact_methods, any_co_product_have_economic_value,
+            own_emission_id
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
         [spq_id, sgiq_id, data.do_you_have_an_existing_pcf_report, data.pcf_methodology_used,
-            data.upload_pcf_report, data.required_environmental_impact_methods, data.any_co_product_have_economic_value]
+            data.upload_pcf_report, data.required_environmental_impact_methods, data.any_co_product_have_economic_value,
+            own_emission_id]
     );
 
     // Q11
@@ -4109,18 +4113,19 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
                     product_bom_pcf_id: product_bom_pcf_id,
                     material_number: p.material_number,
                     product_name: p.product_name,
-                    location: p.location
+                    location: p.location,
+                    own_emission_id: own_emission_id
                 }
             });
 
             // Row for bulk insert
-            return [psd_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.location];
+            return [psd_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.location, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'production_site_details_questions',
-            ['psd_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'location'],
+            ['psd_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'location', 'own_emission_id'],
             insertRows
         ));
 
@@ -4152,13 +4157,15 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
                     weight_per_unit: p.weight_per_unit,
                     unit: p.unit,
                     price: p.price,
-                    quantity: p.quantity
+                    quantity: p.quantity,
+                    own_emission_id: own_emission_id
                 }
             });
 
             // Return row for bulk insert
             return [
-                pcm_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity
+                pcm_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity,
+                own_emission_id
             ];
         });
 
@@ -4166,7 +4173,9 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
         childInserts.push(bulkInsert(
             client,
             'product_component_manufactured_questions',
-            ['pcm_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity'],
+            ['pcm_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity',
+                'own_emission_id'
+            ],
             insertRows
             // data.product_component_manufactured_questions.map((p: any) =>
             //     [ulid(), spq_id, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity]
@@ -4200,7 +4209,8 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
                     co_product_name: p.co_product_name,
                     weight: p.weight,
                     price_per_product: p.price_per_product,
-                    quantity: p.quantity
+                    quantity: p.quantity,
+                    own_emission_id: own_emission_id
                 }
             });
 
@@ -4209,7 +4219,8 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
 
             // Return row for bulk insert
             return [
-                cpcev_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
+                cpcev_id, spq_id, p.product_id, product_bom_pcf_id, p.material_number, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity,
+                own_emission_id
             ];
         });
 
@@ -4217,7 +4228,9 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
         childInserts.push(bulkInsert(
             client,
             'co_product_component_economic_value_questions',
-            ['cpcev_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity'],
+            ['cpcev_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity',
+                'own_emission_id'
+            ],
             insertRows
             // data.co_product_component_economic_value_questions.map((c: any) =>
             //     [ulid(), spq_id, c.product_name, c.co_product_name, c.weight, c.price_per_product, c.quantity]
@@ -4252,39 +4265,79 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
                 econAllocation = 'Economic';
             }
 
+            //         await client.query(
+            //             `
+            // INSERT INTO allocation_methodology (
+            //     id,
+            //     product_id,
+            //     econ_allocation_er_greater_than_five,
+            //     phy_mass_allocation_er_less_than_five,
+            //     check_er_less_than_five,
+            //     product_bom_pcf_id,
+            //     own_emission_id
+            // )
+            // SELECT
+            //     $1,
+            //     $2::VARCHAR(255),
+            //     $3,
+            //     $4,
+            //     $5,
+            //     $6,
+            //     $7
+            // WHERE NOT EXISTS (
+            //     SELECT 1
+            //     FROM allocation_methodology
+            //     WHERE product_id = $2::VARCHAR(255)
+            // )
+            // `,
+            //             [
+            //                 ulid(),
+            //                 product_id,
+            //                 econAllocation,
+            //                 phyMassAllocation,
+            //                 checkER,
+            //                 product_bom_pcf_id,
+            //                 own_emission_id
+            //             ]
+            //         );
+
+
             await client.query(
                 `
-    INSERT INTO allocation_methodology (
-        id,
-        product_id,
-        econ_allocation_er_greater_than_five,
-        phy_mass_allocation_er_less_than_five,
-        check_er_less_than_five,
-        product_bom_pcf_id
-    )
-    SELECT
-        $1,
-        $2::VARCHAR(255),
-        $3,
-        $4,
-        $5,
-        $6
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM allocation_methodology
-        WHERE product_id = $2::VARCHAR(255)
-    )
-    `,
+INSERT INTO allocation_methodology (
+    id,
+    product_id,
+    econ_allocation_er_greater_than_five,
+    phy_mass_allocation_er_less_than_five,
+    check_er_less_than_five,
+    product_bom_pcf_id,
+    own_emission_id
+)
+SELECT
+    $1,
+    $2::VARCHAR(255),
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+FROM (SELECT 1) AS dummy
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM allocation_methodology
+    WHERE product_id = $2::VARCHAR(255)
+);
+`,
                 [
                     ulid(),
                     product_id,
                     econAllocation,
                     phyMassAllocation,
                     checkER,
-                    product_bom_pcf_id
+                    product_bom_pcf_id,
+                    own_emission_id
                 ]
             );
-
 
 
             console.log(`BOM ID ${product_id} | BOM Price: ${bomPrice} | Avg Co-Product Price: ${avgPricePerProduct} | ER: ${ER}`);
@@ -4303,16 +4356,16 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
     await Promise.all(childInserts);
 }
 
-async function insertScopeOne(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+async function insertScopeOne(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, own_emission_id: string) {
     const sode_id = ulid();
     const allDQRConfigs: any[] = [];
 
     // Insert parent
     await client.query(
         `INSERT INTO scope_one_direct_emissions_questions
-         (sode_id, sgiq_id, refrigerant_top_ups_performed, industrial_process_emissions_present)
-         VALUES ($1, $2, $3, $4)`,
-        [sode_id, sgiq_id, data.refrigerant_top_ups_performed ?? false, data.industrial_process_emissions_present ?? false]
+         (sode_id, sgiq_id, refrigerant_top_ups_performed, industrial_process_emissions_present,own_emission_id)
+         VALUES ($1, $2, $3, $4,$5)`,
+        [sode_id, sgiq_id, data.refrigerant_top_ups_performed ?? false, data.industrial_process_emissions_present ?? false, own_emission_id]
     );
 
     const childInserts = [];
@@ -4332,7 +4385,8 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
             scoseuRows.push([
                 scoseu_id,
                 sode_id,
-                item.fuel_type
+                item.fuel_type,
+                own_emission_id
             ]);
 
             // DQR payload (Q16)
@@ -4351,7 +4405,8 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
                         scoseu_id,
                         s.sub_fuel_type,
                         s.consumption_quantity,
-                        s.unit
+                        s.unit,
+                        own_emission_id
                     ]);
                 }
             }
@@ -4362,7 +4417,7 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
             bulkInsert(
                 client,
                 'stationary_combustion_on_site_energy_use_questions',
-                ['scoseu_id', 'sode_id', 'fuel_type'],
+                ['scoseu_id', 'sode_id', 'fuel_type', 'own_emission_id'],
                 scoseuRows
             )
         );
@@ -4373,7 +4428,7 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
                 bulkInsert(
                     client,
                     'scoseu_sub_fuel_type_questions',
-                    ['ssft_id', 'scoseu_id', 'sub_fuel_type', 'consumption_quantity', 'unit'],
+                    ['ssft_id', 'scoseu_id', 'sub_fuel_type', 'consumption_quantity', 'unit', 'own_emission_id'],
                     subFuelRows
                 )
             );
@@ -4401,18 +4456,19 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
                 data: {
                     fuel_type: p.fuel_type,
                     quantity: p.quantity,
-                    unit: p.unit
+                    unit: p.unit,
+                    own_emission_id: own_emission_id
                 }
             });
 
             // Row for bulk insert
-            return [mccov_id, sode_id, p.fuel_type, p.quantity, p.unit];
+            return [mccov_id, sode_id, p.fuel_type, p.quantity, p.unit, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'mobile_combustion_company_owned_vehicles_questions',
-            ['mccov_id', 'sode_id', 'fuel_type', 'quantity', 'unit'],
+            ['mccov_id', 'sode_id', 'fuel_type', 'quantity', 'unit', 'own_emission_id'],
             insertRows
             // data.mobile_combustion_company_owned_vehicles_questions.map((v: any) =>
             //     [mccov_id, sode_id, v.fuel_type, v.quantity, v.unit]
@@ -4441,19 +4497,20 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
                 data: {
                     refrigerant_type: p.refrigerant_type,
                     quantity: p.quantity,
-                    unit: p.unit
+                    unit: p.unit,
+                    own_emission_id: own_emission_id
                 }
             });
 
             // Row for bulk insert
-            return [refr_id, sode_id, p.refrigerant_type, p.quantity, p.unit];
+            return [refr_id, sode_id, p.refrigerant_type, p.quantity, p.unit, own_emission_id];
         });
 
 
         childInserts.push(bulkInsert(
             client,
             'refrigerants_questions',
-            ['refr_id', 'sode_id', 'refrigerant_type', 'quantity', 'unit'],
+            ['refr_id', 'sode_id', 'refrigerant_type', 'quantity', 'unit', 'own_emission_id'],
             insertRows
             // data.refrigerants_questions.map((r: any) => [ulid(), sode_id, r.refrigerant_type, r.quantity, r.unit])
         ));
@@ -4481,19 +4538,20 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
                     source: p.source,
                     gas_type: p.gas_type,
                     quantity: p.quantity,
-                    unit: p.unit
+                    unit: p.unit,
+                    own_emission_id: own_emission_id
                 }
             });
 
             // Row for bulk insert
-            return [pes_id, sode_id, p.source, p.gas_type, p.quantity, p.unit];
+            return [pes_id, sode_id, p.source, p.gas_type, p.quantity, p.unit, own_emission_id];
         });
 
 
         childInserts.push(bulkInsert(
             client,
             'process_emissions_sources_questions',
-            ['pes_id', 'sode_id', 'source', 'gas_type', 'quantity', 'unit'],
+            ['pes_id', 'sode_id', 'source', 'gas_type', 'quantity', 'unit', 'own_emission_id'],
             insertRows
             // data.process_emissions_sources_questions.map((e: any) =>
             //     [ulid(), sode_id, e.source, e.gas_type, e.quantity, e.unit]
@@ -4514,7 +4572,7 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string, product_b
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, annual_reporting_period: string) {
+async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, annual_reporting_period: string, own_emission_id: string) {
     const stide_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -4528,8 +4586,8 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
             do_you_perform_destructive_testing, it_system_use_for_production_control,
             total_energy_consumption_of_it_hardware_production, energy_con_included_total_energy_pur_sec_two_qfortythree,
             do_you_use_cloud_based_system_for_production, do_you_use_any_cooling_sysytem_for_server,
-            energy_con_included_total_energy_pur_sec_two_qfifty
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+            energy_con_included_total_energy_pur_sec_two_qfifty,own_emission_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,$17)`,
         [
             stide_id, sgiq_id,
             data.do_you_acquired_standardized_re_certificates ?? false,
@@ -4545,7 +4603,8 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
             data.energy_con_included_total_energy_pur_sec_two_qfortythree ?? false,
             data.do_you_use_cloud_based_system_for_production ?? false,
             data.do_you_use_any_cooling_sysytem_for_server ?? false,
-            data.energy_con_included_total_energy_pur_sec_two_qfifty ?? false
+            data.energy_con_included_total_energy_pur_sec_two_qfifty ?? false,
+            own_emission_id
         ]
     );
 
@@ -4588,7 +4647,6 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
     const childInserts = [];
 
     if (Array.isArray(data.scope_two_indirect_emissions_from_purchased_energy_questions)) {
-        console.log(data.client_id, "data.client_iddata.client_id");
 
         // data.scope_two_indirect_emissions_from_purchased_energy_questions = data.client_id;
 
@@ -4607,17 +4665,22 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                     quantity: e.quantity,
                     unit: e.unit,
                     client_id: data.client_id,
-                    annual_reporting_period
+                    annual_reporting_period,
+                    own_emission_id
                 }
             });
 
-            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.client_id, annual_reporting_period];
+            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.client_id, annual_reporting_period,
+                own_emission_id
+            ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'scope_two_indirect_emissions_from_purchased_energy_questions',
-            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'client_id', 'annual_reporting_period'],
+            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'client_id', 'annual_reporting_period',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -4645,14 +4708,17 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 stidec_id, stide_id,
                 c.certificate_name, c.mechanism, c.serial_id,
                 c.generator_id, c.generator_name,
-                c.generator_location, c.date_of_generation, c.issuance_date
+                c.generator_location, c.date_of_generation, c.issuance_date,
+                own_emission_id
             ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'scope_two_indirect_emissions_certificates_questions',
-            ['stidec_id', 'stide_id', 'certificate_name', 'mechanism', 'serial_id', 'generator_id', 'generator_name', 'generator_location', 'date_of_generation', 'issuance_date'],
+            ['stidec_id', 'stide_id', 'certificate_name', 'mechanism', 'serial_id', 'generator_id', 'generator_name', 'generator_location', 'date_of_generation', 'issuance_date',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -4676,13 +4742,17 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 payload: i
             });
 
-            return [eiopekm_id, stide_id, i.product_id, product_bom_pcf_id, i.material_number, i.product_name, i.energy_intensity, i.unit];
+            return [eiopekm_id, stide_id, i.product_id, product_bom_pcf_id, i.material_number, i.product_name, i.energy_intensity, i.unit,
+                own_emission_id
+            ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'energy_intensity_of_production_estimated_kwhor_mj_questions',
-            ['eiopekm_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'energy_intensity', 'unit'],
+            ['eiopekm_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'energy_intensity', 'unit',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -4707,13 +4777,17 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 payload: p
             });
 
-            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type, annual_reporting_period];
+            return [pseu_id, stide_id, p.process_specific_energy_type, p.quantity_consumed, p.unit, p.support_from_enviguide ?? false, p.bom_id, p.material_number, p.energy_type, annual_reporting_period,
+                own_emission_id
+            ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'process_specific_energy_usage_questions',
-            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type', 'annual_reporting_period'],
+            ['pseu_id', 'stide_id', 'process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'bom_id', 'material_number', 'energy_type', 'annual_reporting_period',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -4738,13 +4812,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(a)
             });
 
-            return [asu_id, stide_id, a.source, a.quantity, a.unit];
+            return [asu_id, stide_id, a.source, a.quantity, a.unit, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'abatement_systems_used_questions',
-            ['asu_id', 'stide_id', 'source', 'quantity', 'unit'],
+            ['asu_id', 'stide_id', 'source', 'quantity', 'unit', 'own_emission_id'],
             rows
         ));
 
@@ -4768,13 +4842,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(q)
             });
 
-            return [toqceu_id, stide_id, q.equipment_name, q.quantity, q.unit, q.avg_operating_hours_per_month];
+            return [toqceu_id, stide_id, q.equipment_name, q.quantity, q.unit, q.avg_operating_hours_per_month, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'type_of_quality_control_equipment_usage_questions',
-            ['toqceu_id', 'stide_id', 'equipment_name', 'quantity', 'unit', 'avg_operating_hours_per_month'],
+            ['toqceu_id', 'stide_id', 'equipment_name', 'quantity', 'unit', 'avg_operating_hours_per_month', 'own_emission_id'],
             rows
         ));
 
@@ -4798,13 +4872,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(e)
             });
 
-            return [ecfqc_id, stide_id, e.energy_type, e.quantity, e.unit, e.period];
+            return [ecfqc_id, stide_id, e.energy_type, e.quantity, e.unit, e.period, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'electricity_consumed_for_quality_control_questions',
-            ['ecfqc_id', 'stide_id', 'energy_type', 'quantity', 'unit', 'period'],
+            ['ecfqc_id', 'stide_id', 'energy_type', 'quantity', 'unit', 'period', 'own_emission_id'],
             rows
         ));
 
@@ -4828,13 +4902,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(q)
             });
 
-            return [qcpu_id, stide_id, q.process_name, q.quantity, q.unit, q.period];
+            return [qcpu_id, stide_id, q.process_name, q.quantity, q.unit, q.period, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'quality_control_process_usage_questions',
-            ['qcpu_id', 'stide_id', 'process_name', 'quantity', 'unit', 'period'],
+            ['qcpu_id', 'stide_id', 'process_name', 'quantity', 'unit', 'period', 'own_emission_id'],
             rows
         ));
 
@@ -4858,13 +4932,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(p)
             });
 
-            return [qcpupf_id, stide_id, p.flow_name, p.quantity, p.unit, p.period];
+            return [qcpupf_id, stide_id, p.flow_name, p.quantity, p.unit, p.period, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'quality_control_process_usage_pressure_or_flow_questions',
-            ['qcpupf_id', 'stide_id', 'flow_name', 'quantity', 'unit', 'period'],
+            ['qcpupf_id', 'stide_id', 'flow_name', 'quantity', 'unit', 'period', 'own_emission_id'],
             rows
         ));
 
@@ -4888,13 +4962,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(c)
             });
 
-            return [qcuac_id, stide_id, c.consumable_name, c.mass_of_consumables, c.unit, c.period];
+            return [qcuac_id, stide_id, c.consumable_name, c.mass_of_consumables, c.unit, c.period, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'quality_control_use_any_consumables_questions',
-            ['qcuac_id', 'stide_id', 'consumable_name', 'mass_of_consumables', 'unit', 'period'],
+            ['qcuac_id', 'stide_id', 'consumable_name', 'mass_of_consumables', 'unit', 'period', 'own_emission_id'],
             rows
         ));
 
@@ -4918,13 +4992,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(w)
             });
 
-            return [wosd_id, stide_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.weight, w.unit, w.period];
+            return [wosd_id, stide_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.weight, w.unit, w.period, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_samples_destroyed_questions',
-            ['wosd_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'weight', 'unit', 'period'],
+            ['wosd_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'weight', 'unit', 'period', 'own_emission_id'],
             rows
         ));
 
@@ -4948,13 +5022,13 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(d)
             });
 
-            return [dorriqc_id, stide_id, d.product_id, product_bom_pcf_id, d.material_number, d.component_name, d.percentage];
+            return [dorriqc_id, stide_id, d.product_id, product_bom_pcf_id, d.material_number, d.component_name, d.percentage, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'defect_or_rejection_rate_identified_by_quality_control_questions',
-            ['dorriqc_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'percentage'],
+            ['dorriqc_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'percentage', 'own_emission_id'],
             rows
         ));
 
@@ -4978,13 +5052,17 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(r)
             });
 
-            return [rrdqc_id, stide_id, r.product_id, product_bom_pcf_id, r.material_number, r.component_name, r.processes_involved, r.percentage];
+            return [rrdqc_id, stide_id, r.product_id, product_bom_pcf_id, r.material_number, r.component_name, r.processes_involved, r.percentage,
+                own_emission_id
+            ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'rework_rate_due_to_quality_control_questions',
-            ['rrdqc_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'processes_involved', 'percentage'],
+            ['rrdqc_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'processes_involved', 'percentage',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -5008,13 +5086,17 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 data: JSON.stringify(w)
             });
 
-            return [woqcwg_id, stide_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type];
+            return [woqcwg_id, stide_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type,
+                own_emission_id
+            ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_quality_control_waste_generated_questions',
-            ['woqcwg_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type'],
+            ['woqcwg_id', 'stide_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -5049,14 +5131,15 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 e.energy_purchased,
                 e.energy_type,
                 e.quantity,
-                e.unit
+                e.unit,
+                own_emission_id
             ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'energy_consumption_for_qfortyfour_questions',
-            ['ecfqff_id', 'stide_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
+            ['ecfqff_id', 'stide_id', 'energy_purchased', 'energy_type', 'quantity', 'unit', 'own_emission_id'],
             rows
         ));
 
@@ -5091,14 +5174,15 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 c.cloud_provider_name,
                 c.virtual_machines,
                 c.data_storage,
-                c.data_transfer
+                c.data_transfer,
+                own_emission_id
             ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'cloud_provider_details_questions',
-            ['cpd_id', 'stide_id', 'cloud_provider_name', 'virtual_machines', 'data_storage', 'data_transfer'],
+            ['cpd_id', 'stide_id', 'cloud_provider_name', 'virtual_machines', 'data_storage', 'data_transfer', 'own_emission_id'],
             rows
         ));
 
@@ -5133,14 +5217,15 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 d.type_of_sensor,
                 d.sensor_quantity,
                 d.energy_consumption,
-                d.unit
+                d.unit,
+                own_emission_id
             ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'dedicated_monitoring_sensor_usage_questions',
-            ['dmsu_id', 'stide_id', 'type_of_sensor', 'sensor_quantity', 'energy_consumption', 'unit'],
+            ['dmsu_id', 'stide_id', 'type_of_sensor', 'sensor_quantity', 'energy_consumption', 'unit', 'own_emission_id'],
             rows
         ));
 
@@ -5174,14 +5259,15 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 stide_id,
                 a.consumable_name,
                 a.quantity,
-                a.unit
+                a.unit,
+                own_emission_id
             ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'annual_replacement_rate_of_sensor_questions',
-            ['arros_id', 'stide_id', 'consumable_name', 'quantity', 'unit'],
+            ['arros_id', 'stide_id', 'consumable_name', 'quantity', 'unit', 'own_emission_id'],
             rows
         ));
 
@@ -5216,14 +5302,15 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
                 e.energy_purchased,
                 e.energy_type,
                 e.quantity,
-                e.unit
+                e.unit,
+                own_emission_id
             ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'energy_consumption_for_qfiftyone_questions',
-            ['ecfqfo_id', 'stide_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
+            ['ecfqfo_id', 'stide_id', 'energy_purchased', 'energy_type', 'quantity', 'unit', 'own_emission_id'],
             rows
         ));
 
@@ -5242,7 +5329,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, product_b
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeThree(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, annual_reporting_period: string) {
+async function insertScopeThree(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, annual_reporting_period: string, own_emission_id: string) {
     const stoie_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -5259,8 +5346,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
             mode_of_transport_enviguide_support, iso_14001_or_iso_50001_certified,
             standards_followed_iso_14067_GHG_catena_etc, do_you_report_to_cdp_sbti_or_other,
             measures_to_reduce_carbon_emissions_in_production, renewable_energy_initiatives_or_recycling_programs,
-            your_company_info
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+            your_company_info ,own_emission_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
         [
             stoie_id, sgiq_id,
             data.raw_materials_contact_enviguide_support ?? false,
@@ -5282,7 +5369,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
             data.do_you_report_to_cdp_sbti_or_other ?? false,
             data.measures_to_reduce_carbon_emissions_in_production,
             data.renewable_energy_initiatives_or_recycling_programs,
-            data.your_company_info
+            data.your_company_info,
+            own_emission_id
         ]
     );
 
@@ -5378,17 +5466,20 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                     material_number: m.material_number,
                     material_name: m.material_name,
                     percentage: m.percentage,
-                    annual_reporting_period
+                    annual_reporting_period,
+                    own_emission_id
                 }
             });
 
-            return [rmuicm_id, stoie_id, m.product_id, product_bom_pcf_id, m.material_number, m.material_name, m.percentage, annual_reporting_period];
+            return [rmuicm_id, stoie_id, m.product_id, product_bom_pcf_id, m.material_number, m.material_name, m.percentage, annual_reporting_period, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'raw_materials_used_in_component_manufacturing_questions',
-            ['rmuicm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage', 'annual_reporting_period'],
+            ['rmuicm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage', 'annual_reporting_period',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -5415,17 +5506,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                     product_bom_pcf_id: product_bom_pcf_id,
                     material_number: r.material_number,
                     material_name: r.material_name,
-                    percentage: r.percentage
+                    percentage: r.percentage,
+                    own_emission_id
                 }
             });
 
-            return [rmwp_id, stoie_id, r.product_id, product_bom_pcf_id, r.material_number, r.material_name, r.percentage];
+            return [rmwp_id, stoie_id, r.product_id, product_bom_pcf_id, r.material_number, r.material_name, r.percentage, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'recycled_materials_with_percentage_questions',
-            ['rmwp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage'],
+            ['rmwp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'material_name', 'percentage', 'own_emission_id'],
             rows
         ));
 
@@ -5449,17 +5541,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 childId: ppcrp_id,
                 payload: {
                     material_type: p.material_type,
-                    percentage: p.percentage
+                    percentage: p.percentage,
+                    own_emission_id
                 }
             });
 
-            return [ppcrp_id, stoie_id, p.material_type, p.percentage];
+            return [ppcrp_id, stoie_id, p.material_type, p.percentage, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'pre_post_consumer_reutilization_percentage_questions',
-            ['ppcrp_id', 'stoie_id', 'material_type', 'percentage'],
+            ['ppcrp_id', 'stoie_id', 'material_type', 'percentage', 'own_emission_id'],
             rows
         ));
 
@@ -5483,17 +5576,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 childId: ppmp_id,
                 payload: {
                     material_type: p.material_type,
-                    percentage: p.percentage
+                    percentage: p.percentage,
+                    own_emission_id
                 }
             });
 
-            return [ppmp_id, stoie_id, p.material_type, p.percentage];
+            return [ppmp_id, stoie_id, p.material_type, p.percentage, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'pir_pcr_material_percentage_questions',
-            ['ppmp_id', 'stoie_id', 'material_type', 'percentage'],
+            ['ppmp_id', 'stoie_id', 'material_type', 'percentage', 'own_emission_id'],
             rows
         ));
 
@@ -5518,13 +5612,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 payload: p
             });
 
-            return [topmudp_id, stoie_id, p.product_id, product_bom_pcf_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit];
+            return [topmudp_id, stoie_id, p.product_id, product_bom_pcf_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'type_of_pack_mat_used_for_delivering_questions',
-            ['topmudp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit'],
+            ['topmudp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit', 'own_emission_id'],
             rows
         ));
 
@@ -5549,13 +5643,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 payload: w
             });
 
-            return [woppup_id, stoie_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.packagin_weight, w.unit];
+            return [woppup_id, stoie_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.packagin_weight, w.unit, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_packaging_per_unit_product_questions',
-            ['woppup_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'packagin_weight', 'unit'],
+            ['woppup_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'packagin_weight', 'unit', 'own_emission_id'],
             rows
         ));
 
@@ -5580,13 +5674,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 payload: e
             });
 
-            return [ecfqss_id, stoie_id, e.energy_purchased, e.energy_type, e.quantity, e.unit];
+            return [ecfqss_id, stoie_id, e.energy_purchased, e.energy_type, e.quantity, e.unit, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'energy_consumption_for_qsixtyseven_questions',
-            ['ecfqss_id', 'stoie_id', 'energy_purchased', 'energy_type', 'quantity', 'unit'],
+            ['ecfqss_id', 'stoie_id', 'energy_purchased', 'energy_type', 'quantity', 'unit', 'own_emission_id'],
             rows
         ));
 
@@ -5617,17 +5711,22 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                     waste_weight: w.waste_weight,
                     unit: w.unit,
                     treatment_type: w.treatment_type,
-                    annual_reporting_period
+                    annual_reporting_period,
+                    own_emission_id
                 }
             });
 
-            return [woppw_id, stoie_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type, annual_reporting_period];
+            return [woppw_id, stoie_id, w.product_id, product_bom_pcf_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type, annual_reporting_period,
+                own_emission_id
+            ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_pro_packaging_waste_questions',
-            ['woppw_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type', 'annual_reporting_period'],
+            ['woppw_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type', 'annual_reporting_period',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -5656,17 +5755,22 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                     component_name: b.component_name,
                     by_product: b.by_product,
                     price_per_product: b.price_per_product,
-                    quantity: b.quantity
+                    quantity: b.quantity,
+                    own_emission_id
                 }
             });
 
-            return [topbp_id, stoie_id, b.product_id, product_bom_pcf_id, b.material_number, b.component_name, b.by_product, b.price_per_product, b.quantity];
+            return [topbp_id, stoie_id, b.product_id, product_bom_pcf_id, b.material_number, b.component_name, b.by_product, b.price_per_product, b.quantity,
+                own_emission_id
+            ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'type_of_by_product_questions',
-            ['topbp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'by_product', 'price_per_product', 'quantity'],
+            ['topbp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'by_product', 'price_per_product', 'quantity',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -5712,14 +5816,17 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 c.transport_mode,
                 c.source_location,
                 c.destination_location,
-                c.co_two_emission
+                c.co_two_emission,
+                own_emission_id
             ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'co_two_emission_of_raw_material_questions',
-            ['coteorm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission'],
+            ['coteorm_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -5765,14 +5872,17 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 t.weight_transported,
                 t.source_point,
                 t.drop_point,
-                t.distance
+                t.distance,
+                own_emission_id
             ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'mode_of_transport_used_for_transportation_questions',
-            ['motuft_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance'],
+            ['motuft_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance',
+                'own_emission_id'
+            ],
             rows
         ));
 
@@ -5802,13 +5912,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 }
             });
 
-            return [dpct_id, stoie_id, d.country, d.state, d.city, d.pincode];
+            return [dpct_id, stoie_id, d.country, d.state, d.city, d.pincode, own_emission_id];
         });
 
         childInserts.push(bulkInsert(
             client,
             'destination_plant_component_transportation_questions',
-            ['dpct_id', 'stoie_id', 'country', 'state', 'city', 'pincode'],
+            ['dpct_id', 'stoie_id', 'country', 'state', 'city', 'pincode', 'own_emission_id'],
             rows
         ));
 
@@ -5825,20 +5935,21 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeFour(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string) {
+async function insertScopeFour(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, own_emission_id: string) {
     const sfae_id = ulid();
 
     await client.query(
         `INSERT INTO scope_four_avoided_emissions_questions (
             sfae_id, sgiq_id, products_or_services_that_help_reduce_customer_emissions,
             circular_economy_practices_reuse_take_back_epr_refurbishment,
-            renewable_energy_carbon_offset_projects_implemented
-        ) VALUES ($1, $2, $3, $4, $5)`,
+            renewable_energy_carbon_offset_projects_implemented , own_emission_id
+        ) VALUES ($1, $2, $3, $4, $5, $6)`,
         [
             sfae_id, sgiq_id,
             data.products_or_services_that_help_reduce_customer_emissions ?? false,
             data.circular_economy_practices_reuse_take_back_epr_refurbishment,
-            data.renewable_energy_carbon_offset_projects_implemented
+            data.renewable_energy_carbon_offset_projects_implemented,
+            own_emission_id
         ]
     );
 }
@@ -5962,7 +6073,7 @@ export async function pcfCalculate(req: any, res: any) {
                 const fetchSGIQID = `
                 SELECT sgiq_id,bom_pcf_id,client_id,annual_reporting_period
                 FROM supplier_general_info_questions
-                WHERE bom_pcf_id = $1 AND supplier_general_info_questions.client_id IS NOT NULL AND client_id =$2 ;
+                WHERE bom_pcf_id = $1 AND supplier_general_info_questions.own_emission_id IS NOT NULL AND client_id =$2 ;
             `;
 
                 const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id, BomData.client_id]);
@@ -6106,7 +6217,7 @@ export async function pcfCalculate(req: any, res: any) {
                 const fetchSTIDEID = `
                 SELECT sgiq_id,stide_id
                 FROM scope_two_indirect_emissions_questions
-                WHERE sgiq_id = $1;
+                WHERE sgiq_id = $1 AND own_emission_id IS NOT NULL;
             `;
 
                 const fetchSTIDEIDSupResult = await client.query(fetchSTIDEID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
@@ -6117,7 +6228,7 @@ export async function pcfCalculate(req: any, res: any) {
                 SELECT stidefpe_id,stide_id,client_id,
                 energy_source,energy_type,quantity,unit
                 FROM scope_two_indirect_emissions_from_purchased_energy_questions
-                WHERE stide_id = $1 AND client_id=$2;
+                WHERE stide_id = $1 AND client_id=$2 AND own_emission_id IS NOT NULL;
             `;
 
 
@@ -6159,7 +6270,7 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetcSPQID = `
                 SELECT spq_id,sgiq_id
                 FROM supplier_product_questions
-                WHERE sgiq_id = $1;
+                WHERE sgiq_id = $1 AND own_emission_id IS NOT NULL;
             `;
 
                     const fetcSPQIDSupResult = await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
@@ -6168,7 +6279,7 @@ export async function pcfCalculate(req: any, res: any) {
                     const someOfAllProductQues = `
                 SELECT spq_id, product_id,material_number,weight_per_unit,price,quantity
                 FROM product_component_manufactured_questions
-                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                WHERE product_id = $1 AND product_bom_pcf_id = $2 AND own_emission_id IS NOT NULL;
             `;
 
                     const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [BomData.product_id, BomData.bom_pcf_id]);
@@ -6188,7 +6299,7 @@ export async function pcfCalculate(req: any, res: any) {
                     const partcularProductQuanty = `
                 SELECT spq_id,product_id,material_number,quantity
                 FROM product_component_manufactured_questions
-                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                WHERE product_id = $1 AND product_bom_pcf_id = $2 AND own_emission_id IS NOT NULL;
             `;
 
                     console.log(BomData.product_id, "BomData.product_idBomData.product_id");
@@ -6236,7 +6347,7 @@ export async function pcfCalculate(req: any, res: any) {
                         SELECT product_id,
                         material_number,product_name,location
                         FROM production_site_details_questions
-                        WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                        WHERE product_id = $1 AND product_bom_pcf_id = $2 AND own_emission_id IS NOT NULL;
                      `;
 
                     const fetchQ13LocationSupResult = await client.query(fetchQ13Location, [BomData.product_id, BomData.bom_pcf_id]);
@@ -6474,7 +6585,7 @@ export async function pcfCalculate(req: any, res: any) {
                         SELECT product_id,
                         material_number,packagin_type,unit
                         FROM type_of_pack_mat_used_for_delivering_questions
-                        WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                        WHERE product_id = $1 AND product_bom_pcf_id = $2 AND own_emission_id IS NOT NULL;
                      `;
 
                     const fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.product_id, BomData.bom_pcf_id]);
@@ -6487,7 +6598,7 @@ export async function pcfCalculate(req: any, res: any) {
                         SELECT product_id,
                         material_number,packagin_weight,unit
                         FROM weight_of_packaging_per_unit_product_questions
-                        WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                        WHERE product_id = $1 AND product_bom_pcf_id = $2 AND own_emission_id IS NOT NULL;
                      `;
 
                     const fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.product_id, BomData.bom_pcf_id]);
@@ -6572,7 +6683,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT product_id,material_number,mode_of_transport,
                                 weight_transported,distance
                                 FROM mode_of_transport_used_for_transportation_questions
-                                WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                                WHERE product_id = $1 AND product_bom_pcf_id = $2 AND own_emission_id IS NOT NULL;
                              `;
 
 
@@ -6914,8 +7025,11 @@ export async function pcfCalculate(req: any, res: any) {
             //     [bom_pcf_id, particularProductResult.rows[0].client_id]
             // );
 
+            console.log(overall_pcf, bom_pcf_id, particularProductResult.rows[0].client_id,"llllllllllll");
+            
             await client.query(
-                `UPDATE bom_pcf_request SET overall_pcf = $1
+                `UPDATE bom_pcf_request SET overall_own_emission_pcf = $1,
+                is_own_emission_calculated = TRUE
                  WHERE id = $2 AND client_id IS NOT NULL AND client_id = $3;`,
                 [overall_pcf, bom_pcf_id, particularProductResult.rows[0].client_id]
             );
