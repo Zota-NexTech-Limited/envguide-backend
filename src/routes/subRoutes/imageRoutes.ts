@@ -125,6 +125,55 @@ router.post("/api/upload-bom-image-or-file", (req: any, res) => {
     });
 });
 
+
+router.post("/api/upload-supplier-image-or-file", (req: any, res) => {
+    const BOMFOLDER = 'Supplier'
+    upload.single("image")(req, res, async (err: any) => {
+        try {
+            if (err?.code === "LIMIT_FILE_SIZE") {
+                return res.status(400).send({
+                    status: false,
+                    message: "Image size should not exceed 10 MB"
+                });
+            }
+
+            if (!req.file) {
+                return res.status(400).send({
+                    status: false,
+                    message: "No file uploaded"
+                });
+            }
+
+            const file = req.file;
+            const fileKey =
+                `${BOMFOLDER}/IMG-${Date.now()}-${crypto.randomUUID()}-${file.originalname}`;
+
+            await s3.send(
+                new PutObjectCommand({
+                    Bucket: BUCKET,
+                    Key: fileKey,
+                    Body: file.buffer,
+                    ContentType: file.mimetype,
+                })
+            );
+
+            // Public URL format for Synology C2
+            const fileUrl = `https://${BUCKET}.in-maa-1.linodeobjects.com/${fileKey}`;
+
+            res.send({
+                status: true,
+                message: "Uploaded successfully",
+                url: fileUrl,
+                key: fileKey
+            });
+
+        } catch (error) {
+            console.error("Upload Error:", error);
+            res.status(500).send({ status: false, message: "Upload failed" });
+        }
+    });
+});
+
 // ----------------------------------------------------
 // Get Signed URL for Image (10 minutes)
 // ----------------------------------------------------
