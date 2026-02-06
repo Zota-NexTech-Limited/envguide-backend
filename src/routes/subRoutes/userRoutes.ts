@@ -53,6 +53,7 @@ userRoutes.get('/api/get/documentType', userController.getDocumentType)
 
 userRoutes.post('/api/delete/user', authService.authenticate, userController.deleteUserById)
 
+userRoutes.get('/api/users/by-role', userController.getUsersByRole)
 
 
 userRoutes.post("/api/user/download-mfa-qr", async (req, res) => {
