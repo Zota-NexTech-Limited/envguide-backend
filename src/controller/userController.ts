@@ -1704,3 +1704,43 @@ export async function deleteSupplier(req: any, res: any) {
         }
     });
 }
+
+export async function getUsersByRole(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_role } = req.query;
+
+            if (!user_role) {
+                return res.status(400).send(
+                    generateResponse(false, "user_role is required", 400, null)
+                );
+            }
+
+            const roles = user_role
+                .split(',')
+                .map((r: string) => r.trim());
+
+            const query = `
+                SELECT
+                    user_id,
+                    user_name,
+                    user_role
+                FROM users_table
+                WHERE user_role = ANY($1)
+                ORDER BY user_name ASC;
+            `;
+
+            const result = await client.query(query, [roles]);
+
+            return res.status(200).send(
+                generateResponse(true, "Fetched successfully", 200, result.rows)
+            );
+
+        } catch (error: any) {
+            console.error("Error fetching users by role:", error);
+            return res.status(500).send(
+                generateResponse(false, error.message, 500, null)
+            );
+        }
+    });
+}
