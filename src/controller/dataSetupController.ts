@@ -4557,7 +4557,6 @@ export async function getMaterialCompositionMetalType(req: any, res: any) {
 
             const query = `
             SELECT 
-            mcmt.mcmt_id AS mcmt_id,
             mcmt.code AS mcmt_code,
             mcmt.name AS mcmt_name,
             mcmt.description AS mcmt_description,
