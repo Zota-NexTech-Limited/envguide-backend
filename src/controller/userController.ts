@@ -6,13 +6,15 @@ import * as mfaService from "../services/mfaService";
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import * as dotenv from 'dotenv';
-import transporter from '../util/nodemailer'
 import { getLocalIP } from '../server';
 import { getModuleSetting } from './heplerController';
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 
 dotenv.config();
+import { sendMail } from "../util/mailTransporter";
+
+
 export async function signup(req: any, res: any) {
     try {
         const adminObj = {
@@ -105,7 +107,7 @@ export async function login(req: any, res: any) {
         if (!existingSecret) {
             // Generate new MFA secret
             const secret = speakeasy.generateSecret({
-                name: `MyApp (${user_email})`,
+                name: `Enviguide portal (${user_email})`,
             });
 
             if (!secret.otpauth_url) {
@@ -777,22 +779,65 @@ export async function forgotPassword(req: any, res: any) {
             return res.status(400).send(generateResponse(false, 'User with this email does not exist', 400, null));
         }
         const token = generateAccessToken({ user_email: findUser.rows[0].user_email });
-        const resetLink = `https://dev.zotanextech.com/reset-password?token=${token}`;
-        const mailOptions = {
-            to: findUser.rows[0].user_email,
-            from: 'info@zotanextech.com',
-            subject: 'Password Reset',
-            text: `Please use the following reset to reset your password: ${resetLink}`,
-        };
 
-        console.log(mailOptions)
+        const resetLink = `https://enviguide.nextechltd.in/reset-password?token=${token}`;
+        const subject = "Password Reset Request - Enviguide";
 
-        transporter.sendMail(mailOptions, (err, response) => {
-            if (err) {
-                console.error('Error sending email:', err);
-                return res.status(500).send(generateResponse(false, 'Error sending email', 400, null));
-            }
-            res.status(200).send(generateResponse(true, 'Password reset email sent successfully', 200, null));
+        const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${subject}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px;">
+        <p>Hello,</p>
+        
+        <p>We received a request to reset your password for your Enviguide account.</p>
+        
+        <p>Please use the following link to reset your password:</p>
+        
+        <p style="margin: 20px 0;">
+            <a href="${resetLink}" 
+               style="display: inline-block; background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+                Reset Password
+            </a>
+        </p>
+        
+        <p>Or copy and paste this link into your browser:<br>
+           <a href="${resetLink}">${resetLink}</a>
+        </p>
+        
+        <p><strong>Note:</strong> This link will expire in 15 minutes for security reasons.</p>
+        
+        <p>If you did not request a password reset, please ignore this email or contact our support team if you have concerns.</p>
+        
+        <p>Best regards,<br>
+           <strong>Team Enviguide</strong><br>
+        </p>
+    </div>
+    
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <p>This is an automated message from Enviguide. Please do not reply to this email.</p>
+        <p>If you have any questions, please contact our support team at support@enviguide.info</p>
+    </div>
+</body>
+</html>
+        `;
+
+        const to = req.body.user_email;
+
+        await sendMail({
+            to: Array.isArray(to) ? to : [to],
+            subject,
+            html
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset email sent successfully"
         });
 
     } catch (error: any) {
@@ -860,6 +905,139 @@ export async function resetPassword(req: any, res: any) {
         return res.status(400).send(generateResponse(false, error.message, 400, null));
 
 
+    }
+}
+
+function generateAccessTokenForResetPassAndMFA(data: any) {
+    const TOKEN_SECRET: string = process.env.TOKEN_SECRET ?? 'defaultSecret';
+
+    if (TOKEN_SECRET) {
+        // return jwt.sign(data, TOKEN_SECRET);
+        return jwt.sign(data, TOKEN_SECRET, { expiresIn: "15m" });
+    }
+}
+
+export async function forgotMFA(req: any, res: any) {
+    try {
+
+        const findUser = await userService.finduser(req.body.user_email)
+        if (findUser.rows.length === 0) {
+            return res.status(400).send(generateResponse(false, 'User with this email does not exist', 400, null));
+        }
+        const token = generateAccessTokenForResetPassAndMFA({ user_email: findUser.rows[0].user_email });
+        const resetLink = `https://enviguide.nextechltd.in/reset-mfa?token=${token}`;
+        const subject = "Reset Your Enviguide MFA";
+
+        const to = req.body.user_email;
+        const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${subject}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px;">
+        <p>Hello,</p>
+        
+        <p>We received a request to reset your Multi-Factor Authentication (MFA) for your Enviguide account.</p>
+        
+        <p>Please use the following link to reset your MFA settings:</p>
+        
+        <p style="margin: 20px 0;">
+            <a href="${resetLink}" 
+               style="display: inline-block; background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+                Reset MFA
+            </a>
+        </p>
+        
+        <p>Or copy and paste this link into your browser:<br>
+           <a href="${resetLink}">${resetLink}</a>
+        </p>
+        
+        <p><strong>Note:</strong> This link will expire in 15 minutes for security reasons.</p>
+        
+        <p>If you did not request an MFA reset, please ignore this email or contact our support team immediately if you have security concerns.</p>
+        
+        <p>Best regards,<br>
+           <strong>Team Enviguide</strong><br>
+        </p>
+    </div>
+    
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <p>This is an automated message from Enviguide. Please do not reply to this email.</p>
+        <p>If you have any questions, please contact our support team at support@enviguide.info</p>
+    </div>
+</body>
+</html>
+        `;
+
+        await sendMail({
+            to: Array.isArray(to) ? to : [to],
+            subject,
+            html
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "MFA reset email sent successfully"
+        });
+
+    } catch (error: any) {
+
+        console.error('Error:', error);
+        return res.status(400).send(generateResponse(false, error.message, 400, null));
+
+
+    }
+}
+
+export async function resetMFA(req: any, res: any) {
+    try {
+        const { token } = req.body;
+        const TOKEN_SECRET = process.env.TOKEN_SECRET ?? 'defaultSecret';
+
+        if (!token) {
+            return res.status(400).json({ success: false, message: "Token required" });
+        }
+
+        const user: any = jwt.verify(token, TOKEN_SECRET);
+        const findUser = await userService.finduser(user.user_email);
+
+        if (findUser.rows.length === 0) {
+            return res.status(400).send(generateResponse(false, 'User with this email does not exist', 400, null));
+        }
+
+        // Generate new MFA secret
+        const secret = speakeasy.generateSecret({
+            name: `Enviguide portal (${user.user_email})`
+        });
+
+        if (!secret.otpauth_url) {
+            return res.status(500).json({ success: false, message: "Failed to generate OTP URL" });
+        }
+
+        // // Save new MFA secret
+        await mfaService.updateMFASecret(findUser.rows[0].user_id, secret.base32);
+
+        const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+        const localIP = getLocalIP();
+        const is_auto_batch = await getModuleSetting();
+
+        return res.status(200).send(
+            generateResponse(true, "MFA Reset Successful", 200, {
+                qrCode: qrCodeUrl,
+                manualCode: secret.base32,
+                localIP,
+                is_auto_batch,
+                message: "Scan QR or enter manual code to enable MFA again"
+            })
+        );
+
+    } catch (error: any) {
+        console.error('Error:', error);
+        return res.status(400).send(generateResponse(false, error.message, 400, null));
     }
 }
 

@@ -5,6 +5,7 @@ import { withClient } from '../util/database';
 import { ulid } from 'ulid';
 import { sendSupplierTaskEmail } from "../services/taskEmail.service";
 import pLimit from "p-limit";
+import { sendMail } from "../util/mailTransporter";
 
 // need to confirm below update api needed or not
 export async function updateTask(req: any, res: any) {
@@ -707,22 +708,75 @@ export async function deleteTask(req: any, res: any) {
 }
 
 export async function sampleEmailTest(req: any, res: any) {
-    return withClient(async (client: any) => {
-        try {
-            const payload = {
-                email: "chethan@zotanextech.com",
-                bom_pcf_id: "01KADE43VDJRKCMGFTAPYK17M7",
-                bom_id: "01KADE43VDJRKCMGFTAPYK17M7",
-                supplier_id: "01KADE43VDJRKCMGFTAPYK17M7",
-            }
-            sendSupplierTaskEmail(payload);
-        } catch (error) {
-            await client.query("ROLLBACK");
-            console.error("❌ Error in deleteTask:", error);
+    try {
+        const { to, subject } = req.body;
 
-            return res.status(500).json(
-                generateResponse(false, "Failed to delete task", 500, error)
-            );
+        if (!to || !subject) {
+            return res.status(400).json({
+                success: false,
+                message: "to, subject and html are required"
+            });
         }
-    });
+
+        const bom_pcf_id = '123nbb';
+        const supplier_id = '65lko';
+
+        const link = `https://enviguide.nextechltd.in/supplier-questionnaire?bom_pcf_id=${bom_pcf_id}&sup_id=${supplier_id}`;
+
+        const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${subject}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px;">
+        <p>Hello,</p>
+        
+        <p>You have been requested to complete a supplier questionnaire for Enviguide.</p>
+        
+        <p style="margin: 20px 0;">
+            <a href="${link}" 
+               style="display: inline-block; background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+                Complete Supplier Questionnaire
+            </a>
+        </p>
+        
+        <p>Or copy and paste this link into your browser:<br>
+           <a href="${link}">${link}</a>
+        </p>
+        
+        <p>If you have any questions, please contact our support team.</p>
+        
+        <p>Best regards,<br>
+           <strong>Team Enviguide</strong><br>
+      </p>
+    </div>
+    
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <p>This is an automated message from Enviguide. Please do not reply to this email.</p>
+    </div>
+</body>
+</html>
+        `;
+        
+        await sendMail({
+            to: Array.isArray(to) ? to : [to],
+            subject,
+            html
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Email sent successfully"
+        });
+
+    } catch (error: any) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to send email"
+        });
+    }
 }

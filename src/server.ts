@@ -2,6 +2,7 @@
 import express from "express";
 import { createTables } from './models/model'
 import * as dotenv from 'dotenv';
+dotenv.config();
 import cors from 'cors'
 import bodyParser from 'body-parser';
 import { routes } from './routes/routes';
@@ -22,8 +23,6 @@ const socket1 = new Server(httpServer, {
     },
     maxHttpBufferSize: 2e7,
 });
-
-dotenv.config();
 
 
 app.use(cors());

@@ -47,6 +47,10 @@ userRoutes.post('/api/user/forgot/password', userController.forgotPassword)
 
 userRoutes.post('/api/user/reset/password', userController.resetPassword)
 
+userRoutes.post('/api/user/forgot/mfa', userController.forgotMFA)
+
+userRoutes.post('/api/user/reset/mfa', userController.resetMFA)
+
 userRoutes.post('/api/create/documentType', userController.createDocumentType)
 
 userRoutes.get('/api/get/documentType', userController.getDocumentType)
