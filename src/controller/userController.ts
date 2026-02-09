@@ -1589,18 +1589,105 @@ export async function deleteManufacturer(req: any, res: any) {
 }
 
 
+// export async function addSupplierOnboardingForm(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const sup_id = ulid();
+//             const data = req.body;
+
+//             /* ---------- uniqueness check ---------- */
+//             const exists = await client.query(
+//                 `SELECT supplier_email
+//                  FROM supplier_details
+//                  WHERE supplier_email ILIKE $1`,
+//                 [data.supplier_email]
+//             );
+
+//             if (exists.rowCount > 0) {
+//                 return res.send(
+//                     generateResponse(false, "Supplier email already exists", 400, null)
+//                 );
+//             }
+
+//             const keys = Object.keys(data);
+//             const columns = ["sup_id", ...keys];
+//             const placeholders = columns.map((_, i) => `$${i + 1}`);
+
+//             const values = [sup_id, ...keys.map(k => data[k])];
+
+//             const query = `
+//                 INSERT INTO supplier_details (${columns.join(",")})
+//                 VALUES (${placeholders.join(",")})
+//                 RETURNING *;
+//             `;
+
+//             const result = await client.query(query, values);
+
+//             return res.send(
+//                 generateResponse(true, "Supplier created", 200, result.rows[0])
+//             );
+//         } catch (error: any) {
+//             return res.send(generateResponse(false, error.message, 400, null));
+//         }
+//     });
+// }
+
 export async function addSupplierOnboardingForm(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const sup_id = ulid();
-            const data = req.body;
+
+            /* ✅ Allowed fields ONLY */
+            const allowedFields = [
+                "supplier_name",
+                "supplier_email",
+                "supplier_phone_number",
+                "supplier_alternate_phone_number",
+                "supplier_gender",
+                "supplier_date_of_birth",
+                "supplier_image",
+                "supplier_company_logo",
+                "supplier_company_website",
+                "supplier_company_name",
+                "supplier_business_type",
+                "supplier_supplied_categories",
+                "supplier_years_in_business",
+                "supplier_city",
+                "supplier_state",
+                "supplier_country",
+                "supplier_registered_address",
+                "supplier_gst_number",
+                "supplier_pan_number",
+                "supplier_bank_account_number",
+                "supplier_ifsc_code",
+                "supplier_bank_name",
+                "supplier_bank_branch",
+                "supplier_key_automotive_clients",
+                "supplier_business_registration_certificate",
+                "supplier_tax_registration_proof",
+                "supplier_product_catalogue",
+                "supplier_additional_supporting_documents"
+            ];
+
+            /* ✅ Pick only allowed keys */
+            const filteredData: any = {};
+            for (const key of allowedFields) {
+                if (req.body[key] !== undefined) {
+                    filteredData[key] = req.body[key];
+                }
+            }
+
+            /* ❌ Mandatory field check */
+            if (!filteredData.supplier_email) {
+                return res.send(
+                    generateResponse(false, "supplier_email is required", 400, null)
+                );
+            }
 
             /* ---------- uniqueness check ---------- */
             const exists = await client.query(
-                `SELECT supplier_email
-                 FROM supplier_details
-                 WHERE supplier_email ILIKE $1`,
-                [data.supplier_email]
+                `SELECT 1 FROM supplier_details WHERE supplier_email ILIKE $1`,
+                [filteredData.supplier_email]
             );
 
             if (exists.rowCount > 0) {
@@ -1609,11 +1696,11 @@ export async function addSupplierOnboardingForm(req: any, res: any) {
                 );
             }
 
-            const keys = Object.keys(data);
+            /* ---------- Insert ---------- */
+            const keys = Object.keys(filteredData);
             const columns = ["sup_id", ...keys];
             const placeholders = columns.map((_, i) => `$${i + 1}`);
-
-            const values = [sup_id, ...keys.map(k => data[k])];
+            const values = [sup_id, ...keys.map(k => filteredData[k])];
 
             const query = `
                 INSERT INTO supplier_details (${columns.join(",")})
@@ -1627,24 +1714,135 @@ export async function addSupplierOnboardingForm(req: any, res: any) {
                 generateResponse(true, "Supplier created", 200, result.rows[0])
             );
         } catch (error: any) {
-            return res.send(generateResponse(false, error.message, 400, null));
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
         }
     });
 }
+
+// export async function updateSupplierOnboardingForm(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const sup_id = req.body.sup_id;
+//             const data = { ...req.body };
+
+//             delete data.sup_id;
+//             delete data.code;
+
+//             /* ---------- uniqueness check ---------- */
+//             if (data.supplier_email) {
+//                 const exists = await client.query(
+//                     `SELECT sup_id
+//                      FROM supplier_details
+//                      WHERE supplier_email ILIKE $1
+//                        AND sup_id <> $2`,
+//                     [data.supplier_email, sup_id]
+//                 );
+
+//                 if (exists.rowCount > 0) {
+//                     return res.send(
+//                         generateResponse(false, "Supplier email already exists", 400, null)
+//                     );
+//                 }
+//             }
+
+//             const keys = Object.keys(data);
+
+//             if (!keys.length) {
+//                 return res.send(
+//                     generateResponse(false, "No fields to update", 400, null)
+//                 );
+//             }
+
+//             const setClause = keys
+//                 .map((key, i) => `${key} = $${i + 1}`)
+//                 .join(", ");
+
+//             const values = keys.map(k => data[k]);
+
+//             const query = `
+//                 UPDATE supplier_details
+//                 SET ${setClause},
+//                     update_date = CURRENT_TIMESTAMP
+//                 WHERE sup_id = $${keys.length + 1}
+//                 RETURNING *;
+//             `;
+
+//             const result = await client.query(query, [...values, sup_id]);
+
+//             return res.send(
+//                 generateResponse(true, "Supplier updated", 200, result.rows[0])
+//             );
+//         } catch (error: any) {
+//             return res.send(generateResponse(false, error.message, 400, null));
+//         }
+//     });
+// }
 
 export async function updateSupplierOnboardingForm(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const sup_id = req.body.sup_id;
-            const data = { ...req.body };
 
-            delete data.sup_id;
-            delete data.code;
+            if (!sup_id) {
+                return res.send(
+                    generateResponse(false, "sup_id is required", 400, null)
+                );
+            }
+
+            /* ✅ Allowed update fields */
+            const allowedFields = [
+                "supplier_name",
+                "supplier_email",
+                "supplier_phone_number",
+                "supplier_alternate_phone_number",
+                "supplier_gender",
+                "supplier_date_of_birth",
+                "supplier_image",
+                "supplier_company_logo",
+                "supplier_company_website",
+                "supplier_company_name",
+                "supplier_business_type",
+                "supplier_supplied_categories",
+                "supplier_years_in_business",
+                "supplier_city",
+                "supplier_state",
+                "supplier_country",
+                "supplier_registered_address",
+                "supplier_gst_number",
+                "supplier_pan_number",
+                "supplier_bank_account_number",
+                "supplier_ifsc_code",
+                "supplier_bank_name",
+                "supplier_bank_branch",
+                "supplier_key_automotive_clients",
+                "supplier_business_registration_certificate",
+                "supplier_tax_registration_proof",
+                "supplier_product_catalogue",
+                "supplier_additional_supporting_documents"
+            ];
+
+            /* ✅ Pick only allowed fields */
+            const data: any = {};
+            for (const key of allowedFields) {
+                if (req.body[key] !== undefined) {
+                    data[key] = req.body[key];
+                }
+            }
+
+            /* ❌ No valid fields */
+            const keys = Object.keys(data);
+            if (!keys.length) {
+                return res.send(
+                    generateResponse(false, "No valid fields to update", 400, null)
+                );
+            }
 
             /* ---------- uniqueness check ---------- */
             if (data.supplier_email) {
                 const exists = await client.query(
-                    `SELECT sup_id
+                    `SELECT 1
                      FROM supplier_details
                      WHERE supplier_email ILIKE $1
                        AND sup_id <> $2`,
@@ -1658,14 +1856,7 @@ export async function updateSupplierOnboardingForm(req: any, res: any) {
                 }
             }
 
-            const keys = Object.keys(data);
-
-            if (!keys.length) {
-                return res.send(
-                    generateResponse(false, "No fields to update", 400, null)
-                );
-            }
-
+            /* ---------- Update ---------- */
             const setClause = keys
                 .map((key, i) => `${key} = $${i + 1}`)
                 .join(", ");
@@ -1682,11 +1873,19 @@ export async function updateSupplierOnboardingForm(req: any, res: any) {
 
             const result = await client.query(query, [...values, sup_id]);
 
+            if (!result.rowCount) {
+                return res.send(
+                    generateResponse(false, "Supplier not found", 404, null)
+                );
+            }
+
             return res.send(
                 generateResponse(true, "Supplier updated", 200, result.rows[0])
             );
         } catch (error: any) {
-            return res.send(generateResponse(false, error.message, 400, null));
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
         }
     });
 }
