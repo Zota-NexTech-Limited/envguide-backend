@@ -1200,6 +1200,7 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
         // filters
         code,
         request_title,
+        product_name,
         product_category,
         component_category,
         component_type,
@@ -1265,6 +1266,11 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
                 values.push(`%${request_title}%`);
             }
 
+            if (product_name) {
+                conditions.push(`pd.product_name ILIKE $${idx++}`);
+                values.push(`%${product_name}%`);
+            }
+
             if (product_category) {
                 conditions.push(`pc.name ILIKE $${idx++}`);
                 values.push(`%${product_category}%`);
@@ -1306,6 +1312,7 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
       OR cc.name ILIKE $${idx}
       OR ct.name ILIKE $${idx}
       OR m.name ILIKE $${idx}
+      OR pd.product_name ILIKE $${idx}
     )
   `);
                 values.push(`%${search}%`);
@@ -1337,6 +1344,12 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
     pcf.updated_by,
     pcf.update_date,
     pcf.created_date,
+
+    /* ---------- Product Details ---------- */
+    jsonb_build_object(
+        'id', pd.id,
+        'product_name', pd.product_name
+    ) AS product_details,
 
     /* ---------- Product Category ---------- */
     jsonb_build_object(
@@ -1391,6 +1404,7 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
 FROM bom_pcf_request pcf
 
 /* ---------- Master Joins ---------- */
+LEFT JOIN product pd ON pd.product_code = pcf.product_code
 LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
 LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
 LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
