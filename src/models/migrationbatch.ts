@@ -635,7 +635,6 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             supplier_tax_registration_proof TEXT[],
             supplier_product_catalogue TEXT[],
             supplier_additional_supporting_documents TEXT[],
-            supplier_number_of_employees VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
