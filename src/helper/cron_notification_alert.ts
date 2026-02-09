@@ -4,6 +4,7 @@ import nodemailer from "nodemailer";
 import { ulid } from "ulid";
 import { columnConfig } from "../helper/columnConfig ";
 import PDFDocument from 'pdfkit';
+import { sendMail } from "../util/mailTransporter";
 
 
 const operatorMap: Record<string, string> = {
@@ -56,36 +57,36 @@ const transactionTablesMap: Record<string, string[]> = {
 
 
 
-async function sendEmail(to: string[], subject: string, html: string, attachments: any[] = []) {
-  return withClient(async (client: any) => {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: 'smtppro.zoho.in',
-        port: 587,
-        secure: false,
-        auth: {
-          user: 'support@enviguide.info',
-          pass: 'Maaran@7890',
-        },
-        tls: {
-          rejectUnauthorized: false
-        }
-      });
+// async function sendEmail(to: string[], subject: string, html: string, attachments: any[] = []) {
+//   return withClient(async (client: any) => {
+//     try {
+//       const transporter = nodemailer.createTransport({
+//         host: 'smtppro.zoho.in',
+//         port: 587,
+//         secure: false,
+//         auth: {
+//           user: 'support@enviguide.info',
+//           pass: 'Maaran@7890',
+//         },
+//         tls: {
+//           rejectUnauthorized: false
+//         }
+//       });
 
-      await transporter.sendMail({
-        from: "support@enviguide.info",
-        to,
-        subject,
-        // html,
-        // attachments // ✅ Attach PDF if exists
-      });
+//       await transporter.sendMail({
+//         from: "support@enviguide.info",
+//         to,
+//         subject,
+//         // html,
+//         // attachments // ✅ Attach PDF if exists
+//       });
 
-    } catch (error) {
-      console.error("Error sending email:", error);
-      throw new Error("Failed to send email");
-    }
-  });
-}
+//     } catch (error) {
+//       console.error("Error sending email:", error);
+//       throw new Error("Failed to send email");
+//     }
+//   });
+// }
 
 async function generateInvoicePDF(rows: any[], requiredColumns: string[]): Promise<Buffer> {
 
@@ -226,8 +227,13 @@ export async function scheduleNotifications() {
         if (tables.length === 0) return console.warn(`No tables provided for ntf_id=${ntf_id}`);
 
         const mainTableMap: Record<string, { main: string; joinKey: string }> = {
-          "Visitor": { main: "visitor", joinKey: "visitor_id" },
-          "Govt ids": { main: "govt_id_type", joinKey: "govt_id_type_id" },
+          "Own Emission": { main: "own_emission", joinKey: "id" },
+          "Product": { main: "product", joinKey: "id" },
+          "Bom Pcf Request": { main: "bom_pcf_request", joinKey: "id" },
+          "Bom Pcf Request Product Specification": { main: "bom_pcf_request_product_specification", joinKey: "id" },
+          "Bom": { main: "bom", joinKey: "id" },
+          "Task Managment": { main: "task_managment", joinKey: "id" },
+          "PCF Bom Comments": { main: "pcf_bom_comments", joinKey: "id" },
         };
 
         const joinInfo = mainTableMap[transaction_type];
@@ -391,7 +397,14 @@ export async function scheduleNotifications() {
                   const detailsHtml = buildEmailHtmlFromRows(rows, requiredColumns, tables);
                   finalHtml += `<p><strong>Details:</strong></p>${detailsHtml}`;
                 }
-                await sendEmail(emailsToSend, subject, finalHtml, attachmentsArray);
+
+                await sendMail({
+                  to: Array.isArray(emailsToSend) ? emailsToSend : [emailsToSend],
+                  subject: subject,
+                  html: finalHtml
+                });
+
+                // await sendEmail(emailsToSend, subject, finalHtml, attachmentsArray);
 
                 const nth_id = ulid();
                 await client.query(`INSERT INTO notification_triggered_history (nth_id, ntf_id, status) VALUES ($1, $2, $3)`, [
@@ -1159,7 +1172,14 @@ export async function sendNotificationImmediate(ntf_id: string) {
         const detailsHtml = buildEmailHtmlFromRows(rows, requiredColumns, tables);
         finalHtml += `<p><strong>Details:</strong></p>${detailsHtml}`;
       }
-      await sendEmail(emailsToSend, subject, finalHtml, attachmentsArray);
+
+      await sendMail({
+        to: Array.isArray(emailsToSend) ? emailsToSend : [emailsToSend],
+        subject: subject,
+        html: finalHtml
+      });
+
+
 
       const nth_id = ulid();
       await client.query(
@@ -1433,7 +1453,13 @@ export async function sendNotificationSqlQueryImmediate(ntf_id: string) {
         finalHtml += `<p><strong>Details:</strong></p>${detailsHtml}`;
       }
 
-      await sendEmail(emailsToSend, subject, finalHtml, attachmentsArray);
+      await sendMail({
+        to: Array.isArray(emailsToSend) ? emailsToSend : [emailsToSend],
+        subject: subject,
+        html: finalHtml
+      });
+
+      // await sendEmail(emailsToSend, subject, finalHtml, attachmentsArray);
 
       const nth_id = ulid();
       await client.query(
@@ -1689,7 +1715,12 @@ export async function scheduleSqlQueryNotifications() {
                 finalHtml += `<p><strong>Details:</strong></p>${detailsHtml}`;
               }
 
-              await sendEmail(emailsToSend, subject, finalHtml, attachmentsArray);
+              // await sendEmail(emailsToSend, subject, finalHtml, attachmentsArray);
+              await sendMail({
+                to: Array.isArray(emailsToSend) ? emailsToSend : [emailsToSend],
+                subject: subject,
+                html: finalHtml
+              });
 
               const nth_id = ulid();
               await client.query(
