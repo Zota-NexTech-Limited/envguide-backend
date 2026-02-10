@@ -398,7 +398,8 @@ export async function getTaskList(req: any, res: any) {
         pageNumber = 1,
         pageSize = 20,
         priority,
-        category
+        category,
+        assignee,
     } = req.query;
 
     const page = pageNumber;
@@ -418,9 +419,29 @@ export async function getTaskList(req: any, res: any) {
             }
 
             if (category) {
-                filters.push(`t.category_id = $${idx++}`);
+                filters.push(`c.name = $${idx++}`);
                 values.push(category);
             }
+console.log(assignee,"ppppppp");
+
+
+           if (assignee) {
+    const assignees = Array.isArray(assignee) 
+        ? assignee 
+        : assignee.split(',').map((s:any )=> s.trim());
+
+    filters.push(`
+        EXISTS (
+            SELECT 1
+            FROM supplier_details s
+            WHERE s.sup_id = ANY(t.assign_to)
+            AND s.supplier_name = ANY($${idx})
+        )
+    `);
+
+    values.push(assignees);
+    idx++;
+}
 
             const whereClause = filters.length
                 ? `WHERE ${filters.join(" AND ")}`
@@ -511,8 +532,7 @@ export async function getTaskList(req: any, res: any) {
             /* TOTAL COUNT */
             const countQuery = `
                 SELECT COUNT(*) AS total
-                FROM task_managment t
-                ${whereClause};
+                FROM task_managment t;
             `;
 
             const countResult = await client.query(
@@ -707,6 +727,31 @@ export async function deleteTask(req: any, res: any) {
     });
 }
 
+export async function getSupplierDropDown(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+
+
+            const listQuery = `
+            SELECT i.sup_id ,
+             i.code ,
+              i.supplier_name,
+              i.supplier_email 
+            FROM supplier_details i
+            WHERE i.supplier_name IS NOT NULL
+        `;
+
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+
 export async function sampleEmailTest(req: any, res: any) {
     try {
         const { to, subject } = req.body;
@@ -761,7 +806,7 @@ export async function sampleEmailTest(req: any, res: any) {
 </body>
 </html>
         `;
-        
+
         await sendMail({
             to: Array.isArray(to) ? to : [to],
             subject,
