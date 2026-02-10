@@ -73,7 +73,7 @@ export async function getPCFListDropDown(req: any, res: any) {
                     p.is_client,
                     p.client_id
                 FROM bom_pcf_request p
-                WHERE p.is_task_created = FALSE
+                WHERE p.is_task_created = FALSE AND p.is_approved = TRUE
                 ORDER BY p.created_date DESC;
             `;
 
@@ -422,15 +422,15 @@ export async function getTaskList(req: any, res: any) {
                 filters.push(`c.name = $${idx++}`);
                 values.push(category);
             }
-console.log(assignee,"ppppppp");
+            console.log(assignee, "ppppppp");
 
 
-           if (assignee) {
-    const assignees = Array.isArray(assignee) 
-        ? assignee 
-        : assignee.split(',').map((s:any )=> s.trim());
+            if (assignee) {
+                const assignees = Array.isArray(assignee)
+                    ? assignee
+                    : assignee.split(',').map((s: any) => s.trim());
 
-    filters.push(`
+                filters.push(`
         EXISTS (
             SELECT 1
             FROM supplier_details s
@@ -439,9 +439,9 @@ console.log(assignee,"ppppppp");
         )
     `);
 
-    values.push(assignees);
-    idx++;
-}
+                values.push(assignees);
+                idx++;
+            }
 
             const whereClause = filters.length
                 ? `WHERE ${filters.join(" AND ")}`
