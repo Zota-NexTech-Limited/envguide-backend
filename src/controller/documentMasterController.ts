@@ -559,6 +559,12 @@ export async function getDocumentMasterList(req: any, res: any) {
             const values: any[] = [];
             let idx = 1;
 
+
+            let countWhere = '';
+            const countValues: any[] = [];
+            let statsWhere = '';
+            const statsValues: any[] = [];
+
             /* ---------- BASE CONDITIONS ---------- */
             // need calrification is_bom_calculated above only need to show calculated one or not
 
@@ -593,6 +599,19 @@ export async function getDocumentMasterList(req: any, res: any) {
                         values.push(req.user_id);
                         idx++;
                     }
+
+                    if (!isSuperAdmin) {
+                        countWhere = 'WHERE pcf.created_by = $1';
+                        countValues.push(req.user_id);
+                    }
+
+
+
+                    if (!isSuperAdmin) {
+                        statsWhere = 'WHERE pcf.created_by = $1';
+                        statsValues.push(req.user_id);
+                    }
+
                     // If super admin, no filter is applied - they see all data
                 }
             }
@@ -765,24 +784,23 @@ LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
 LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
 LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
-WHERE pcf.is_task_created = TRUE AND pcf.created_by =$1;
+WHERE pcf.is_task_created = TRUE
+${statsWhere};
 `;
 
 
-            const statsResult = await client.query(statsQuery, [req.user_id]);
+            const statsResult = await client.query(statsQuery, statsValues);
 
             const stats = statsResult.rows[0];
 
             const countQuery = `
                 SELECT COUNT(*) AS total
                 FROM bom_pcf_request t
-                WHERE t.is_task_created = TRUE AND t.created_by =$1;
-            `;
+                WHERE t.is_task_created = TRUE
+            ${countWhere};
+`;
 
-            const countResult = await client.query(
-                countQuery,
-                [req.user_id]
-            );
+            const countResult = await client.query(countQuery, countValues);
 
             const total = Number(countResult.rows[0].total);
 

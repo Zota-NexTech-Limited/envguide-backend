@@ -1227,6 +1227,11 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
 
             const userId = req.user_id;
 
+            let countWhere = '';
+            const countValues: any[] = [];
+            let statsWhere = '';
+            const statsValues: any[] = [];
+
             /* ---------- USER FILTER ---------- */
             // if (userId) {
             //     conditions.push(`pcf.created_by = $${idx++}`);
@@ -1256,6 +1261,17 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
                         values.push(req.user_id);
                         idx++;
                     }
+
+                    if (!isSuperAdmin) {
+                        countWhere = 'WHERE pcf.created_by = $1';
+                        countValues.push(req.user_id);
+                    }
+
+                    if (!isSuperAdmin) {
+                        statsWhere = 'WHERE pcf.created_by = $1';
+                        statsValues.push(req.user_id);
+                    }
+
                     // If super admin, no filter is applied - they see all data
                 }
             }
@@ -1467,10 +1483,10 @@ WHERE 1=1
             const countQuery = `
     SELECT COUNT(*) AS total
     FROM bom_pcf_request pcf
-    WHERE pcf.created_by = $1
+    ${countWhere};
 `;
 
-            const countResult = await client.query(countQuery, [userId]);
+            const countResult = await client.query(countQuery, countValues);
 
             const total = Number(countResult.rows[0].total);
 
@@ -1511,11 +1527,11 @@ LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
 LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
 LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
-WHERE pcf.created_by = $1
+${statsWhere};
 `;
 
 
-            const statsResult = await client.query(statsQuery, [userId]);
+            const statsResult = await client.query(statsQuery, statsValues);
 
             const stats = statsResult.rows[0];
 
