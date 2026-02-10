@@ -535,10 +535,10 @@ export async function getComponnetMasterList(req: any, res: any) {
         'update_date',    pcf.update_date,
 
             /* ---------- Product Details ---------- */
-    jsonb_build_object(
+    'product_details', jsonb_build_object(
         'id', pd.id,
         'product_name', pd.product_name
-    ) AS product_details,
+    ),
 
         'product_category', jsonb_build_object(
             'id', pc.id, 'code', pc.code, 'name', pc.name
@@ -668,8 +668,8 @@ LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by;
             ===================================================== */
             const statsQuery = `
 SELECT
-    COUNT(*) FILTER (WHERE pcf.status IN ('Completed')) AS completed_count,
-    COUNT(*) FILTER (WHERE pcf.status IN ('Approved')) AS approved_count,
+    COUNT(*) FILTER (WHERE pcf.status = 'Completed') AS completed_count,
+    COUNT(*) FILTER (WHERE pcf.status = 'Approved') AS approved_count,
     COUNT(*) FILTER (WHERE pcf.status = 'In Progress') AS in_progress_count,
     COUNT(*) FILTER (WHERE pcf.status = 'Rejected') AS rejected_count,
     COUNT(*) FILTER (WHERE pcf.is_draft = TRUE) AS draft_count,
