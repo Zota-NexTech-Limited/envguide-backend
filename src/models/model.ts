@@ -576,6 +576,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             client_id VARCHAR(255),
             own_emission_id VARCHAR(255),
             is_submitted BOOLEAN DEFAULT FALSE,
+            is_question_clicked BOOLEAN DEFAULT FALSE,
             completed_date TIMESTAMPTZ,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

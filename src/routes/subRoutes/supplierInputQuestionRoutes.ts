@@ -10,5 +10,6 @@ Routes.post('/api/update-supplier-input-questions', authService.authenticate, Co
 Routes.get('/api/supplier/material-composition-metal-dropdown', authService.authenticate, Controller.getMaterialCompositionMetal);
 Routes.get('/api/supplier/material-composition-metal-type-dropdown', authService.authenticate, Controller.getMaterialCompositionMetalType);
 Routes.get('/api/supplier/auto-populate-bom-details', Controller.getPCFBOMListToAutoPop);
+Routes.post('/api/supplier/update-data-collection-question-stage', Controller.updatePcfBomSupplierQuestionClickedStatus);
 
 export default Routes;
