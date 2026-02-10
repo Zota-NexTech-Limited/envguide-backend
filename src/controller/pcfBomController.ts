@@ -1228,9 +1228,36 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
             const userId = req.user_id;
 
             /* ---------- USER FILTER ---------- */
-            if (userId) {
-                conditions.push(`pcf.created_by = $${idx++}`);
-                values.push(userId);
+            // if (userId) {
+            //     conditions.push(`pcf.created_by = $${idx++}`);
+            //     values.push(userId);
+            // }
+            if (req.user_id) {
+                // First, check the user's role
+                const userRoleQuery = `
+        SELECT user_role 
+        FROM users_table 
+        WHERE user_id = $1
+    `;
+
+                const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
+
+                if (userRoleResult.rows.length > 0) {
+                    const userRole = userRoleResult.rows[0].user_role;
+
+                    // Only apply created_by filter if user is NOT a super admin
+                    const isSuperAdmin = userRole && (
+                        userRole.toLowerCase() === 'superadmin' ||
+                        userRole.toLowerCase() === 'super admin'
+                    );
+
+                    if (!isSuperAdmin) {
+                        conditions.push(`pcf.created_by = $${idx}`);
+                        values.push(req.user_id);
+                        idx++;
+                    }
+                    // If super admin, no filter is applied - they see all data
+                }
             }
 
             /* ---------- BOOLEAN FILTERS ---------- */
@@ -2490,6 +2517,15 @@ export async function updatePcfRequestWithBOMDetails(req: any, res: any) {
             `;
 
                 await client.query(updateStatus, [bomPcfId, 'Draft']);
+            } else {
+                const updateStatus = `
+                UPDATE bom_pcf_request
+                SET
+                    status = $2
+                WHERE id = $1
+            `;
+
+                await client.query(updateStatus, [bomPcfId, 'Open']);
             }
 
             /* --------------------------------------------------
