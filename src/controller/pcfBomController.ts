@@ -1479,8 +1479,11 @@ SELECT
     COUNT(*) AS total_pcf_count,
 
     COUNT(*) FILTER (
+        WHERE  pcf.status ='Completed'
+    ) AS completed_count,
+
+    COUNT(*) FILTER (
         WHERE pcf.status = 'Approved'
-        OR pcf.status ='Submitted'
     ) AS approved_count,
 
     COUNT(*) FILTER (
@@ -2517,7 +2520,7 @@ export async function updatePcfRequestWithBOMDetails(req: any, res: any) {
             `;
 
                 await client.query(updateStatus, [bomPcfId, 'Draft']);
-            } 
+            }
             else if (bom_pcf_request.is_draft === false) {
                 const updateStatus = `
                 UPDATE bom_pcf_request
@@ -3881,7 +3884,7 @@ export async function submitPcfRequestInternal(req: any, res: any) {
             const pcfResult = await client.query(
                 `
                 UPDATE bom_pcf_request
-                SET status = 'Submitted'
+                SET status = 'Completed'
                 WHERE id = $1
                   AND own_emission_id IS NULL
                 RETURNING id
@@ -3948,7 +3951,7 @@ export async function submitPcfRequestClient(req: any, res: any) {
             const pcfResult = await client.query(
                 `
                 UPDATE bom_pcf_request
-                SET status = 'Submitted'
+                SET status = 'Completed'
                 WHERE id = $1
                   AND own_emission_id IS NOT NULL
                 RETURNING id

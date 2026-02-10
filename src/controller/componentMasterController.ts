@@ -668,7 +668,8 @@ LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by;
             ===================================================== */
             const statsQuery = `
 SELECT
-    COUNT(*) FILTER (WHERE pcf.status IN ('Approved','Submitted')) AS approved_count,
+    COUNT(*) FILTER (WHERE pcf.status IN ('Completed')) AS completed_count,
+    COUNT(*) FILTER (WHERE pcf.status IN ('Approved')) AS approved_count,
     COUNT(*) FILTER (WHERE pcf.status = 'In Progress') AS in_progress_count,
     COUNT(*) FILTER (WHERE pcf.status = 'Rejected') AS rejected_count,
     COUNT(*) FILTER (WHERE pcf.is_draft = TRUE) AS draft_count,
