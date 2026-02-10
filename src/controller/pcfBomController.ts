@@ -2517,7 +2517,8 @@ export async function updatePcfRequestWithBOMDetails(req: any, res: any) {
             `;
 
                 await client.query(updateStatus, [bomPcfId, 'Draft']);
-            } else {
+            } 
+            else if (bom_pcf_request.is_draft === false) {
                 const updateStatus = `
                 UPDATE bom_pcf_request
                 SET
