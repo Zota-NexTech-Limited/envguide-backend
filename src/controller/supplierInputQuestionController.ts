@@ -2668,13 +2668,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 }
             });
 
-            return [woppw_id, stoie_id, w.bom_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type,annual_reporting_period];
+            return [woppw_id, stoie_id, w.bom_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_pro_packaging_waste_questions',
-            ['woppw_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type','annual_reporting_period'],
+            ['woppw_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type', 'annual_reporting_period'],
             rows
         ));
 
@@ -3434,6 +3434,51 @@ export async function getPCFBOMListToAutoPop(req: any, res: any) {
             return res.status(500).json(
                 generateResponse(false, "Something went wrong", 500, error.message)
             );
+        }
+    });
+}
+
+export async function updatePcfBomSupplierQuestionClickedStatus(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id, sup_id } = req.body;
+
+            // Validate input
+            if (!bom_pcf_id || !sup_id) {
+                return res.send(generateResponse(false, "bom_pcf_id and sup_id is required", 400, null));
+            }
+
+            const is_question_clicked = true;
+
+            const updateDataStage = `
+                UPDATE pcf_request_data_collection_stage
+                SET 
+                    is_question_clicked = $1
+                WHERE bom_pcf_id = $2 AND sup_id =$3
+                RETURNING *;
+            `;
+
+            await client.query(updateDataStage, [is_question_clicked, bom_pcf_id, sup_id]);
+
+            const task_status = 'In Progress';
+            const updateTaskStatus = `
+                UPDATE task_managment
+                SET 
+                    status = $1
+                WHERE bom_pcf_id = $2
+                RETURNING *;
+            `;
+
+            await client.query(updateTaskStatus, [task_status, bom_pcf_id]);
+
+            // Success
+            return res.send(
+                generateResponse(true, "BOM PCF Supplier question clicked successfully", 200, "success")
+            );
+
+        } catch (error: any) {
+            console.error("❌ Error in updateBomRejectionStatus:", error.message);
+            return res.send(generateResponse(false, error.message, 400, null));
         }
     });
 }

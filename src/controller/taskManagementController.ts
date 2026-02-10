@@ -183,10 +183,11 @@ export async function createTask(req: any, res: any) {
                     estimated_hour,
                     tags,
                     attachments,
-                    created_by
+                    created_by,
+                    status
                 )
                 VALUES (
-                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
                 )
                 RETURNING *;
             `;
@@ -204,7 +205,8 @@ export async function createTask(req: any, res: any) {
                 estimated_hour,
                 tags,
                 attachments,
-                created_by
+                created_by,
+                "To-Do"
             ]);
 
             /* FETCH SUPPLIER EMAILS FROM assign_to */
@@ -542,6 +544,32 @@ export async function getTaskList(req: any, res: any) {
 
             const total = Number(countResult.rows[0].total);
 
+            // first checking data collection stage if all submitted then make status as completed
+            const autoCompleteQuery = `
+UPDATE task_managment t
+SET status = 'Completed'
+WHERE t.bom_pcf_id IN (
+    SELECT p.bom_pcf_id
+    FROM pcf_request_data_collection_stage p
+    WHERE p.own_emission_id IS NULL
+    GROUP BY p.bom_pcf_id
+    HAVING BOOL_AND(p.is_submitted = TRUE)
+);
+`;
+
+            await client.query(autoCompleteQuery);
+
+            const statsQuery = `
+    SELECT
+        COUNT(*) FILTER (WHERE status = 'To-Do') AS to_do_count,
+        COUNT(*) FILTER (WHERE status = 'In Progress') AS inprogress_count,
+        COUNT(*) FILTER (WHERE status = 'Completed') AS completed_count
+    FROM task_managment;
+`;
+
+            const statsResult = await client.query(statsQuery);
+            const stats = statsResult.rows[0];
+
             return res.status(200).json(
                 generateResponse(true, "Fetched successfully", 200, {
                     data: result.rows,
@@ -550,7 +578,8 @@ export async function getTaskList(req: any, res: any) {
                         page: Number(page),
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
-                    }
+                    },
+                    stats: stats
                 })
             );
 
