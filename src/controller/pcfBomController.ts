@@ -2286,6 +2286,33 @@ export async function updateBomVerificationStatus(req: any, res: any) {
 
             const user_id = req.user_id;
 
+
+            if (req.user_id) {
+                // First, check the user's role
+                const userRoleQuery = `
+        SELECT user_role 
+        FROM users_table 
+        WHERE user_id = $1
+    `;
+
+                const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
+
+                if (userRoleResult.rows.length > 0) {
+                    const userRole = userRoleResult.rows[0].user_role;
+
+
+                    const isManufacturer = userRole && (
+                        userRole.toLowerCase() === 'manufacturer'
+                    );
+
+                    if (isManufacturer) {
+                        return res.send(generateResponse(false, "You are not authorized person to approve. Please contact support team", 400, null));
+                    }
+
+                    // If super admin, no filter is applied - they see all data
+                }
+            }
+
             // Validate input
             if (!bom_pcf_id) {
                 return res.send(generateResponse(false, "bom_pcf_id is required", 400, null));
@@ -3886,6 +3913,32 @@ export async function submitPcfRequestInternal(req: any, res: any) {
         try {
             const { bom_pcf_id } = req.body;
             const userId = req.user_id;
+
+            if (req.user_id) {
+                // First, check the user's role
+                const userRoleQuery = `
+        SELECT user_role 
+        FROM users_table 
+        WHERE user_id = $1
+    `;
+
+                const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
+
+                if (userRoleResult.rows.length > 0) {
+                    const userRole = userRoleResult.rows[0].user_role;
+
+
+                    const isManufacturer = userRole && (
+                        userRole.toLowerCase() === 'manufacturer'
+                    );
+
+                    if (isManufacturer) {
+                        return res.send(generateResponse(false, "You are not authorized person to approve. Please contact support team", 400, null));
+                    }
+
+                    // If super admin, no filter is applied - they see all data
+                }
+            }
 
             if (!bom_pcf_id) {
                 return res.status(400).send({
