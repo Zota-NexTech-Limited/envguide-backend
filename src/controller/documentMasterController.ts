@@ -564,10 +564,37 @@ export async function getDocumentMasterList(req: any, res: any) {
 
             whereConditions.push(`pcf.is_task_created = TRUE`);
 
-             if (req.user_id) {
-                whereConditions.push(`pcf.created_by = $${idx}`);
-                values.push(req.user_id);
-                idx++;
+            //  if (req.user_id) {
+            //     whereConditions.push(`pcf.created_by = $${idx}`);
+            //     values.push(req.user_id);
+            //     idx++;
+            // }
+            if (req.user_id) {
+                // First, check the user's role
+                const userRoleQuery = `
+        SELECT user_role 
+        FROM users_table 
+        WHERE user_id = $1
+    `;
+
+                const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
+
+                if (userRoleResult.rows.length > 0) {
+                    const userRole = userRoleResult.rows[0].user_role;
+
+                    // Only apply created_by filter if user is NOT a super admin
+                    const isSuperAdmin = userRole && (
+                        userRole.toLowerCase() === 'superadmin' ||
+                        userRole.toLowerCase() === 'super admin'
+                    );
+
+                    if (!isSuperAdmin) {
+                        whereConditions.push(`pcf.created_by = $${idx}`);
+                        values.push(req.user_id);
+                        idx++;
+                    }
+                    // If super admin, no filter is applied - they see all data
+                }
             }
 
             // whereConditions.push(`
@@ -751,7 +778,7 @@ WHERE pcf.is_task_created = TRUE AND pcf.created_by =$1;
 
             const countResult = await client.query(
                 countQuery,
-                 [req.user_id]
+                [req.user_id]
             );
 
             const total = Number(countResult.rows[0].total);
