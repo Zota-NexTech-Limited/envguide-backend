@@ -383,7 +383,7 @@ export async function getComponnetMasterList(req: any, res: any) {
             //     idx++;
 
             // }
-               if (req.user_id) {
+            if (req.user_id) {
                 // First, check the user's role
                 const userRoleQuery = `
         SELECT user_role 
@@ -429,7 +429,7 @@ export async function getComponnetMasterList(req: any, res: any) {
                 idx += 2;
             }
 
-             if (bom_code) {
+            if (bom_code) {
                 whereConditions.push(`b.code = $${idx}`);
                 values.push(bom_code);
                 idx++;
@@ -534,6 +534,12 @@ export async function getComponnetMasterList(req: any, res: any) {
         'created_date', pcf.created_date,
         'update_date',    pcf.update_date,
 
+            /* ---------- Product Details ---------- */
+    jsonb_build_object(
+        'id', pd.id,
+        'product_name', pd.product_name
+    ) AS product_details,
+
         'product_category', jsonb_build_object(
             'id', pc.id, 'code', pc.code, 'name', pc.name
         ),
@@ -598,6 +604,7 @@ export async function getComponnetMasterList(req: any, res: any) {
 FROM bom b
 JOIN bom_pcf_request pcf ON pcf.id = b.bom_pcf_id AND pcf.is_task_created = TRUE
 
+LEFT JOIN product pd ON pd.product_code = pcf.product_code
 LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
 LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
 LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
