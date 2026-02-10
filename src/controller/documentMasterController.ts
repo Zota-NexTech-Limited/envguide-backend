@@ -733,8 +733,11 @@ SELECT
     COUNT(*) AS total_pcf_count,
 
     COUNT(*) FILTER (
+        WHERE  pcf.status ='Completed'
+    ) AS completed_count,
+
+    COUNT(*) FILTER (
         WHERE pcf.status = 'Approved'
-        OR pcf.status ='Submitted'
     ) AS approved_count,
 
     COUNT(*) FILTER (
