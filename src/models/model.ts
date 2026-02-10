@@ -2888,6 +2888,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             model VARCHAR(255),
             year VARCHAR(255),
             number VARCHAR(255),
+            description text,
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
