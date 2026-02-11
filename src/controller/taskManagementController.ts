@@ -532,17 +532,29 @@ export async function getTaskList(req: any, res: any) {
             const result = await client.query(query, values);
 
             /* TOTAL COUNT */
+            const countValuesForQuery = values.slice(0, values.length - 2);
+
             const countQuery = `
-                SELECT COUNT(*) AS total
+    SELECT COUNT(*) AS total
+    FROM task_managment t
+    LEFT JOIN category c
+        ON c.id = t.category_id
+    ${whereClause};
+`;
+
+            const countResult = await client.query(countQuery, countValuesForQuery);
+
+            const total = Number(countResult.rows[0].total);
+            const TotalRecordscountQuery = `
+                SELECT COUNT(*) AS total_records
                 FROM task_managment t;
             `;
 
-            const countResult = await client.query(
-                countQuery
-                // values.slice(0, values.length - 2)
+            const TotalcountResult = await client.query(
+                TotalRecordscountQuery
             );
 
-            const total = Number(countResult.rows[0].total);
+            const total_records = Number(TotalcountResult.rows[0].total_records);
 
             // first checking data collection stage if all submitted then make status as completed
             const autoCompleteQuery = `
@@ -579,6 +591,7 @@ WHERE t.bom_pcf_id IN (
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
                     },
+                    total_records:total_records,
                     stats: stats
                 })
             );

@@ -600,18 +600,16 @@ export async function getDocumentMasterList(req: any, res: any) {
                         idx++;
                     }
 
-                    if (!isSuperAdmin) {
-                        countWhere = 'WHERE pcf.created_by = $1';
+                    if (isSuperAdmin) {
+                        countWhere = 'WHERE pcf.is_task_created = TRUE';
+                        statsWhere = 'WHERE pcf.is_task_created = TRUE';
+
+                    } else {
+                        countWhere = 'WHERE pcf.created_by = $1 AND pcf.is_task_created = TRUE';
                         countValues.push(req.user_id);
-                    }
-
-
-
-                    if (!isSuperAdmin) {
-                        statsWhere = 'WHERE pcf.created_by = $1';
+                        statsWhere = 'WHERE pcf.created_by = $1 AND pcf.is_task_created = TRUE';
                         statsValues.push(req.user_id);
                     }
-
                     // If super admin, no filter is applied - they see all data
                 }
             }
@@ -784,26 +782,50 @@ LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
 LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
 LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
-WHERE pcf.is_task_created = TRUE
-${statsWhere};
+${statsWhere}
 `;
-
 
             const statsResult = await client.query(statsQuery, statsValues);
 
             const stats = statsResult.rows[0];
 
+            //             const countQuery = `
+            //                 SELECT COUNT(*) AS total
+            //                 FROM bom_pcf_request t
+            //                 WHERE t.is_task_created = TRUE AND t.created_by =$1;
+            //             ${countWhere};
+            // `;
+
+            //             const countResult = await client.query(countQuery, countValues);
+            const countValuesForQuery = values.slice(0, values.length - 2);
+
             const countQuery = `
-                SELECT COUNT(*) AS total
-                FROM bom_pcf_request t
-                WHERE t.is_task_created = TRUE
-            ${countWhere};
+    SELECT COUNT(*) AS total
+    FROM bom_pcf_request pcf
+    LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
+    LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
+    LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
+    LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
+    LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
+    LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
+    ${whereClause};
 `;
 
-            const countResult = await client.query(countQuery, countValues);
+            const countResult = await client.query(countQuery, countValuesForQuery);
 
             const total = Number(countResult.rows[0].total);
 
+            const totalcountQuery = `
+                            SELECT COUNT(*) AS total_records
+                            FROM bom_pcf_request pcf
+                        ${countWhere};
+            `;
+
+            const TotalcountResult = await client.query(
+                totalcountQuery, countValues
+            );
+
+            const total_records = Number(TotalcountResult.rows[0].total_records);
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
@@ -817,6 +839,7 @@ ${statsWhere};
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
                     },
+                    total_records: total_records,
                     stats: stats
                 })
             );
