@@ -294,4 +294,20 @@ Routes.post('/api/master-data-setup/discharge-destination/bulk/add', authService
 Routes.post('/api/master-data-setup/discharge-destination/delete', authService.authenticate, Controller.deleteDischargeDestination);
 Routes.get('/api/master-data-setup/discharge-destination/drop-down-list', Controller.getDischargeDestinationDropDownList);
 
+// QCEquipmentUnit
+Routes.post('/api/master-data-setup/qc-equipment/add', authService.authenticate, Controller.addQCEquipmentUnit);
+Routes.post('/api/master-data-setup/qc-equipment/update', authService.authenticate, Controller.updateQCEquipmentUnit);
+Routes.get('/api/master-data-setup/qc-equipment/list/search', authService.authenticate, Controller.getQCEquipmentUnitListSearch);
+Routes.post('/api/master-data-setup/qc-equipment/bulk/add', authService.authenticate, Controller.QCEquipmentUnitDataSetup);
+Routes.post('/api/master-data-setup/qc-equipment/delete', authService.authenticate, Controller.deleteQCEquipmentUnit);
+Routes.get('/api/master-data-setup/qc-equipment/drop-down-list', Controller.getQCEquipmentUnitDropDownnList);
+
+// PackgingUnit
+Routes.post('/api/master-data-setup/packing-unit/add', authService.authenticate, Controller.addPackgingUnit);
+Routes.post('/api/master-data-setup/packing-unit/update', authService.authenticate, Controller.updatePackgingUnit);
+Routes.get('/api/master-data-setup/packing-unit/list/search', authService.authenticate, Controller.getPackgingUnitListSearch);
+Routes.post('/api/master-data-setup/packing-unit/bulk/add', authService.authenticate, Controller.PackgingUnitDataSetup);
+Routes.post('/api/master-data-setup/packing-unit/delete', authService.authenticate, Controller.deletePackgingUnit);
+Routes.get('/api/master-data-setup/packing-unit/drop-down-list', Controller.getPackgingUnitDropDownnList);
+
 export default Routes;
