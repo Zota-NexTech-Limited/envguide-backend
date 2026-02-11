@@ -1182,30 +1182,6 @@ export async function deletePackingTreatmentType(req: any, res: any) {
     })
 }
 
-export async function getFuelFuelTypeDropDownnList(req: any, res: any) {
-    return withClient(async (client: any) => {
-        try {
-            const listQuery = `
-                SELECT
-                    fuel.ft_id,
-                    CONCAT(fuel.name, ' - ', fuelt.name) AS combined_name
-                FROM fuel_types fuel
-                INNER JOIN sub_fuel_types fuelt
-                    ON fuelt.ft_id = fuel.ft_id
-                ORDER BY fuel.created_date ASC;
-            `;
-
-            const listResult = await client.query(listQuery);
-
-            return res.send(
-                generateResponse(true, "List fetched successfully", 200, listResult.rows)
-            );
-        } catch (error: any) {
-            return res.send(generateResponse(false, error.message, 400, null));
-        }
-    });
-}
-
 ///Packaging Emission Factor
 export async function addPackagingEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
