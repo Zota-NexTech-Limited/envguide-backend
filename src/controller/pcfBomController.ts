@@ -1517,7 +1517,7 @@ WHERE 1=1
             );
 
             const total = Number(countResult.rows[0].total);
-            
+
             const totalcountQuery = `
                 SELECT COUNT(*) AS total_records
                 FROM bom_pcf_request pcf
@@ -1571,7 +1571,7 @@ ${statsWhere};
 `;
 
 
-console.log(statsWhere,"statsWherestatsWhere");
+            console.log(statsWhere, "statsWherestatsWhere");
 
             const statsResult = await client.query(statsQuery, statsValues);
 
@@ -3520,9 +3520,12 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.id]);
 
-                    if (Q15Result.bom_id === fetchQ61PcakingTypeProductResult.rows[0].bom_id) {
-                        packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type
+                    if (Q15Result && fetchQ61PcakingTypeProductResult.rows[0]) {
+                        if (Q15Result.bom_id === fetchQ61PcakingTypeProductResult.rows[0].bom_id) {
+                            packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type
+                        }
                     }
+
 
                     const fetchQ61PcakingWeight = `
                         SELECT bom_id,
@@ -3533,10 +3536,12 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.id]);
 
-
-                    if (Q15Result.bom_id === fetchQ61PcakingWeightResult.rows[0].bom_id) {
-                        packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
+                    if (Q15Result && fetchQ61PcakingWeightResult.rows[0]) {
+                        if (Q15Result.bom_id === fetchQ61PcakingWeightResult.rows[0].bom_id) {
+                            packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
+                        }
                     }
+
 
                     const fetchPAckaginEmissionFactor = `
                                 SELECT material_type,ef_eu_region,ef_india_region,
