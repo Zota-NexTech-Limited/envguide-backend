@@ -8344,3 +8344,517 @@ export async function getDischargeDestinationDropDownList(req: any, res: any) {
         return res.send(generateResponse(true, "List fetched successfully", 200, result.rows));
     });
 }
+
+export async function addQCEquipmentUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+
+            console.log(req.user_id, "user_id");
+
+            if (!name) {
+                throw new Error("Name is required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM qc_equipment_unit WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const qcqu_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'QCE', 'qc_equipment_unit');
+
+            const code = formatCode('QCE', nextNumber);
+
+            const query = `
+                INSERT INTO qc_equipment_unit (qcqu_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [qcqu_id, code, name, req.user_id]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateQCEquipmentUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+
+            console.log(req.user_id, "user_id");
+
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+
+                const checkName = await client.query(
+                    `SELECT 1 
+                     FROM qc_equipment_unit 
+                     WHERE name ILIKE $1 AND qcqu_id <> $2`,
+                    [item.name, item.qcqu_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE qc_equipment_unit
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE qcqu_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.qcqu_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getQCEquipmentUnitListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT i.*
+                FROM qc_equipment_unit i
+                WHERE 1=1 ${whereClause}
+                ORDER BY i.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM qc_equipment_unit i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function QCEquipmentUnitDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            // Check duplicate names inside payload
+            const names = data.map(d => d.name.toLowerCase());
+            const duplicatePayloadNames = names.filter(
+                (n, i) => names.indexOf(n) !== i
+            );
+
+            if (duplicatePayloadNames.length > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            // Check existing names in DB
+            const existing = await client.query(
+                `SELECT name FROM qc_equipment_unit WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more names already exist", 400, null));
+            }
+
+            const rows: any[] = [];
+
+            let nextNumber = await generateDynamicCode(client, 'QCE', 'qc_equipment_unit');
+
+            for (const item of data) {
+
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                const code = formatCode('QCE', nextNumber);
+                nextNumber++;
+
+                rows.push({
+                    qcqu_id: ulid(),
+                    code: code,
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO qc_equipment_unit (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deleteQCEquipmentUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { qcqu_id } = req.body;
+
+            await client.query(
+                `DELETE FROM qc_equipment_unit WHERE qcqu_id = $1`,
+                [qcqu_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getQCEquipmentUnitDropDownnList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+
+            const listQuery = `
+                SELECT i.*
+                FROM qc_equipment_unit i
+                ORDER BY i.created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function addPackgingUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { name } = req.body;
+
+            console.log(req.user_id, "user_id");
+
+            if (!name) {
+                throw new Error("Name is required");
+            }
+
+            const checkName = await client.query(
+                `SELECT 1 FROM packing_unit WHERE name ILIKE $1`,
+                [name]
+            );
+
+            if (checkName.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Name already exists", 400, null));
+            }
+
+            const pau_id = ulid();
+            const nextNumber = await generateDynamicCode(client, 'PAU', 'packing_unit');
+
+            const code = formatCode('PAU', nextNumber);
+
+            const query = `
+                INSERT INTO packing_unit (pau_id, code, name, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *;
+            `;
+
+            const result = await client.query(query, [pau_id, code, name, req.user_id]);
+
+            return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updatePackgingUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+
+            console.log(req.user_id, "user_id");
+
+            const updatingData = req.body;
+            const updatedRows: any[] = [];
+
+            for (const item of updatingData) {
+
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+
+                const checkName = await client.query(
+                    `SELECT 1 
+                     FROM packing_unit 
+                     WHERE name ILIKE $1 AND pau_id <> $2`,
+                    [item.name, item.pau_id]
+                );
+
+                if (checkName.rowCount > 0) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, `Name '${item.name}' already exists`, 400, null));
+                }
+
+                const query = `
+                    UPDATE packing_unit
+                    SET name = $1,
+                        updated_by = $2,
+                        update_date = NOW()
+                    WHERE pau_id = $3
+                    RETURNING *;
+                `;
+
+                const result = await client.query(query, [
+                    item.name,
+                    req.user_id,
+                    item.pau_id
+                ]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getPackgingUnitListSearch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+            let whereClause = '';
+            const values: any[] = [];
+
+            if (searchValue) {
+                whereClause = `AND (i.code ILIKE $1 OR i.name ILIKE $1)`;
+                values.push(`%${searchValue}%`);
+            }
+
+            const listQuery = `
+                SELECT i.*
+                FROM packing_unit i
+                WHERE 1=1 ${whereClause}
+                ORDER BY i.created_date ASC;
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM packing_unit i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function PackgingUnitDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const data = req.body;
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            // Check duplicate names inside payload
+            const names = data.map(d => d.name.toLowerCase());
+            const duplicatePayloadNames = names.filter(
+                (n, i) => names.indexOf(n) !== i
+            );
+
+            if (duplicatePayloadNames.length > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            // Check existing names in DB
+            const existing = await client.query(
+                `SELECT name FROM packing_unit WHERE name ILIKE ANY($1)`,
+                [names]
+            );
+
+            if (existing.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "One or more names already exist", 400, null));
+            }
+
+            const rows: any[] = [];
+
+            let nextNumber = await generateDynamicCode(client, 'PAU', 'packing_unit');
+
+            for (const item of data) {
+
+                if (!item.name) {
+                    throw new Error("Name is required");
+                }
+
+                const code = formatCode('PAU', nextNumber);
+                nextNumber++;
+
+                rows.push({
+                    pau_id: ulid(),
+                    code: code,
+                    name: item.name,
+                    created_by: req.user_id
+                });
+            }
+
+            const columns = Object.keys(rows[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            rows.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO packing_unit (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+        } catch (error: any) {
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function deletePackgingUnit(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { pau_id } = req.body;
+
+            await client.query(
+                `DELETE FROM packing_unit WHERE pau_id = $1`,
+                [pau_id]
+            );
+
+            return res.send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getPackgingUnitDropDownnList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+
+            const listQuery = `
+                SELECT i.*
+                FROM packing_unit i
+                ORDER BY i.created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
