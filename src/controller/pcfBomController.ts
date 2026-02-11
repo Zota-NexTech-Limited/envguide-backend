@@ -3542,6 +3542,12 @@ export async function pcfCalculate(req: any, res: any) {
                         }
                     }
 
+                    let fetchQ61PcakingWeightResultUnit = null
+                    if (fetchQ61PcakingWeightResult.rows[0]) {
+                        fetchQ61PcakingWeightResultUnit = fetchQ61PcakingWeightResult.rows[0].unit;
+
+                    }
+
 
                     const fetchPAckaginEmissionFactor = `
                                 SELECT material_type,ef_eu_region,ef_india_region,
@@ -3551,7 +3557,7 @@ export async function pcfCalculate(req: any, res: any) {
                              `;
 
 
-                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResult.rows[0].unit]);
+                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResultUnit]);
 
                     if (fetchPackagingEmisResult.rows[0]) {
 
