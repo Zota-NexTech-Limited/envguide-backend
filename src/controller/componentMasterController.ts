@@ -381,6 +381,17 @@ export async function getComponnetMasterList(req: any, res: any) {
             const values: any[] = [];
             let idx = 1;
 
+            const countConditions: string[] = [];
+            const countValuess: any[] = [];
+            let cidx = 1;
+
+            const statsConditions: string[] = [];
+            const statsValuess: any[] = [];
+            let sidx = 1;
+
+            whereConditions.push(`pcf.is_task_created = TRUE`);
+
+
             if (req.user_id) {
                 // First, check the user's role
                 const userRoleQuery = `
@@ -406,15 +417,24 @@ export async function getComponnetMasterList(req: any, res: any) {
                         idx++;
                     }
 
-                    if (!isSuperAdmin) {
-                        countWhere = 'WHERE pcf.created_by = $1';
-                        countValues.push(req.user_id);
-                    }
+                    if (isSuperAdmin) {
+                        // countWhere = 'WHERE pcf.is_task_created = TRUE';
+                        // statsWhere = 'WHERE pcf.is_task_created = TRUE';
 
+                        countConditions.push(`pcf.is_task_created = TRUE`);
+                        statsConditions.push(`pcf.is_task_created = TRUE`);
 
+                    } else {
+                        // countWhere = 'WHERE pcf.created_by = $1 AND pcf.is_task_created = TRUE';
+                        // countValues.push(req.user_id);
 
-                    if (!isSuperAdmin) {
-                        statsWhere = 'WHERE pcf.created_by = $1';
+                        countConditions.push(`pcf.created_by = $${cidx++}`);
+                        countValuess.push(req.user_id);
+
+                        statsConditions.push(`pcf.created_by = $${sidx++}`);
+                        statsValuess.push(req.user_id);
+
+                        statsWhere = 'WHERE pcf.created_by = $1 AND pcf.is_task_created = TRUE';
                         statsValues.push(req.user_id);
                     }
 
@@ -605,7 +625,7 @@ export async function getComponnetMasterList(req: any, res: any) {
      LIMIT 1) AS allocation_methodology
 
 FROM bom b
-JOIN bom_pcf_request pcf ON pcf.id = b.bom_pcf_id AND pcf.is_task_created = TRUE
+JOIN bom_pcf_request pcf ON pcf.id = b.bom_pcf_id
 
 LEFT JOIN product pd ON pd.product_code = pcf.product_code
 LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
@@ -650,6 +670,8 @@ LIMIT $${idx} OFFSET $${idx + 1};
             /* =====================================================
                COUNT QUERY (BOM BASED)
             ===================================================== */
+            const countValuesForQuery = values.slice(0, values.length - 2);
+
             const countQuery = `
 SELECT COUNT(*) AS total
 FROM bom b
@@ -660,12 +682,42 @@ LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
 LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
 LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
 LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
-${countWhere};
+${whereClause}
 `;
 
-            const countResult = await client.query(countQuery, countValues);
+            // const countResult = await client.query(countQuery, countValues);
+
+            const countResult = await client.query(countQuery, countValuesForQuery);
 
             const total = Number(countResult.rows[0].total);
+
+            const buildWhere = (conditions: string[]) =>
+                conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+
+            const countWhereClause = buildWhere(countConditions);
+
+
+            const statsWhereClause = buildWhere(statsConditions);
+
+            const totalcountQuery = `
+SELECT COUNT(*) AS total_records
+FROM bom b
+JOIN bom_pcf_request pcf ON pcf.id = b.bom_pcf_id
+LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
+LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
+LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
+LEFT JOIN manufacturer mf ON mf.id = pcf.manufacturer_id
+LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
+LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
+${countWhereClause}
+`;
+
+            const TotalcountResult = await client.query(
+                totalcountQuery, countValuess
+            );
+
+            const total_records = Number(TotalcountResult.rows[0].total_records);
 
             /* =====================================================
                STATS QUERY
@@ -679,13 +731,13 @@ SELECT
     COUNT(*) FILTER (WHERE pcf.is_draft = TRUE) AS draft_count,
     COUNT(*) FILTER (WHERE pcf.status IS NULL OR pcf.status = 'Open') AS pending_count
 FROM bom b
-JOIN bom_pcf_request pcf ON pcf.id = b.bom_pcf_id
+JOIN bom_pcf_request pcf ON pcf.id = b.bom_pcf_id 
 LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
-LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by;
-${statsWhere};
+LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
+${statsWhereClause}
 `;
 
-            const statsResult = await client.query(statsQuery, statsValues);
+            const statsResult = await client.query(statsQuery, statsValuess);
 
             const stats = statsResult.rows[0];
 
@@ -701,6 +753,7 @@ ${statsWhere};
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
                     },
+                    total_records: total_records,
                     stats: stats
                 })
             );

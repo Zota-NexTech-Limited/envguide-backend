@@ -1262,12 +1262,13 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
                         idx++;
                     }
 
-                    if (!isSuperAdmin) {
+                    if (isSuperAdmin) {
+                        countWhere = 'WHERE pcf.is_task_created = TRUE';
+                        statsWhere = 'WHERE pcf.is_task_created = TRUE';
+
+                    } else {
                         countWhere = 'WHERE pcf.created_by = $1';
                         countValues.push(req.user_id);
-                    }
-
-                    if (!isSuperAdmin) {
                         statsWhere = 'WHERE pcf.created_by = $1';
                         statsValues.push(req.user_id);
                     }
@@ -1363,6 +1364,11 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
             }
 
             values.push(Number(limit), offset);
+
+            const whereClause =
+                conditions.length > 0
+                    ? `WHERE ${conditions.join(' AND ')}`
+                    : '';
 
             const result = await client.query(
                 `
@@ -1480,15 +1486,49 @@ WHERE 1=1
                 values
             );
 
+
+            //             const countQuery = `
+            //     SELECT COUNT(*) AS total
+            //     FROM bom_pcf_request pcf
+            //     ${countWhere};
+            // `;
+
+            //             const countResult = await client.query(countQuery, countValues);
+
+            //             const total = Number(countResult.rows[0].total);
+            const countValuesForQuery = values.slice(0, values.length - 2);
+
             const countQuery = `
     SELECT COUNT(*) AS total
     FROM bom_pcf_request pcf
-    ${countWhere};
+    LEFT JOIN product pd ON pd.product_code = pcf.product_code
+    LEFT JOIN product_category pc ON pc.id = pcf.product_category_id
+    LEFT JOIN component_category cc ON cc.id = pcf.component_category_id
+    LEFT JOIN component_type ct ON ct.id = pcf.component_type_id
+    LEFT JOIN manufacturer m ON m.id = pcf.manufacturer_id
+    LEFT JOIN pcf_request_stages prs ON prs.bom_pcf_id = pcf.id
+    LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
+    ${whereClause};
 `;
 
-            const countResult = await client.query(countQuery, countValues);
+            const countResult = await client.query(
+                countQuery,
+                countValuesForQuery
+            );
 
             const total = Number(countResult.rows[0].total);
+
+            const totalcountQuery = `
+                SELECT COUNT(*) AS total_records
+                FROM bom_pcf_request pcf
+                ${countWhere};
+            `;
+            const TotalcountResult = await client.query(
+                totalcountQuery, countValues
+            );
+
+            const total_records = Number(TotalcountResult.rows[0].total_records);
+
 
             const statsQuery = `
 SELECT
@@ -1548,6 +1588,7 @@ ${statsWhere};
                         limit: Number(limit),
                         totalPages: Math.ceil(total / Number(limit))
                     },
+                    total_records: total_records,
                     stats: stats
                 })
             );

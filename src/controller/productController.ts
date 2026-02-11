@@ -966,18 +966,37 @@ export async function listProducts(req: any, res: any) {
                 LIMIT ${limit} OFFSET ${offset};
             `;
 
+            console.log(whereSQL,"whereSQLwhereSQLwhereSQL",whereClauses);
+            
             const countQuery = `
                 SELECT COUNT(*) AS total
-                FROM product t;
+                FROM product p
+                LEFT JOIN product_category pc ON p.product_category_id = pc.id
+                LEFT JOIN product_sub_category sc ON p.product_sub_category_id = sc.id
+                LEFT JOIN manufacturing_process mp ON p.ts_manufacturing_process_id = mp.id
+                LEFT JOIN life_cycle_stage lc ON p.ed_life_cycle_stage_id = lc.id
+                LEFT JOIN users_table u1 ON p.created_by = u1.user_id
+                LEFT JOIN users_table u2 ON p.updated_by = u2.user_id
+                ${whereSQL}
             `;
 
             const countResult = await client.query(
-                countQuery
-                // params.slice(0, params.length - 2)
+                countQuery,
+                params
             );
 
             const total = Number(countResult.rows[0].total);
 
+            const totalcountQuery = `
+                SELECT COUNT(*) AS total_records
+                FROM product p
+            `;
+
+            const TotalcountResult = await client.query(
+                totalcountQuery
+            );
+
+            const total_records = Number(TotalcountResult.rows[0].total_records);
 
             const result = await client.query(query, params);
 
@@ -988,7 +1007,8 @@ export async function listProducts(req: any, res: any) {
                     page: Number(page),
                     limit: Number(limit),
                     totalPages: Math.ceil(total / Number(limit))
-                }
+                },
+                total_records: total_records
             }));
 
         } catch (err: any) {
