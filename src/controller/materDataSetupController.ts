@@ -291,6 +291,247 @@ export async function getMaterialCompositionMetalDropDownnList(req: any, res: an
     });
 }
 
+// Material Composition Metal Type
+export async function addMaterialCompositionMetalType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { mcm_id, code, name, description } = req.body;
+            const mcmt_id = ulid();
+
+            const checkExists = await client.query(
+                `SELECT * 
+             FROM material_composition_metal_type 
+             WHERE code ILIKE $1 OR name ILIKE $2;`,
+                [code, name]
+            );
+
+            if (checkExists.rows.length > 0) {
+                const existing = checkExists.rows[0];
+                if (existing.code.toLowerCase() === code.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Code is already used", 400, null));
+                }
+                if (existing.name.toLowerCase() === name.toLowerCase()) {
+                    return res
+                        .status(400)
+                        .send(generateResponse(false, "Name is already used", 400, null));
+                }
+            }
+
+            const query = `
+            INSERT INTO material_composition_metal_type (mcmt_id, code, name, description,mcm_id)
+            VALUES ($1, $2, $3, $4,$5)
+            RETURNING *;
+        `;
+            const result = await client.query(query, [mcmt_id, code, name, description, mcm_id]);
+
+            return res.send(generateResponse(true, "Added Successfully", 200, result.rows[0]));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getMaterialCompositionMetalType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+
+            const query = `
+            SELECT 
+            mcmt.code AS mcmt_code,
+            mcmt.name AS mcmt_name,
+            mcmt.description AS mcmt_description,
+            mcm.mcm_id AS mcm_id,
+            mcm.code AS mcm_code,
+            mcm.name AS mcm_name,
+            mcm.description AS mcm_description
+            FROM material_composition_metal_type mcmt
+            LEFT JOIN material_composition_metal mcm ON mcm.mcm_id = mcmt.mcm_id;`;
+
+            const result = await client.query(query);
+
+            return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function updateMaterialCompositionMetalType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const updatingData = req.body;
+            let updatedRows: any[] = [];
+
+            for (let item of updatingData) {
+                const columnValuePairs = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
+                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .join(', ');
+
+                const values = Object.entries(item)
+                    .filter(([columnName]) => columnName !== "id")
+                    .map(([_, value]) => value);
+
+                const query = `
+                UPDATE material_composition_metal_type 
+                SET ${columnValuePairs}, update_date = NOW() 
+                WHERE mcmt_id = $${values.length + 1} 
+                RETURNING *;
+            `;
+                const result = await client.query(query, [...values, item.mcmt_id]);
+
+                if (result.rows.length > 0) {
+                    updatedRows.push(result.rows[0]);
+                }
+            }
+
+            return res.send(generateResponse(true, "Updated successfully", 200, updatedRows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
+export async function getMaterialCompositionMetalTypeList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { searchValue } = req.query;
+
+            let whereClause = '';
+            let orderByClause = 'ORDER BY i.created_date ASC';
+            const values = [];
+
+            if (searchValue) {
+                values.push(`%${searchValue}%`);
+                whereClause += ` AND (i.code ILIKE $${values.length} OR i.name ILIKE $${values.length})`;
+            }
+
+            const listQuery = `
+                SELECT 
+                    i.*,
+                    mcm.mcm_id AS mcm_id,
+                    mcm.code AS mcm_code,
+                    mcm.name AS mcm_name,
+                    mcm.description AS mcm_description
+                FROM material_composition_metal_type i
+                LEFT JOIN material_composition_metal mcm ON mcm.mcm_id = i.mcm_id
+                WHERE 1=1 ${whereClause}
+                ${orderByClause};
+            `;
+
+            const countQuery = `
+                SELECT COUNT(*)
+                FROM material_composition_metal_type i
+                WHERE 1=1 ${whereClause};
+            `;
+
+            const totalCount = await client.query(countQuery, values);
+            const listResult = await client.query(listQuery, values);
+
+            return res.send(generateResponse(true, "List fetched successfully", 200, {
+                totalCount: totalCount.rows[0].count,
+                list: listResult.rows
+            }));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function MaterialCompositionMetalTypeDataSetup(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const obj = req.body;
+
+            if (!Array.isArray(obj) || obj.length === 0) {
+                return res.status(400).send(generateResponse(false, "Invalid input array", 400, null));
+            }
+
+            // 1️⃣ Validate each item and fetch mcm_id based on mcm_name
+            const validatedData = [];
+
+            for (const item of obj) {
+                if (!item.mcm_name) {
+                    return res.status(400).send(generateResponse(false, "mcm_name is required for all items", 400, null));
+                }
+
+                const mcmLookup = await client.query(
+                    `SELECT mcm_id FROM material_composition_metal WHERE name = $1`,
+                    [item.mcm_name]
+                );
+
+                if (mcmLookup.rows.length === 0) {
+                    return res.status(400).send(
+                        generateResponse(false, `Material composition metal not found for name: ${item.mcm_name}`, 400, null)
+                    );
+                }
+
+                const mcm_id = mcmLookup.rows[0].mcm_id;
+
+                validatedData.push({
+                    mcmt_id: ulid(),
+                    mcm_id: mcm_id,
+                    code: item.code,
+                    name: item.name,
+                    description: item.description,
+                    created_by: req.user_id,
+                });
+            }
+
+            // 2️⃣ Prepare INSERT (bulk)
+            const columns = Object.keys(validatedData[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+
+            validatedData.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+
+                const placeholder = rowValues.map(
+                    (_, colIndex) => `$${rowIndex * rowValues.length + colIndex + 1}`
+                );
+
+                placeholders.push(`(${placeholder.join(', ')})`);
+            });
+
+            const insertQuery = `
+                INSERT INTO material_composition_metal_type (${columns.join(', ')})
+                VALUES ${placeholders.join(', ')}
+                RETURNING *;
+            `;
+
+            const result = await client.query(insertQuery, values);
+
+            return res.status(200).send(
+                generateResponse(true, "Added successfully", 200, result.rows)
+            );
+
+        } catch (error: any) {
+            console.error("Error in MaterialCompositionMetalTypeDataSetup:", error);
+            return res
+                .status(500)
+                .send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+
+export async function deleteMaterialCompositionMetalType(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { mcmt_id } = req.body;
+            const query = `DELETE FROM material_composition_metal_type WHERE mcmt_id = $1;`;
+            await client.query(query, [mcmt_id]);
+
+            return res.status(200).send(generateResponse(true, "Deleted successfully", 200, null));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    })
+}
+
 // ===>
 export async function addCountryIsoTwo(req: any, res: any) {
     return withClient(async (client: any) => {

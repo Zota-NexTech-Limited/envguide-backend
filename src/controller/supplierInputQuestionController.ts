@@ -58,7 +58,7 @@ export async function getSupplierSustainabilityDataById(req: any, res: any) {
                         // Fetch metal details (MCM)
                         const mcm = await client.query(
                             `SELECT mcm_id, code, name 
-                             FROM material_composition_metal
+                             FROM material_composition_metals
                              WHERE mcm_id = $1`,
                             [item.mcm_id]
                         );
@@ -633,7 +633,7 @@ export async function getSupplierSustainabilityDataById(req: any, res: any) {
 export async function getMaterialCompositionMetal(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const query = `SELECT mcm_id, code, name, description FROM material_composition_metal;`;
+            const query = `SELECT mcm_id, code, name, description FROM material_composition_metals;`;
             const result = await client.query(query);
 
             return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
@@ -661,7 +661,7 @@ export async function getMaterialCompositionMetalType(req: any, res: any) {
                     mcm.description AS mcm_description
 
                 FROM material_composition_metal_type mcmt
-                LEFT JOIN material_composition_metal mcm 
+                LEFT JOIN material_composition_metals mcm 
                     ON mcm.mcm_id = mcmt.mcm_id
                 WHERE mcmt.mcm_id = $1;
             `;

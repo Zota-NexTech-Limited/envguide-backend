@@ -328,6 +328,29 @@ export async function getMaterialsEmissionFactorDropDownnList(req: any, res: any
     });
 }
 
+export async function getMaterialsPlusMaterialTypeDropDownnList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT
+                    mcm.mcm_id,
+                    CONCAT(mcm.name, ' - ', mcmt.name) AS combined_name
+                FROM material_composition_metal mcm
+                INNER JOIN material_composition_metal_type mcmt
+                    ON mcmt.mcm_id = mcm.mcm_id
+                ORDER BY mcm.created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(
+                generateResponse(true, "List fetched successfully", 200, listResult.rows)
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
 
 
 ///Electricity Emission Factor
@@ -627,6 +650,29 @@ export async function getElectricityEmissionFactorDropDownnList(req: any, res: a
     });
 }
 
+export async function getEnergySourceEnergyTypeDropDownnList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT
+                    eng.es_id,
+                    CONCAT(eng.name, ' - ', engt.name) AS combined_name
+                FROM energy_source eng
+                INNER JOIN energy_type engt
+                    ON engt.es_id = eng.es_id
+                ORDER BY eng.created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(
+                generateResponse(true, "List fetched successfully", 200, listResult.rows)
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
 
 
 ///Fuel Emission Factor  
@@ -920,6 +966,30 @@ export async function getFuelEmissionFactorDropDownnList(req: any, res: any) {
             const listResult = await client.query(listQuery);
 
             return res.send(generateResponse(true, "List fetched successfully", 200, listResult.rows));
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function getFuelFuelTypeDropDownnList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT
+                    fuel.ft_id,
+                    CONCAT(fuel.name, ' - ', fuelt.name) AS combined_name
+                FROM fuel_types fuel
+                INNER JOIN sub_fuel_types fuelt
+                    ON fuelt.ft_id = fuel.ft_id
+                ORDER BY fuel.created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(
+                generateResponse(true, "List fetched successfully", 200, listResult.rows)
+            );
         } catch (error: any) {
             return res.send(generateResponse(false, error.message, 400, null));
         }

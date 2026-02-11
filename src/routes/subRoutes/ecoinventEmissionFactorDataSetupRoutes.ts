@@ -10,6 +10,7 @@ Routes.get('/api/ecoinvent-emission-factor-data-setup/materials-emission-factor/
 Routes.post('/api/ecoinvent-emission-factor-data-setup/materials-emission-factor/bulk/add', authService.authenticate, Controller.materialsEmissionFactorDataSetup);
 Routes.post('/api/ecoinvent-emission-factor-data-setup/materials-emission-factor/delete', authService.authenticate, Controller.deleteMaterialsEmissionFactor);
 Routes.get('/api/ecoinvent-emission-factor-data-setup/materials-emission-factor/drop-down-list', Controller.getMaterialsEmissionFactorDropDownnList);
+Routes.get('/api/ecoinvent-emission-factor-data-setup/materials-emission-factor/material-materialtype-drop-down-list', Controller.getMaterialsPlusMaterialTypeDropDownnList);
 
 // Electricity Emission Factor
 Routes.post('/api/ecoinvent-emission-factor-data-setup/electricity-emission-factor/add', authService.authenticate, Controller.addElectricityEmissionFactor);
@@ -18,6 +19,7 @@ Routes.get('/api/ecoinvent-emission-factor-data-setup/electricity-emission-facto
 Routes.post('/api/ecoinvent-emission-factor-data-setup/electricity-emission-factor/bulk/add', authService.authenticate, Controller.electricityEmissionFactorDataSetup);
 Routes.post('/api/ecoinvent-emission-factor-data-setup/electricity-emission-factor/delete', authService.authenticate, Controller.deleteElectricityEmissionFactor);
 Routes.get('/api/ecoinvent-emission-factor-data-setup/electricity-emission-factor/drop-down-list', Controller.getElectricityEmissionFactorDropDownnList);
+Routes.get('/api/ecoinvent-emission-factor-data-setup/electricity-emission-factor/energysource-energytype-drop-down-list', Controller.getEnergySourceEnergyTypeDropDownnList);
 
 // fuel Emission Factor
 Routes.post('/api/ecoinvent-emission-factor-data-setup/fuel-emission-factor/add', authService.authenticate, Controller.addFuelEmissionFactor);
@@ -26,6 +28,7 @@ Routes.get('/api/ecoinvent-emission-factor-data-setup/fuel-emission-factor/list/
 Routes.post('/api/ecoinvent-emission-factor-data-setup/fuel-emission-factor/bulk/add', authService.authenticate, Controller.fuelEmissionFactorDataSetup);
 Routes.post('/api/ecoinvent-emission-factor-data-setup/fuel-emission-factor/delete', authService.authenticate, Controller.deleteFuelEmissionFactor);
 Routes.get('/api/ecoinvent-emission-factor-data-setup/fuel-emission-factor/drop-down-list', Controller.getFuelEmissionFactorDropDownnList);
+Routes.get('/api/ecoinvent-emission-factor-data-setup/fuel-emission-factor/fueltype-fuelsubtype-drop-down-list', Controller.getFuelFuelTypeDropDownnList);
 
 // Packaging Treatment Type
 Routes.post('/api/ecoinvent-emission-factor-data-setup/packaging-treatment-type/add', authService.authenticate, Controller.addPackingTreatmentType);
