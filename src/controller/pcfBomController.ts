@@ -1263,8 +1263,8 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
                     }
 
                     if (isSuperAdmin) {
-                        countWhere = 'WHERE pcf.is_task_created = TRUE';
-                        statsWhere = 'WHERE pcf.is_task_created = TRUE';
+                        // countWhere = 'WHERE pcf.is_task_created = TRUE';
+                        // statsWhere = 'WHERE pcf.is_task_created = TRUE';
 
                     } else {
                         countWhere = 'WHERE pcf.created_by = $1';
@@ -1495,7 +1495,7 @@ WHERE 1=1
 
             //             const countResult = await client.query(countQuery, countValues);
 
-            //             const total = Number(countResult.rows[0].total);
+            //             const total = Number(countResult.rows[0].total);            
             const countValuesForQuery = values.slice(0, values.length - 2);
 
             const countQuery = `
@@ -1517,7 +1517,7 @@ WHERE 1=1
             );
 
             const total = Number(countResult.rows[0].total);
-
+            
             const totalcountQuery = `
                 SELECT COUNT(*) AS total_records
                 FROM bom_pcf_request pcf
@@ -1570,6 +1570,8 @@ LEFT JOIN users_table ucb ON ucb.user_id = prs.pcf_request_created_by
 ${statsWhere};
 `;
 
+
+console.log(statsWhere,"statsWherestatsWhere");
 
             const statsResult = await client.query(statsQuery, statsValues);
 
