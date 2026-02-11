@@ -11,6 +11,15 @@ Routes.post('/api/master-data-setup/material-composition-metal/bulk/add', authSe
 Routes.post('/api/master-data-setup/material-composition-metal/delete', authService.authenticate, Controller.deleteMaterialCompositionMetal);
 Routes.get('/api/master-data-setup/material-composition-metal/drop-down-list', Controller.getMaterialCompositionMetalDropDownnList);
 
+// Material Composition Metal Type
+Routes.post('/api/master-data-setup/material-composition-metal-type/add', authService.authenticate, Controller.addMaterialCompositionMetalType);
+Routes.post('/api/master-data-setup/material-composition-metal-type/update', authService.authenticate, Controller.updateMaterialCompositionMetalType);
+Routes.get('/api/master-data-setup/material-composition-metal-type/list/search', authService.authenticate, Controller.getMaterialCompositionMetalTypeList);
+Routes.post('/api/master-data-setup/material-composition-metal-type/bulk/add', authService.authenticate, Controller.MaterialCompositionMetalTypeDataSetup);
+Routes.post('/api/master-data-setup/material-composition-metal-type/delete', authService.authenticate, Controller.deleteMaterialCompositionMetalType);
+Routes.get('/api/master-data-setup/material-composition-metal-type/list', authService.authenticate, Controller.getMaterialCompositionMetalType);
+
+
 // CountryIsoTwo
 Routes.post('/api/master-data-setup/country-iso-two/add', authService.authenticate, Controller.addCountryIsoTwo);
 Routes.post('/api/master-data-setup/country-iso-two/update', authService.authenticate, Controller.updateCountryIsoTwo);
