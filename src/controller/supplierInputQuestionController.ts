@@ -1897,7 +1897,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
 
     if (Array.isArray(data.scope_two_indirect_emissions_certificates_questions)) {
         const dqrQ24: any[] = [];
-
+const DATEE = '2026-02-09 18:30:00+00';
         const rows = data.scope_two_indirect_emissions_certificates_questions.map((c: any) => {
             const stidec_id = ulid();
 
@@ -1911,7 +1911,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
                 stidec_id, stide_id,
                 c.certificate_name, c.mechanism, c.serial_id,
                 c.generator_id, c.generator_name,
-                c.generator_location, c.date_of_generation, c.issuance_date
+                c.generator_location, c.date_of_generation, DATEE
             ];
         });
 
