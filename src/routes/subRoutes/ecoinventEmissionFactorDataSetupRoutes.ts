@@ -45,7 +45,7 @@ Routes.get('/api/ecoinvent-emission-factor-data-setup/packaging-emission-factor/
 Routes.post('/api/ecoinvent-emission-factor-data-setup/packaging-emission-factor/bulk/add', authService.authenticate, Controller.packagingEmissionFactorDataSetup);
 Routes.post('/api/ecoinvent-emission-factor-data-setup/packaging-emission-factor/delete', authService.authenticate, Controller.deletePackagingEmissionFactor);
 Routes.get('/api/ecoinvent-emission-factor-data-setup/packaging-emission-factor/drop-down-list', Controller.getPackagingEmissionFactorDropDownList);
-
+Routes.get('/api/ecoinvent-emission-factor-data-setup/packaging-emission-factor/drop-down-list-only-packing-type', Controller.getPackagingTypeEmissionFactorDropDownList);
 // WasteTreatmentType Emission Factor
 Routes.post('/api/ecoinvent-emission-factor-data-setup/waste-treatment-type/add', authService.authenticate, Controller.addWasteTreatmentType);
 Routes.post('/api/ecoinvent-emission-factor-data-setup/waste-treatment-type/update', authService.authenticate, Controller.updateWasteTreatmentType);

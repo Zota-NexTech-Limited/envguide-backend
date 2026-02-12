@@ -444,7 +444,7 @@ async function updateScopeThree(client: any, d: any) {
         'type_of_pack_mat_used_for_delivering_questions',
         'topmudp_id',
         d.type_of_pack_mat_used_for_delivering_questions,
-        ['component_name', 'packagin_type', 'packaging_size', 'unit']
+        ['component_name', 'packagin_type','treatment_type', 'packaging_size', 'unit']
     );
 
     await updateByArray(

@@ -2429,6 +2429,7 @@ LEFT JOIN LATERAL (
             'material_number', pmu.material_number,
             'component_name', pmu.component_name,
             'packagin_type', pmu.packagin_type,
+            'treatment_type, pmu.treatment_type,
             'packaging_size', pmu.packaging_size,
             'unit', pmu.unit,
             'percentage_of_recycled_content_used_in_packaging',stoie.percentage_of_recycled_content_used_in_packaging

@@ -3506,6 +3506,7 @@ export async function pcfCalculate(req: any, res: any) {
                     // Fourth Phase Start
 
                     let packaginType = "";
+                    let treatmentType = "";
                     let packaginSize = "";
                     let packaginWeight = 0;
                     let Emission_Factor_Box_kg_CO2E_kg = 0.01;
@@ -3513,7 +3514,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchQ61PcakingTypeProduct = `
                         SELECT bom_id,
-                        material_number,packagin_type,unit
+                        material_number,packagin_type,unit,treatment_type
                         FROM type_of_pack_mat_used_for_delivering_questions
                         WHERE bom_id = $1 AND own_emission_id IS NULL;
                      `;
@@ -3523,6 +3524,7 @@ export async function pcfCalculate(req: any, res: any) {
                     if (Q15Result && fetchQ61PcakingTypeProductResult.rows[0]) {
                         if (Q15Result.bom_id === fetchQ61PcakingTypeProductResult.rows[0].bom_id) {
                             packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type
+                            treatmentType = fetchQ61PcakingTypeProductResult.rows[0].treatment_type
                         }
                     }
 
@@ -3548,16 +3550,26 @@ export async function pcfCalculate(req: any, res: any) {
 
                     }
 
+                    const fetchPTTId = `SELECT ptt_id ,name 
+                                        FROM packaging_treatment_type
+                                        WHERE name=$1;`
+
+                    const fetchPTTIdFromTreatmentType = await client.query(fetchPTTId, [treatmentType]);
+
+                    let ptt_id = null;
+                    if (fetchPTTIdFromTreatmentType && fetchPTTIdFromTreatmentType.rows[0]) {
+                        ptt_id = fetchPTTIdFromTreatmentType.rows[0].ptt_id
+                    }
 
                     const fetchPAckaginEmissionFactor = `
                                 SELECT material_type,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit,iso_country_code
                                 FROM packaging_material_treatment_type_emission_factor
-                                WHERE material_type = $1 AND year=$2 AND unit=$3;
+                                WHERE material_type = $1 AND year=$2 AND unit=$3 AND ptt_id=$4;
                              `;
 
 
-                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResultUnit]);
+                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResultUnit, ptt_id]);
 
                     if (fetchPackagingEmisResult.rows[0]) {
 
