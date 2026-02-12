@@ -1040,8 +1040,8 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             dqrQ15Point2.push({
                 childId: cpcev_id,
                 data: {
-                    bom_id: p.bom_id || null,
-                    material_number: p.material_number || null,
+                    bom_id:  null,
+                    material_number: null,
                     product_name: p.product_name,
                     co_product_name: p.co_product_name,
                     weight: p.weight,
@@ -1055,7 +1055,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
 
             // Return row for bulk insert
             return [
-                cpcev_id, spq_id, p.bom_id || null, p.material_number || null, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
+                cpcev_id, spq_id,  null,  null, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
             ];
         });
 
