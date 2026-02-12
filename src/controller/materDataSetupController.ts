@@ -295,23 +295,23 @@ export async function getMaterialCompositionMetalDropDownnList(req: any, res: an
 export async function addMaterialCompositionMetalType(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { mcm_id, code, name, description } = req.body;
+            const { mcm_id, name, description } = req.body;
+
+            const nextNumber = await generateDynamicCode(client, 'MCMT', 'material_composition_metal_type');
+
+            const code = formatCode('MCMT', nextNumber);
+
             const mcmt_id = ulid();
 
             const checkExists = await client.query(
                 `SELECT * 
              FROM material_composition_metal_type 
-             WHERE code ILIKE $1 OR name ILIKE $2;`,
-                [code, name]
+             WHERE name ILIKE $1;`,
+                [name]
             );
 
             if (checkExists.rows.length > 0) {
                 const existing = checkExists.rows[0];
-                if (existing.code.toLowerCase() === code.toLowerCase()) {
-                    return res
-                        .status(400)
-                        .send(generateResponse(false, "Code is already used", 400, null));
-                }
                 if (existing.name.toLowerCase() === name.toLowerCase()) {
                     return res
                         .status(400)
@@ -452,6 +452,9 @@ export async function MaterialCompositionMetalTypeDataSetup(req: any, res: any) 
             // 1️⃣ Validate each item and fetch mcm_id based on mcm_name
             const validatedData = [];
 
+            let nextNumber = await generateDynamicCode(client, 'MCMT', 'material_composition_metal');
+
+
             for (const item of obj) {
                 if (!item.mcm_name) {
                     return res.status(400).send(generateResponse(false, "mcm_name is required for all items", 400, null));
@@ -470,10 +473,13 @@ export async function MaterialCompositionMetalTypeDataSetup(req: any, res: any) 
 
                 const mcm_id = mcmLookup.rows[0].mcm_id;
 
+                const code = formatCode('MCM', nextNumber);
+                nextNumber++;
+
                 validatedData.push({
                     mcmt_id: ulid(),
                     mcm_id: mcm_id,
-                    code: item.code,
+                    code: code,
                     name: item.name,
                     description: item.description,
                     created_by: req.user_id,
