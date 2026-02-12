@@ -756,8 +756,13 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const annual_reporting_period = supplier_general_info_questions.annual_reporting_period;
             const allDQRConfigs: any[] = [];
 
+let arrayReport = []
             scope_two_indirect_emissions_questions.sup_id = sup_id;
+             arrayReport.push(supplier_product_questions.upload_pcf_report);
+            supplier_product_questions.upload_pcf_report = arrayReport
 
+            console.log(arrayReport,"arrayReportarrayReportarrayReport");
+            
             // ============================================
             // STEP 1: Insert General Info (REQUIRED FIRST)
             // ============================================

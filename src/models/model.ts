@@ -685,7 +685,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             sgiq_id VARCHAR(255),
             do_you_have_an_existing_pcf_report BOOLEAN DEFAULT false,
             pcf_methodology_used TEXT[], -- ['ISO 14067', 'GHG Protocol', 'Catena-X PCF Guideline', etc.]
-            upload_pcf_report TEXT, -- document link or file reference
+            upload_pcf_report TEXT[], -- document link or file reference
             required_environmental_impact_methods TEXT[], -- ['Life Cycle Assessment (LCA)', 'Carbon Footprint', 'Water Footprint', etc.]
             any_co_product_have_economic_value BOOLEAN DEFAULT false,
             sup_id VARCHAR(255),
