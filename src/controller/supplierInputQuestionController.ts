@@ -723,6 +723,7 @@ async function bulkInsert(client: any, tableName: string, columns: string[], row
         console.error('Columns:', columns);
         console.error('First row data:', rows[0]);
         console.error('Values being inserted:', rows);
+        console.error('Complete error:', error);
 
         throw error; // Re-throw to trigger rollback
     }
