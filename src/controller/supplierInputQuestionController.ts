@@ -1361,7 +1361,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
 
         /* ---- Economic Ratio Calculation ---- */
         for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
-            const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1`, [bom_id]);
+            const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1::VARCHAR`, [bom_id]);
             const bomPrice = bomRes.rows[0]?.price || 0;
 
             const total = coProducts.reduce((s, p) => s + (p.price_per_product || 0), 0);
@@ -1369,7 +1369,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             const ER = bomPrice / (avg || 1);
 
             await client.query(
-                `UPDATE bom SET economic_ratio = $1 WHERE id = $2`,
+                `UPDATE bom SET economic_ratio = $1::NUMERIC WHERE id = $2::VARCHAR`,
                 [ER, bom_id]
             );
 
@@ -1384,7 +1384,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
                     phy_mass_allocation_er_less_than_five,
                     check_er_less_than_five
                 )
-                SELECT $1, $2, $3, $4, $5
+                SELECT $1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR
                 WHERE NOT EXISTS (
                     SELECT 1 FROM allocation_methodology WHERE bom_id = $2
                 )
