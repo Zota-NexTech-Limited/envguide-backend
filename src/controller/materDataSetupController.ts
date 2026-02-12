@@ -8858,3 +8858,215 @@ export async function getPackgingUnitDropDownnList(req: any, res: any) {
         }
     });
 }
+
+// Uom dropdownss
+export async function getLiquidGaseousSolidWaterUnitDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT DISTINCT ON (name)
+                    id,
+                    code,
+                    name,
+                    unit_type,
+                    created_date
+                FROM (
+                    SELECT 
+                        lfu_id AS id,
+                        code,
+                        name,
+                        'LIQUID' AS unit_type,
+                        created_date
+                    FROM liquid_fuel_unit
+
+                    UNION ALL
+
+                    SELECT 
+                        gfu_id AS id,
+                        code,
+                        name,
+                        'GASEOUS' AS unit_type,
+                        created_date
+                    FROM gaseous_fuel_unit
+
+                    UNION ALL
+
+                    SELECT 
+                        sfu_id AS id,
+                        code,
+                        name,
+                        'SOLID' AS unit_type,
+                        created_date
+                    FROM solid_fuel_unit
+
+                    UNION ALL
+
+                    SELECT 
+                        wu_id AS id,
+                        code,
+                        name,
+                        'WATER' AS unit_type,
+                        created_date
+                    FROM water_unit
+                ) combined_units
+                ORDER BY name, created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(
+                generateResponse(true, "List fetched successfully", 200, listResult.rows)
+            );
+        } catch (error: any) {
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
+        }
+    });
+}
+
+export async function getLiquidGaseousSolidUnitDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT DISTINCT ON (name)
+                    id,
+                    code,
+                    name,
+                    unit_type,
+                    created_date
+                FROM (
+                    SELECT 
+                        lfu_id AS id,
+                        code,
+                        name,
+                        'LIQUID' AS unit_type,
+                        created_date
+                    FROM liquid_fuel_unit
+
+                    UNION ALL
+
+                    SELECT 
+                        gfu_id AS id,
+                        code,
+                        name,
+                        'GASEOUS' AS unit_type,
+                        created_date
+                    FROM gaseous_fuel_unit
+
+                    UNION ALL
+
+                    SELECT 
+                        sfu_id AS id,
+                        code,
+                        name,
+                        'SOLID' AS unit_type,
+                        created_date
+                    FROM solid_fuel_unit
+                ) combined_units
+                ORDER BY name, created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(
+                generateResponse(true, "List fetched successfully", 200, listResult.rows)
+            );
+        } catch (error: any) {
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
+        }
+    });
+}
+
+export async function getLiquidGaseousUnitDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT DISTINCT ON (name)
+                    id,
+                    code,
+                    name,
+                    unit_type,
+                    created_date
+                FROM (
+                    SELECT 
+                        lfu_id AS id,
+                        code,
+                        name,
+                        'LIQUID' AS unit_type,
+                        created_date
+                    FROM liquid_fuel_unit
+
+                    UNION ALL
+
+                    SELECT 
+                        gfu_id AS id,
+                        code,
+                        name,
+                        'GASEOUS' AS unit_type,
+                        created_date
+                    FROM gaseous_fuel_unit
+
+                ) combined_units
+                ORDER BY name, created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(
+                generateResponse(true, "List fetched successfully", 200, listResult.rows)
+            );
+        } catch (error: any) {
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
+        }
+    });
+}
+
+export async function getLiquidSolidUnitDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const listQuery = `
+                SELECT DISTINCT ON (name)
+                    id,
+                    code,
+                    name,
+                    unit_type,
+                    created_date
+                FROM (
+                    SELECT 
+                        lfu_id AS id,
+                        code,
+                        name,
+                        'LIQUID' AS unit_type,
+                        created_date
+                    FROM liquid_fuel_unit
+
+                    UNION ALL
+
+                    SELECT 
+                        sfu_id AS id,
+                        code,
+                        name,
+                        'SOLID' AS unit_type,
+                        created_date
+                    FROM solid_fuel_unit
+                ) combined_units
+                ORDER BY name, created_date ASC;
+            `;
+
+            const listResult = await client.query(listQuery);
+
+            return res.send(
+                generateResponse(true, "List fetched successfully", 200, listResult.rows)
+            );
+        } catch (error: any) {
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
+        }
+    });
+}

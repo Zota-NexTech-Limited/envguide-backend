@@ -310,4 +310,11 @@ Routes.post('/api/master-data-setup/packing-unit/bulk/add', authService.authenti
 Routes.post('/api/master-data-setup/packing-unit/delete', authService.authenticate, Controller.deletePackgingUnit);
 Routes.get('/api/master-data-setup/packing-unit/drop-down-list', Controller.getPackgingUnitDropDownnList);
 
+
+// UOM DropDowns
+Routes.get('/api/master-data-setup/liquid-gaseous-solid-water-unit/drop-down-list', Controller.getLiquidGaseousSolidWaterUnitDropDownList);
+Routes.get('/api/master-data-setup/liquid-gaseous-solid-unit/drop-down-list', Controller.getLiquidGaseousSolidUnitDropDownList);
+Routes.get('/api/master-data-setup/liquid-gaseous-unit/drop-down-list', Controller.getLiquidGaseousUnitDropDownList);
+Routes.get('/api/master-data-setup/liquid-solid-unit/drop-down-list', Controller.getLiquidSolidUnitDropDownList);
+
 export default Routes;
