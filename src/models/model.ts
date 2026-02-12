@@ -154,6 +154,7 @@ export async function createTables() {
     update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 )`,
+
         ` CREATE TABLE IF NOT EXISTS main_module_table
         (
             main_module_id
@@ -202,13 +203,17 @@ ADD COLUMN IF NOT EXISTS event_name VARCHAR(255),
 ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
 
 `,
-
         `CREATE TABLE IF NOT EXISTS sms_config (
       id VARCHAR(255) PRIMARY KEY,
       api_key VARCHAR(255),
       api_url VARCHAR(255),
       user_name VARCHAR(255),
       password VARCHAR(255),
+      template_id VARCHAR(255),
+      sender_id VARCHAR(255),
+      event_name VARCHAR(255),
+      path VARCHAR(255),
+      platform VARCHAR(255),
       update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -220,6 +225,7 @@ ADD COLUMN IF NOT EXISTS event_name VARCHAR(255),
 ADD COLUMN IF NOT EXISTS path VARCHAR(255),
 ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
 `,
+
 
         `CREATE TABLE IF NOT EXISTS email_config (
             id VARCHAR(255) PRIMARY KEY,
@@ -350,8 +356,8 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             reject_reason TEXT,
             updated_by VARCHAR(255),
             overall_pcf DOUBLE PRECISION,
-            is_own_emission_calculated BOOLEAN DEFAULT FALSE,
             overall_own_emission_pcf DOUBLE PRECISION,
+            is_own_emission_calculated BOOLEAN DEFAULT FALSE,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
@@ -604,7 +610,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             sup_id VARCHAR(255) PRIMARY KEY,   
             code VARCHAR(255) DEFAULT ('SUP' || LPAD(nextval('supplier_code_seq')::text, 5, '0')) UNIQUE,  
             supplier_name VARCHAR(255),
-            supplier_email VARCHAR(255) UNIQUE NOT NULL,
+            supplier_email VARCHAR(255) UNIQUE,
             supplier_phone_number VARCHAR(255),
             supplier_alternate_phone_number VARCHAR(255),
             supplier_gender VARCHAR(50),
@@ -679,7 +685,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             sgiq_id VARCHAR(255),
             do_you_have_an_existing_pcf_report BOOLEAN DEFAULT false,
             pcf_methodology_used TEXT[], -- ['ISO 14067', 'GHG Protocol', 'Catena-X PCF Guideline', etc.]
-            upload_pcf_report TEXT, -- document link or file reference
+            upload_pcf_report TEXT[], -- document link or file reference
             required_environmental_impact_methods TEXT[], -- ['Life Cycle Assessment (LCA)', 'Carbon Footprint', 'Water Footprint', etc.]
             any_co_product_have_economic_value BOOLEAN DEFAULT false,
             sup_id VARCHAR(255),
@@ -2833,12 +2839,12 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
 
         `CREATE TABLE IF NOT EXISTS manufacturer (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
-            name VARCHAR(255) NOT NULL,       
+            code VARCHAR(255), 
+            name VARCHAR(255),       
             address text,
             lat DOUBLE PRECISION,
             long DOUBLE PRECISION,
-            email VARCHAR(255) UNIQUE NOT NULL,
+            email VARCHAR(255) UNIQUE,
             phone_number VARCHAR(255),
             alternate_phone_number VARCHAR(255),
             gender VARCHAR(50),
@@ -2884,8 +2890,8 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
 
         `CREATE TABLE IF NOT EXISTS vehicle_detail (
             id VARCHAR(255) PRIMARY KEY,
-            code VARCHAR(255) NOT NULL, 
-            name VARCHAR(255) NOT NULL,
+            code VARCHAR(255), 
+            name VARCHAR(255),
             make VARCHAR(255),
             model VARCHAR(255),
             year VARCHAR(255),
@@ -3486,14 +3492,14 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
 
         `CREATE TABLE IF NOT EXISTS vehicle_type_emission_factor (
     wtef_id VARCHAR(255) PRIMARY KEY,
-    vehicle_type VARCHAR(255) NOT NULL, 
-    ef_eu_region VARCHAR(255) NOT NULL,  
-    ef_india_region VARCHAR(255) NOT NULL,
-    ef_global_region VARCHAR(255) NOT NULL,
-    year VARCHAR(255) NOT NULL,
-    unit VARCHAR(255) NOT NULL,
-    iso_country_code VARCHAR(255) NOT NULL,
-    code VARCHAR(255) NOT NULL,
+    vehicle_type VARCHAR(255), 
+    ef_eu_region VARCHAR(255),  
+    ef_india_region VARCHAR(255),
+    ef_global_region VARCHAR(255),
+    year VARCHAR(255),
+    unit VARCHAR(255),
+    iso_country_code VARCHAR(255),
+    code VARCHAR(255),
     created_by VARCHAR(255),
     updated_by VARCHAR(255),
     update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

@@ -4047,7 +4047,6 @@ export async function submitPcfRequestInternal(req: any, res: any) {
                 UPDATE bom_pcf_request
                 SET status = 'Completed'
                 WHERE id = $1
-                  AND own_emission_id IS NULL
                 RETURNING id
                 `,
                 [bom_pcf_id]
