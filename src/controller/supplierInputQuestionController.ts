@@ -1050,9 +1050,11 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
                 }
             });
 
-            if (!bomGroups[p.bom_id]) bomGroups[p.bom_id] = [];
-            bomGroups[p.bom_id].push(p);
+            if (p.bom_id) {
 
+                if (!bomGroups[p.bom_id]) bomGroups[p.bom_id] = [];
+                bomGroups[p.bom_id].push(p);
+            }
             // Return row for bulk insert
             return [
                 cpcev_id, spq_id, p.bom_id || null, p.material_number || null, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
@@ -1070,6 +1072,9 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             // )
         ));
 
+        for (const insert of childInserts) {
+            await insert;
+        }
 
         for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
             //  Fetch BOM price
@@ -1143,7 +1148,8 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
 
     console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
     await createDQRRecords(client, allDQRConfigs);
-    await Promise.all(childInserts);
+
+    // await Promise.all(childInserts);
 }
 
 async function insertScopeOne(client: any, data: any, sgiq_id: string) {
