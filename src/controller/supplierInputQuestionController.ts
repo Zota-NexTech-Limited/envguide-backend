@@ -2566,13 +2566,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 payload: p
             });
 
-            return [topmudp_id, stoie_id, p.bom_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit];
+            return [topmudp_id, stoie_id, p.bom_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit,p.treatment_type];
         });
 
         childInserts.push(bulkInsert(
             client,
             'type_of_pack_mat_used_for_delivering_questions',
-            ['topmudp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit'],
+            ['topmudp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit','treatment_type'],
             rows
         ));
 

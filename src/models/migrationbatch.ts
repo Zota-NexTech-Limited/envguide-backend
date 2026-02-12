@@ -1179,6 +1179,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             material_number VARCHAR(255),
             component_name VARCHAR(255),
             packagin_type VARCHAR(255),
+            treatment_type VARCHAR(255),
             packaging_size VARCHAR(255),
             unit VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

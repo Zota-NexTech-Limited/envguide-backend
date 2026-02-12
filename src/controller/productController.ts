@@ -966,8 +966,8 @@ export async function listProducts(req: any, res: any) {
                 LIMIT ${limit} OFFSET ${offset};
             `;
 
-            console.log(whereSQL,"whereSQLwhereSQLwhereSQL",whereClauses);
-            
+            console.log(whereSQL, "whereSQLwhereSQLwhereSQL", whereClauses);
+
             const countQuery = `
                 SELECT COUNT(*) AS total
                 FROM product p
@@ -5662,13 +5662,13 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
                 payload: p
             });
 
-            return [topmudp_id, stoie_id, p.product_id, product_bom_pcf_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit, own_emission_id];
+            return [topmudp_id, stoie_id, p.product_id, product_bom_pcf_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit, own_emission_id, p.treatment_type];
         });
 
         childInserts.push(bulkInsert(
             client,
             'type_of_pack_mat_used_for_delivering_questions',
-            ['topmudp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit', 'own_emission_id'],
+            ['topmudp_id', 'stoie_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit', 'own_emission_id', 'treatment_type'],
             rows
         ));
 
@@ -6626,6 +6626,7 @@ export async function pcfCalculate(req: any, res: any) {
                     // Fourth Phase Start
 
                     let packaginType = "";
+                    let treatmentType = "";
                     let packaginSize = "";
                     let packaginWeight = 0;
                     let Emission_Factor_Box_kg_CO2E_kg = 0.01;
@@ -6633,15 +6634,19 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchQ61PcakingTypeProduct = `
                         SELECT product_id,
-                        material_number,packagin_type,unit
+                        material_number,packagin_type,unit,treatment_type
                         FROM type_of_pack_mat_used_for_delivering_questions
                         WHERE product_id = $1 AND product_bom_pcf_id = $2 AND own_emission_id IS NOT NULL;
                      `;
 
                     const fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.product_id, BomData.bom_pcf_id]);
 
-                    if (Q15Result.product_id === fetchQ61PcakingTypeProductResult.rows[0].product_id) {
-                        packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type
+                    if (Q15Result && fetchQ61PcakingTypeProductResult.rows[0]) {
+
+                        if (Q15Result.product_id === fetchQ61PcakingTypeProductResult.rows[0].product_id) {
+                            packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type
+                            treatmentType = fetchQ61PcakingTypeProductResult.rows[0].treatment_type
+                        }
                     }
 
                     const fetchQ61PcakingWeight = `
@@ -6654,19 +6659,39 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.product_id, BomData.bom_pcf_id]);
 
 
-                    if (Q15Result.product_id === fetchQ61PcakingWeightResult.rows[0].product_id) {
-                        packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
+                    if (Q15Result && fetchQ61PcakingWeightResult.rows[0]) {
+                        if (Q15Result.product_id === fetchQ61PcakingWeightResult.rows[0].product_id) {
+                            packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
+                        }
+                    }
+
+                    let fetchQ61PcakingWeightResultUnit = null
+                    if (fetchQ61PcakingWeightResult.rows[0]) {
+                        fetchQ61PcakingWeightResultUnit = fetchQ61PcakingWeightResult.rows[0].unit;
+
+                    }
+
+
+                    const fetchPTTId = `SELECT ptt_id ,name 
+                                        FROM packaging_treatment_type
+                                        WHERE name=$1;`
+
+                    const fetchPTTIdFromTreatmentType = await client.query(fetchPTTId, [treatmentType]);
+
+                    let ptt_id = null;
+                    if (fetchPTTIdFromTreatmentType && fetchPTTIdFromTreatmentType.rows[0]) {
+                        ptt_id = fetchPTTIdFromTreatmentType.rows[0].ptt_id
                     }
 
                     const fetchPAckaginEmissionFactor = `
                                 SELECT material_type,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit,iso_country_code
                                 FROM packaging_material_treatment_type_emission_factor
-                                WHERE material_type = $1 AND year=$2 AND unit=$3;
+                                WHERE material_type = $1 AND year=$2 AND unit=$3 AND ptt_id=$4;
                              `;
 
 
-                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResult.rows[0].unit]);
+                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResultUnit, ptt_id]);
 
                     if (fetchPackagingEmisResult.rows[0]) {
 

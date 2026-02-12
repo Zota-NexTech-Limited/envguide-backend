@@ -1490,6 +1490,30 @@ export async function getPackagingEmissionFactorDropDownList(req: any, res: any)
     });
 }
 
+export async function getPackagingTypeEmissionFactorDropDownList(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = `
+                SELECT
+                    pef.pef_id,
+                    pef.code,
+                    pef.material_type,
+                    pef.ptt_id
+                FROM packaging_material_treatment_type_emission_factor pef
+                ORDER BY pef.material_type ASC;
+            `;
+
+            const result = await client.query(query);
+
+            return res.send(
+                generateResponse(true, "Dropdown list fetched successfully", 200, result.rows)
+            );
+        } catch (error: any) {
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
 export async function deletePackagingEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
