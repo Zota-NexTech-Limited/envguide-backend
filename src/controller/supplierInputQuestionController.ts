@@ -756,17 +756,8 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const annual_reporting_period = supplier_general_info_questions.annual_reporting_period;
             const allDQRConfigs: any[] = [];
 
-let arrayReport = []
             scope_two_indirect_emissions_questions.sup_id = sup_id;
-             arrayReport.push(supplier_product_questions.upload_pcf_report);
-            supplier_product_questions.upload_pcf_report = arrayReport
 
-            console.log(arrayReport,"arrayReportarrayReportarrayReport");
-            
-            let arrayMethodologyReport = [];
-            arrayMethodologyReport.push(scope_two_indirect_emissions_questions.methodology_details_document_url)
-         scope_two_indirect_emissions_questions.methodology_details_document_url = arrayMethodologyReport
-         
             // ============================================
             // STEP 1: Insert General Info (REQUIRED FIRST)
             // ============================================
@@ -1154,6 +1145,7 @@ let arrayReport = []
 //     await createDQRRecords(client, allDQRConfigs);
 //     await Promise.all(childInserts);
 // }
+
 async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
     const spq_id = ulid();
     const allDQRConfigs: any[] = [];
@@ -1897,7 +1889,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
 
     if (Array.isArray(data.scope_two_indirect_emissions_certificates_questions)) {
         const dqrQ24: any[] = [];
-const DATEE = '2026-02-09 18:30:00+00';
+
         const rows = data.scope_two_indirect_emissions_certificates_questions.map((c: any) => {
             const stidec_id = ulid();
 
@@ -1911,7 +1903,7 @@ const DATEE = '2026-02-09 18:30:00+00';
                 stidec_id, stide_id,
                 c.certificate_name, c.mechanism, c.serial_id,
                 c.generator_id, c.generator_name,
-                c.generator_location, c.date_of_generation, DATEE
+                c.generator_location, c.date_of_generation, c.issuance_date
             ];
         });
 
