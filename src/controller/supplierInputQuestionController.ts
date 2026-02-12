@@ -763,6 +763,10 @@ let arrayReport = []
 
             console.log(arrayReport,"arrayReportarrayReportarrayReport");
             
+            let arrayMethodologyReport = [];
+            arrayMethodologyReport.push(scope_two_indirect_emissions_questions.methodology_details_document_url)
+         scope_two_indirect_emissions_questions.methodology_details_document_url = arrayMethodologyReport
+         
             // ============================================
             // STEP 1: Insert General Info (REQUIRED FIRST)
             // ============================================
