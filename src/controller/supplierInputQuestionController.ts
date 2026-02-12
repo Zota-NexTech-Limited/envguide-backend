@@ -1162,7 +1162,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             required_environmental_impact_methods,
             any_co_product_have_economic_value
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        VALUES ($1,$2,$3,$4::TEXT[],$5::TEXT[],$6::TEXT[],$7)
         `,
         [
             spq_id,
