@@ -680,24 +680,52 @@ export async function getMaterialCompositionMetalType(req: any, res: any) {
 
 // UNIVERSAL BULK INSERT HELPER
 async function bulkInsert(client: any, tableName: string, columns: string[], rows: any[][]) {
-    if (!rows || rows.length === 0) return;
+    try {
+        if (!rows || rows.length === 0) return;
 
-    const values: any[] = [];
-    const placeholders: string[] = [];
-    let index = 1;
+        const values: any[] = [];
+        const placeholders: string[] = [];
+        let index = 1;
 
-    for (const row of rows) {
-        const rowPlaceholders = row.map(() => `$${index++}`).join(', ');
-        placeholders.push(`(${rowPlaceholders})`);
-        values.push(...row);
-    }
+        for (const row of rows) {
+            const rowPlaceholders = row.map(() => `$${index++}`).join(', ');
+            placeholders.push(`(${rowPlaceholders})`);
+            values.push(...row);
+        }
 
-    const query = `
+        const query = `
         INSERT INTO ${tableName} (${columns.join(', ')})
         VALUES ${placeholders.join(', ')}
     `;
 
-    await client.query(query, values);
+        // ✅ ADD DETAILED LOGGING
+        console.log(`📊 Bulk Insert into ${tableName}:`, {
+            columns,
+            rowCount: rows.length,
+            sampleRow: rows[0],
+            query: query.substring(0, 200) + '...',
+        });
+
+        await client.query(query, values);
+        console.log(`✅ Successfully inserted ${rows.length} rows into ${tableName}`);
+    } catch (error: any) {
+        // ✅ LOG THE ACTUAL ERROR DETAILS
+        console.error(`❌ BULK INSERT FAILED for table: ${tableName}`);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail,
+            constraint: error.constraint,
+            table: error.table,
+            column: error.column,
+            dataType: error.dataType
+        });
+        console.error('Columns:', columns);
+        console.error('First row data:', rows[0]);
+        console.error('Values being inserted:', rows);
+
+        throw error; // Re-throw to trigger rollback
+    }
 }
 
 // MAIN API FUNCTION
