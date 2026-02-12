@@ -1567,7 +1567,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
         const rows = data.scope_two_indirect_emissions_from_purchased_energy_questions.map((e: any) => {
             const stidefpe_id = ulid();
 
-            e = data.sup_id;
+            // e = data.sup_id;
             prepareDQR({
                 records: dqrQ22,
                 childId: stidefpe_id,
@@ -1581,7 +1581,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
                 }
             });
 
-            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, e.sup_id, annual_reporting_period];
+            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, data.sup_id, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
