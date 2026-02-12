@@ -723,7 +723,6 @@ async function bulkInsert(client: any, tableName: string, columns: string[], row
         console.error('Columns:', columns);
         console.error('First row data:', rows[0]);
         console.error('Values being inserted:', rows);
-        console.error('Complete error:', error);
 
         throw error; // Re-throw to trigger rollback
     }
@@ -901,58 +900,320 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 }
 
 // HELPER FUNCTIONS - Each section in separate function
+// async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
+//     const spq_id = ulid();
+//     const dqrQ11: any[] = [];
+//     const allDQRConfigs: any[] = [];
+
+//     // Insert parent
+//     await client.query(
+//         `INSERT INTO supplier_product_questions (
+//             spq_id, sgiq_id, do_you_have_an_existing_pcf_report, pcf_methodology_used,
+//             upload_pcf_report, required_environmental_impact_methods, any_co_product_have_economic_value
+//         ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+//         [spq_id, sgiq_id, data.do_you_have_an_existing_pcf_report, data.pcf_methodology_used,
+//             data.upload_pcf_report, data.required_environmental_impact_methods, data.any_co_product_have_economic_value]
+//     );
+
+//     // Q11
+//     dqrQ11.push({
+//         childId: spq_id,
+//         data: data.pcf_methodology_used
+//     });
+//     allDQRConfigs.push({
+//         tableName: 'dqr_supplier_product_questions_rating_qeleven',
+//         columns: ['spqrqe_id', 'sgiq_id', 'spq_id', 'data'],
+//         parentId: sgiq_id,
+//         records: dqrQ11
+//     });
+
+//     const dqrQ12: any[] = [];
+//     // Q12
+//     dqrQ12.push({
+//         childId: spq_id,
+//         data: data.upload_pcf_report
+//     });
+//     allDQRConfigs.push({
+//         tableName: 'dqr_supplier_product_questions_rating_qtwelve',
+//         columns: ['spqrqt_id', 'sgiq_id', 'spq_id', 'data'],
+//         parentId: sgiq_id,
+//         records: dqrQ12
+//     });
+
+//     const childInserts = [];
+
+//     // Production site details - BULK
+//     if (Array.isArray(data.production_site_details_questions) && data.production_site_details_questions.length > 0) {
+
+//         const dqrQ13: any[] = [];
+//         // Q13
+//         const insertRows = data.production_site_details_questions.map((p: any) => {
+//             const psd_id = ulid(); // correct child id
+
+//             // Store DQR data
+//             dqrQ13.push({
+//                 childId: psd_id,
+//                 data: {
+//                     bom_id: p.bom_id,
+//                     material_number: p.material_number,
+//                     product_name: p.product_name,
+//                     location: p.location
+//                 }
+//             });
+
+//             // Row for bulk insert
+//             return [psd_id, spq_id, p.bom_id, p.material_number, p.product_name, p.location];
+//         });
+
+//         childInserts.push(bulkInsert(
+//             client,
+//             'production_site_details_questions',
+//             ['psd_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'location'],
+//             insertRows
+//         ));
+
+//         allDQRConfigs.push({
+//             tableName: 'dqr_production_site_detail_rating_qthirteen',
+//             columns: ['psdrqt_id', 'sgiq_id', 'psd_id', 'data'],
+//             parentId: sgiq_id,
+//             records: dqrQ13
+//         });
+//     }
+
+//     // Product component manufactured - BULK
+//     if (Array.isArray(data.product_component_manufactured_questions) && data.product_component_manufactured_questions.length > 0) {
+//         const dqrQ15: any[] = [];
+
+//         // Q15
+//         const insertRows = data.product_component_manufactured_questions.map((p: any) => {
+//             const pcm_id = ulid(); //unique child id
+
+//             // Store DQR payload
+//             dqrQ15.push({
+//                 childId: pcm_id,
+//                 data: {
+//                     bom_id: p.bom_id,
+//                     material_number: p.material_number,
+//                     product_name: p.product_name,
+//                     production_period: p.production_period,
+//                     weight_per_unit: p.weight_per_unit,
+//                     unit: p.unit,
+//                     price: p.price,
+//                     quantity: p.quantity
+//                 }
+//             });
+
+//             // Return row for bulk insert
+//             return [
+//                 pcm_id, spq_id, p.bom_id, p.material_number, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity
+//             ];
+//         });
+
+
+//         childInserts.push(bulkInsert(
+//             client,
+//             'product_component_manufactured_questions',
+//             ['pcm_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity'],
+//             insertRows
+//             // data.product_component_manufactured_questions.map((p: any) =>
+//             //     [ulid(), spq_id, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity]
+//             // )
+//         ));
+
+//         allDQRConfigs.push({
+//             tableName: 'dqr_product_component_manufactured_rating_qfiften',
+//             columns: ['pcmrqf_id', 'sgiq_id', 'pcm_id', 'data'],
+//             parentId: sgiq_id,
+//             records: dqrQ15
+//         });
+//     }
+
+//     // Co-product component - BULK
+//     if (Array.isArray(data.co_product_component_economic_value_questions) && data.co_product_component_economic_value_questions.length > 0) {
+//         const dqrQ15Point2: any[] = [];
+//         const bomGroups: Record<string, any[]> = {};
+//         // Q15
+//         const insertRows = data.co_product_component_economic_value_questions.map((p: any) => {
+//             const cpcev_id = ulid(); //unique child id
+
+//             // Store DQR payload
+//             dqrQ15Point2.push({
+//                 childId: cpcev_id,
+//                 data: {
+//                     bom_id: p.bom_id,
+//                     material_number: p.material_number,
+//                     product_name: p.product_name,
+//                     co_product_name: p.co_product_name,
+//                     weight: p.weight,
+//                     price_per_product: p.price_per_product,
+//                     quantity: p.quantity
+//                 }
+//             });
+
+//             if (!bomGroups[p.bom_id]) bomGroups[p.bom_id] = [];
+//             bomGroups[p.bom_id].push(p);
+
+//             // Return row for bulk insert
+//             return [
+//                 cpcev_id, spq_id, p.bom_id, p.material_number, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
+//             ];
+//         });
+
+
+//         childInserts.push(bulkInsert(
+//             client,
+//             'co_product_component_economic_value_questions',
+//             ['cpcev_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity'],
+//             insertRows
+//             // data.co_product_component_economic_value_questions.map((c: any) =>
+//             //     [ulid(), spq_id, c.product_name, c.co_product_name, c.weight, c.price_per_product, c.quantity]
+//             // )
+//         ));
+
+
+//         for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
+//             //  Fetch BOM price
+
+//             const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1`, [bom_id]);
+//             const bomPrice = bomRes.rows[0]?.price || 0;
+
+//             //  Calculate average price_per_product
+//             const totalPrice = coProducts.reduce((sum, p) => sum + (p.price_per_product || 0), 0);
+//             const avgPricePerProduct = totalPrice / (coProducts.length || 1);
+
+//             // Compute ER safely
+//             const ER = bomPrice / (avgPricePerProduct || 1);
+
+//             // Update BOM table
+//             await client.query(
+//                 `UPDATE bom SET economic_ratio = $1 WHERE id = $2`,
+//                 [ER, bom_id]
+//             );
+
+//             let econAllocation = 'NA';
+//             let phyMassAllocation = 'Physical';
+//             let checkER = 'Physical';
+
+//             if (ER > 5) {
+//                 econAllocation = 'Economic';
+//             }
+
+//             await client.query(
+//                 `
+//     INSERT INTO allocation_methodology (
+//         id,
+//         bom_id,
+//         econ_allocation_er_greater_than_five,
+//         phy_mass_allocation_er_less_than_five,
+//         check_er_less_than_five
+//     )
+//     SELECT 
+//         $1,
+//         $2::VARCHAR(255),
+//         $3,
+//         $4,
+//         $5
+//     WHERE NOT EXISTS (
+//         SELECT 1
+//         FROM allocation_methodology
+//         WHERE bom_id = $2::VARCHAR(255)
+//     )
+//     `,
+//                 [
+//                     ulid(),
+//                     bom_id,
+//                     econAllocation,
+//                     phyMassAllocation,
+//                     checkER
+//                 ]
+//             );
+
+
+
+//             console.log(`BOM ID ${bom_id} | BOM Price: ${bomPrice} | Avg Co-Product Price: ${avgPricePerProduct} | ER: ${ER}`);
+//         }
+
+//         allDQRConfigs.push({
+//             tableName: 'dqr_co_product_component_manufactured_rating_qfiftenone',
+//             columns: ['pcmrqfo_id', 'sgiq_id', 'cpcev_id', 'data'],
+//             parentId: sgiq_id,
+//             records: dqrQ15Point2
+//         });
+//     }
+
+//     console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
+//     await createDQRRecords(client, allDQRConfigs);
+//     await Promise.all(childInserts);
+// }
 async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
     const spq_id = ulid();
-    const dqrQ11: any[] = [];
     const allDQRConfigs: any[] = [];
 
-    // Insert parent
+    /* ---------------- Parent Insert ---------------- */
     await client.query(
-        `INSERT INTO supplier_product_questions (
-            spq_id, sgiq_id, do_you_have_an_existing_pcf_report, pcf_methodology_used,
-            upload_pcf_report, required_environmental_impact_methods, any_co_product_have_economic_value
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [spq_id, sgiq_id, data.do_you_have_an_existing_pcf_report, data.pcf_methodology_used,
-            data.upload_pcf_report, data.required_environmental_impact_methods, data.any_co_product_have_economic_value]
+        `
+        INSERT INTO supplier_product_questions (
+            spq_id,
+            sgiq_id,
+            do_you_have_an_existing_pcf_report,
+            pcf_methodology_used,
+            upload_pcf_report,
+            required_environmental_impact_methods,
+            any_co_product_have_economic_value
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        `,
+        [
+            spq_id,
+            sgiq_id,
+            data.do_you_have_an_existing_pcf_report,
+            data.pcf_methodology_used,
+            data.upload_pcf_report,
+            data.required_environmental_impact_methods,
+            data.any_co_product_have_economic_value
+        ]
     );
 
-    // Q11
-    dqrQ11.push({
-        childId: spq_id,
-        data: data.pcf_methodology_used
-    });
+    /* ---------------- DQR Q11 ---------------- */
     allDQRConfigs.push({
         tableName: 'dqr_supplier_product_questions_rating_qeleven',
         columns: ['spqrqe_id', 'sgiq_id', 'spq_id', 'data'],
         parentId: sgiq_id,
-        records: dqrQ11
+        records: [{
+            childId: spq_id,
+            data: data.pcf_methodology_used
+        }]
     });
 
-    const dqrQ12: any[] = [];
-    // Q12
-    dqrQ12.push({
-        childId: spq_id,
-        data: data.upload_pcf_report
-    });
+    /* ---------------- DQR Q12 ---------------- */
     allDQRConfigs.push({
         tableName: 'dqr_supplier_product_questions_rating_qtwelve',
         columns: ['spqrqt_id', 'sgiq_id', 'spq_id', 'data'],
         parentId: sgiq_id,
-        records: dqrQ12
+        records: [{
+            childId: spq_id,
+            data: data.upload_pcf_report
+        }]
     });
 
-    const childInserts = [];
+    /* ---------------- Production Site Details ---------------- */
+    if (Array.isArray(data.production_site_details_questions) && data.production_site_details_questions.length) {
+        const rows: any[] = [];
+        const dqr: any[] = [];
 
-    // Production site details - BULK
-    if (Array.isArray(data.production_site_details_questions) && data.production_site_details_questions.length > 0) {
+        for (const p of data.production_site_details_questions) {
+            const psd_id = ulid();
 
-        const dqrQ13: any[] = [];
-        // Q13
-        const insertRows = data.production_site_details_questions.map((p: any) => {
-            const psd_id = ulid(); // correct child id
+            rows.push([
+                psd_id,
+                spq_id,
+                p.bom_id,
+                p.material_number,
+                p.product_name,
+                p.location
+            ]);
 
-            // Store DQR data
-            dqrQ13.push({
+            dqr.push({
                 childId: psd_id,
                 data: {
                     bom_id: p.bom_id,
@@ -961,36 +1222,45 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
                     location: p.location
                 }
             });
+        }
 
-            // Row for bulk insert
-            return [psd_id, spq_id, p.bom_id, p.material_number, p.product_name, p.location];
-        });
-
-        childInserts.push(bulkInsert(
+        await bulkInsert(
             client,
             'production_site_details_questions',
             ['psd_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'location'],
-            insertRows
-        ));
+            rows
+        );
 
         allDQRConfigs.push({
             tableName: 'dqr_production_site_detail_rating_qthirteen',
             columns: ['psdrqt_id', 'sgiq_id', 'psd_id', 'data'],
             parentId: sgiq_id,
-            records: dqrQ13
+            records: dqr
         });
     }
 
-    // Product component manufactured - BULK
-    if (Array.isArray(data.product_component_manufactured_questions) && data.product_component_manufactured_questions.length > 0) {
-        const dqrQ15: any[] = [];
+    /* ---------------- Product Component Manufactured ---------------- */
+    if (Array.isArray(data.product_component_manufactured_questions) && data.product_component_manufactured_questions.length) {
+        const rows: any[] = [];
+        const dqr: any[] = [];
 
-        // Q15
-        const insertRows = data.product_component_manufactured_questions.map((p: any) => {
-            const pcm_id = ulid(); //unique child id
+        for (const p of data.product_component_manufactured_questions) {
+            const pcm_id = ulid();
 
-            // Store DQR payload
-            dqrQ15.push({
+            rows.push([
+                pcm_id,
+                spq_id,
+                p.bom_id,
+                p.material_number,
+                p.product_name,
+                p.production_period,
+                p.weight_per_unit,
+                p.unit,
+                p.price,
+                p.quantity
+            ]);
+
+            dqr.push({
                 childId: pcm_id,
                 data: {
                     bom_id: p.bom_id,
@@ -1003,42 +1273,56 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
                     quantity: p.quantity
                 }
             });
+        }
 
-            // Return row for bulk insert
-            return [
-                pcm_id, spq_id, p.bom_id, p.material_number, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity
-            ];
-        });
-
-
-        childInserts.push(bulkInsert(
+        await bulkInsert(
             client,
             'product_component_manufactured_questions',
-            ['pcm_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity'],
-            insertRows
-            // data.product_component_manufactured_questions.map((p: any) =>
-            //     [ulid(), spq_id, p.product_name, p.production_period, p.weight_per_unit, p.unit, p.price, p.quantity]
-            // )
-        ));
+            [
+                'pcm_id',
+                'spq_id',
+                'bom_id',
+                'material_number',
+                'product_name',
+                'production_period',
+                'weight_per_unit',
+                'unit',
+                'price',
+                'quantity'
+            ],
+            rows
+        );
 
         allDQRConfigs.push({
             tableName: 'dqr_product_component_manufactured_rating_qfiften',
             columns: ['pcmrqf_id', 'sgiq_id', 'pcm_id', 'data'],
             parentId: sgiq_id,
-            records: dqrQ15
+            records: dqr
         });
     }
 
-    // Co-product component - BULK
-    if (Array.isArray(data.co_product_component_economic_value_questions) && data.co_product_component_economic_value_questions.length > 0) {
-        const dqrQ15Point2: any[] = [];
+    /* ---------------- Co-Product Component ---------------- */
+    if (Array.isArray(data.co_product_component_economic_value_questions) && data.co_product_component_economic_value_questions.length) {
+        const rows: any[] = [];
+        const dqr: any[] = [];
         const bomGroups: Record<string, any[]> = {};
-        // Q15
-        const insertRows = data.co_product_component_economic_value_questions.map((p: any) => {
-            const cpcev_id = ulid(); //unique child id
 
-            // Store DQR payload
-            dqrQ15Point2.push({
+        for (const p of data.co_product_component_economic_value_questions) {
+            const cpcev_id = ulid();
+
+            rows.push([
+                cpcev_id,
+                spq_id,
+                p.bom_id || null,
+                p.material_number || null,
+                p.product_name,
+                p.co_product_name,
+                p.weight,
+                p.price_per_product,
+                p.quantity
+            ]);
+
+            dqr.push({
                 childId: cpcev_id,
                 data: {
                     bom_id: p.bom_id || null,
@@ -1052,106 +1336,74 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             });
 
             if (p.bom_id) {
-
                 if (!bomGroups[p.bom_id]) bomGroups[p.bom_id] = [];
                 bomGroups[p.bom_id].push(p);
             }
-            // Return row for bulk insert
-            return [
-                cpcev_id, spq_id, p.bom_id || null, p.material_number || null, p.product_name, p.co_product_name, p.weight, p.price_per_product, p.quantity
-            ];
-        });
-
-
-        childInserts.push(bulkInsert(
-            client,
-            'co_product_component_economic_value_questions',
-            ['cpcev_id', 'spq_id', 'bom_id', 'material_number', 'product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity'],
-            insertRows
-            // data.co_product_component_economic_value_questions.map((c: any) =>
-            //     [ulid(), spq_id, c.product_name, c.co_product_name, c.weight, c.price_per_product, c.quantity]
-            // )
-        ));
-
-        for (const insert of childInserts) {
-            await insert;
         }
 
-        for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
-            //  Fetch BOM price
+        await bulkInsert(
+            client,
+            'co_product_component_economic_value_questions',
+            [
+                'cpcev_id',
+                'spq_id',
+                'bom_id',
+                'material_number',
+                'product_name',
+                'co_product_name',
+                'weight',
+                'price_per_product',
+                'quantity'
+            ],
+            rows
+        );
 
+        /* ---- Economic Ratio Calculation ---- */
+        for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
             const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1`, [bom_id]);
             const bomPrice = bomRes.rows[0]?.price || 0;
 
-            //  Calculate average price_per_product
-            const totalPrice = coProducts.reduce((sum, p) => sum + (p.price_per_product || 0), 0);
-            const avgPricePerProduct = totalPrice / (coProducts.length || 1);
+            const total = coProducts.reduce((s, p) => s + (p.price_per_product || 0), 0);
+            const avg = total / (coProducts.length || 1);
+            const ER = bomPrice / (avg || 1);
 
-            // Compute ER safely
-            const ER = bomPrice / (avgPricePerProduct || 1);
-
-            // Update BOM table
             await client.query(
                 `UPDATE bom SET economic_ratio = $1 WHERE id = $2`,
                 [ER, bom_id]
             );
 
-            let econAllocation = 'NA';
-            let phyMassAllocation = 'Physical';
-            let checkER = 'Physical';
-
-            if (ER > 5) {
-                econAllocation = 'Economic';
-            }
+            const econ = ER > 5 ? 'Economic' : 'NA';
 
             await client.query(
                 `
-    INSERT INTO allocation_methodology (
-        id,
-        bom_id,
-        econ_allocation_er_greater_than_five,
-        phy_mass_allocation_er_less_than_five,
-        check_er_less_than_five
-    )
-    SELECT 
-        $1,
-        $2::VARCHAR(255),
-        $3,
-        $4,
-        $5
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM allocation_methodology
-        WHERE bom_id = $2::VARCHAR(255)
-    )
-    `,
-                [
-                    ulid(),
+                INSERT INTO allocation_methodology (
+                    id,
                     bom_id,
-                    econAllocation,
-                    phyMassAllocation,
-                    checkER
-                ]
+                    econ_allocation_er_greater_than_five,
+                    phy_mass_allocation_er_less_than_five,
+                    check_er_less_than_five
+                )
+                SELECT $1, $2, $3, $4, $5
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM allocation_methodology WHERE bom_id = $2
+                )
+                `,
+                [ulid(), bom_id, econ, 'Physical', 'Physical']
             );
-
-
-
-            console.log(`BOM ID ${bom_id} | BOM Price: ${bomPrice} | Avg Co-Product Price: ${avgPricePerProduct} | ER: ${ER}`);
         }
 
         allDQRConfigs.push({
             tableName: 'dqr_co_product_component_manufactured_rating_qfiftenone',
             columns: ['pcmrqfo_id', 'sgiq_id', 'cpcev_id', 'data'],
             parentId: sgiq_id,
-            records: dqrQ15Point2
+            records: dqr
         });
     }
 
-    console.log(`Creating ${allDQRConfigs.length} DQR table entries...`);
+    /* ---------------- DQR Final Insert ---------------- */
     await createDQRRecords(client, allDQRConfigs);
-
-    // await Promise.all(childInserts);
 }
+
 
 async function insertScopeOne(client: any, data: any, sgiq_id: string) {
     const sode_id = ulid();
