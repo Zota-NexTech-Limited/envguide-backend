@@ -335,7 +335,7 @@ export async function getMaterialsPlusMaterialTypeDropDownnList(req: any, res: a
                 SELECT
                     mcm.mcm_id,
                     CONCAT(mcm.name, ' - ', mcmt.name) AS combined_name
-                FROM material_composition_metal mcm
+                FROM material_composition_metals mcm
                 INNER JOIN material_composition_metal_type mcmt
                     ON mcmt.mcm_id = mcm.mcm_id
                 ORDER BY mcm.created_date ASC;
