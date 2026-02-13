@@ -1407,7 +1407,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
             // Handle case when no co-products exist
             let ER, econ;
             if (coProducts.length === 0 || total === 0) {
-                ER = null; // or 0, depending on your business logic
+                ER = 0; // or 0, depending on your business logic
                 econ = 'NA';
             } else {
                 const avg = total / coProducts.length;
