@@ -6464,7 +6464,7 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "Kg"]);
 
                     let Material_Emission_Factor_kg_CO2E_kg = 0.01;
-                    if (fetchEmissionMaterialFactorSupResult.rows) {
+                    if (fetchEmissionMaterialFactorSupResult.rows[0]) {
 
                         if (fetchQ13SupResult.rows[0]) {
 
