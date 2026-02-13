@@ -4206,3 +4206,379 @@ export async function supplierQuestionnaireStatus(req: any, res: any) {
         }
     });
 }
+
+export async function getSupplierSustainabilityDataById(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id, sup_id } = req.query;
+
+            if (!bom_pcf_id || !sup_id) {
+                return res.send(generateResponse(false, "bom_pcf_id and sup_id is required", 400, null));
+            }
+
+            // ============================================
+            // STEP 0: Fetch BOM PCF Details
+            // ============================================
+            const bomPcfQuery = `
+                SELECT id, code, request_title
+                FROM bom_pcf_request
+                WHERE id = $1;
+            `;
+            const bomPcfResult = await client.query(bomPcfQuery, [bom_pcf_id]);
+
+            if (bomPcfResult.rows.length === 0) {
+                return res.send(generateResponse(false, "BOM PCF not found", 404, null));
+            }
+
+            const bomPcfDetails = bomPcfResult.rows[0];
+
+            // ============================================
+            // STEP 1: Fetch All Suppliers for this bom_pcf_id (where sup_id is NOT NULL)
+            // ============================================
+            const generalInfoQuery = `
+                SELECT sgiq.*
+                FROM supplier_general_info_questions sgiq
+                WHERE sgiq.bom_pcf_id = $1 
+                  AND sgiq.sup_id = $2
+                ORDER BY sgiq.created_date;
+            `;
+
+            const generalInfoResult = await client.query(generalInfoQuery, [bom_pcf_id, sup_id]);
+
+            if (generalInfoResult.rows.length === 0) {
+                return res.send(generateResponse(false, "No supplier sustainability data found for this BOM PCF", 404, null));
+            }
+
+            // Array to store all supplier data
+            // const suppliersData = [];
+
+            // ============================================
+            // LOOP THROUGH EACH SUPPLIER
+            // ============================================
+            // for (const generalInfo of generalInfoResult.rows) {
+            let supplierData = generalInfoResult.rows[0];
+            const sgiq_id = supplierData.sgiq_id;
+
+            // Fetch nested scope questions for general info
+            const scopeGeneralQuery = `
+                    SELECT *
+                    FROM availability_of_scope_one_two_three_emissions_questions
+                    WHERE sgiq_id = $1
+                    ORDER BY created_date;
+                `;
+            const scopeGeneralResult = await client.query(scopeGeneralQuery, [sgiq_id]);
+            supplierData.availability_of_scope_one_two_three_emissions_questions = scopeGeneralResult.rows || [];
+
+            // ============================================
+            // STEP 2: Fetch Supplier Product Questions
+            // ============================================
+            const productQuery = `
+                    SELECT *
+                    FROM supplier_product_questions
+                    WHERE sgiq_id = $1;
+                `;
+            const productResult = await client.query(productQuery, [sgiq_id]);
+
+            if (productResult.rows.length > 0) {
+                const spq = productResult.rows[0];
+                const spq_id = spq.spq_id;
+
+                // Production Site Details with BOM details
+                const productionSiteQuery = `
+                        SELECT psd.*,
+                               b.id as bom_id,
+                               b.code as bom_code,
+                               b.material_number,
+                               b.component_name
+                        FROM production_site_details_questions psd
+                        LEFT JOIN bom b ON psd.bom_id = b.id
+                        WHERE psd.spq_id = $1
+                        ORDER BY psd.created_date;
+                    `;
+                const productionSiteResult = await client.query(productionSiteQuery, [spq_id]);
+                spq.production_site_details_questions = productionSiteResult.rows || [];
+
+                // Product Component Manufactured with BOM details
+                const componentManufacturedQuery = `
+                        SELECT pcm.*,
+                               b.id as bom_id,
+                               b.code as bom_code,
+                               b.material_number,
+                               b.component_name
+                        FROM product_component_manufactured_questions pcm
+                        LEFT JOIN bom b ON pcm.bom_id = b.id
+                        WHERE pcm.spq_id = $1
+                        ORDER BY pcm.created_date;
+                    `;
+                const componentManufacturedResult = await client.query(componentManufacturedQuery, [spq_id]);
+                spq.product_component_manufactured_questions = componentManufacturedResult.rows || [];
+
+                // Co-Product Component with BOM details
+                const coProductQuery = `
+                        SELECT cpcev.*,
+                               b.id as bom_id,
+                               b.code as bom_code,
+                               b.material_number,
+                               b.component_name
+                        FROM co_product_component_economic_value_questions cpcev
+                        LEFT JOIN bom b ON cpcev.bom_id = b.id
+                        WHERE cpcev.spq_id = $1
+                        ORDER BY cpcev.created_date;
+                    `;
+                const coProductResult = await client.query(coProductQuery, [spq_id]);
+                spq.co_product_component_economic_value_questions = coProductResult.rows || [];
+
+                supplierData.supplier_product_questions = spq;
+            } else {
+                supplierData.supplier_product_questions = null;
+            }
+
+            // ============================================
+            // STEP 3: Fetch Scope One Direct Emissions
+            // ============================================
+            const scopeOneQuery = `
+                    SELECT *
+                    FROM scope_one_direct_emissions_questions
+                    WHERE sgiq_id = $1;
+                `;
+            const scopeOneResult = await client.query(scopeOneQuery, [sgiq_id]);
+
+            if (scopeOneResult.rows.length > 0) {
+                const scopeOne = scopeOneResult.rows[0];
+                const sode_id = scopeOne.sode_id;
+
+                // Stationary Combustion
+                const stationaryCombustionQuery = `
+                        SELECT *
+                        FROM stationary_combustion_on_site_energy_use_questions
+                        WHERE sode_id = $1
+                        ORDER BY created_date;
+                    `;
+                const stationaryCombustionResult = await client.query(stationaryCombustionQuery, [sode_id]);
+
+                // For each stationary combustion, fetch sub fuel types
+                for (const sc of stationaryCombustionResult.rows) {
+                    const subFuelQuery = `
+                            SELECT *
+                            FROM scoseu_sub_fuel_type_questions
+                            WHERE scoseu_id = $1
+                            ORDER BY created_date;
+                        `;
+                    const subFuelResult = await client.query(subFuelQuery, [sc.scoseu_id]);
+                    sc.scoseu_sub_fuel_type_questions = subFuelResult.rows || [];
+                }
+                scopeOne.stationary_combustion_on_site_energy_use_questions = stationaryCombustionResult.rows || [];
+
+                // Mobile Combustion
+                const mobileCombustionQuery = `
+                        SELECT *
+                        FROM mobile_combustion_company_owned_vehicles_questions
+                        WHERE sode_id = $1
+                        ORDER BY created_date;
+                    `;
+                const mobileCombustionResult = await client.query(mobileCombustionQuery, [sode_id]);
+                scopeOne.mobile_combustion_company_owned_vehicles_questions = mobileCombustionResult.rows || [];
+
+                // Refrigerants
+                const refrigerantsQuery = `
+                        SELECT *
+                        FROM refrigerants_questions
+                        WHERE sode_id = $1
+                        ORDER BY created_date;
+                    `;
+                const refrigerantsResult = await client.query(refrigerantsQuery, [sode_id]);
+                scopeOne.refrigerants_questions = refrigerantsResult.rows || [];
+
+                // Process Emissions
+                const processEmissionsQuery = `
+                        SELECT *
+                        FROM process_emissions_sources_questions
+                        WHERE sode_id = $1
+                        ORDER BY created_date;
+                    `;
+                const processEmissionsResult = await client.query(processEmissionsQuery, [sode_id]);
+                scopeOne.process_emissions_sources_questions = processEmissionsResult.rows || [];
+
+                supplierData.scope_one_direct_emissions_questions = scopeOne;
+            } else {
+                supplierData.scope_one_direct_emissions_questions = null;
+            }
+
+            // ============================================
+            // STEP 4: Fetch Scope Two Indirect Emissions
+            // ============================================
+            const scopeTwoQuery = `
+                    SELECT *
+                    FROM scope_two_indirect_emissions_questions
+                    WHERE sgiq_id = $1;
+                `;
+            const scopeTwoResult = await client.query(scopeTwoQuery, [sgiq_id]);
+
+            if (scopeTwoResult.rows.length > 0) {
+                const scopeTwo = scopeTwoResult.rows[0];
+                const stide_id = scopeTwo.stide_id;
+
+                // Fetch with BOM details where applicable
+                const childTablesWithBOM = [
+                    { key: 'energy_intensity_of_production_estimated_kwhor_mj_questions', table: 'energy_intensity_of_production_estimated_kwhor_mj_questions' },
+                    { key: 'process_specific_energy_usage_questions', table: 'process_specific_energy_usage_questions' },
+                    { key: 'weight_of_samples_destroyed_questions', table: 'weight_of_samples_destroyed_questions' },
+                    { key: 'defect_or_rejection_rate_identified_by_quality_control_questions', table: 'defect_or_rejection_rate_identified_by_quality_control_questions' },
+                    { key: 'rework_rate_due_to_quality_control_questions', table: 'rework_rate_due_to_quality_control_questions' },
+                    { key: 'weight_of_quality_control_waste_generated_questions', table: 'weight_of_quality_control_waste_generated_questions' }
+                ];
+
+                const childTablesWithoutBOM = [
+                    { key: 'scope_two_indirect_emissions_from_purchased_energy_questions', table: 'scope_two_indirect_emissions_from_purchased_energy_questions' },
+                    { key: 'scope_two_indirect_emissions_certificates_questions', table: 'scope_two_indirect_emissions_certificates_questions' },
+                    { key: 'abatement_systems_used_questions', table: 'abatement_systems_used_questions' },
+                    { key: 'type_of_quality_control_equipment_usage_questions', table: 'type_of_quality_control_equipment_usage_questions' },
+                    { key: 'electricity_consumed_for_quality_control_questions', table: 'electricity_consumed_for_quality_control_questions' },
+                    { key: 'quality_control_process_usage_questions', table: 'quality_control_process_usage_questions' },
+                    { key: 'quality_control_process_usage_pressure_or_flow_questions', table: 'quality_control_process_usage_pressure_or_flow_questions' },
+                    { key: 'quality_control_use_any_consumables_questions', table: 'quality_control_use_any_consumables_questions' },
+                    { key: 'energy_consumption_for_qfortyfour_questions', table: 'energy_consumption_for_qfortyfour_questions' },
+                    { key: 'cloud_provider_details_questions', table: 'cloud_provider_details_questions' },
+                    { key: 'dedicated_monitoring_sensor_usage_questions', table: 'dedicated_monitoring_sensor_usage_questions' },
+                    { key: 'annual_replacement_rate_of_sensor_questions', table: 'annual_replacement_rate_of_sensor_questions' },
+                    { key: 'energy_consumption_for_qfiftyone_questions', table: 'energy_consumption_for_qfiftyone_questions' }
+                ];
+
+                // Fetch tables with BOM details
+                for (const childTable of childTablesWithBOM) {
+                    const childQuery = `
+                            SELECT t.*,
+                                   b.id as bom_id,
+                                   b.code as bom_code,
+                                   b.material_number,
+                                   b.component_name
+                            FROM ${childTable.table} t
+                            LEFT JOIN bom b ON t.bom_id = b.id
+                            WHERE t.stide_id = $1
+                            ORDER BY t.created_date;
+                        `;
+                    const childResult = await client.query(childQuery, [stide_id]);
+                    scopeTwo[childTable.key] = childResult.rows || [];
+                }
+
+                // Fetch tables without BOM
+                for (const childTable of childTablesWithoutBOM) {
+                    const childQuery = `
+                            SELECT *
+                            FROM ${childTable.table}
+                            WHERE stide_id = $1
+                            ORDER BY created_date;
+                        `;
+                    const childResult = await client.query(childQuery, [stide_id]);
+                    scopeTwo[childTable.key] = childResult.rows || [];
+                }
+
+                supplierData.scope_two_indirect_emissions_questions = scopeTwo;
+            } else {
+                supplierData.scope_two_indirect_emissions_questions = null;
+            }
+
+            // ============================================
+            // STEP 5: Fetch Scope Three Other Indirect Emissions
+            // ============================================
+            const scopeThreeQuery = `
+                    SELECT *
+                    FROM scope_three_other_indirect_emissions_questions
+                    WHERE sgiq_id = $1;
+                `;
+            const scopeThreeResult = await client.query(scopeThreeQuery, [sgiq_id]);
+
+            if (scopeThreeResult.rows.length > 0) {
+                const scopeThree = scopeThreeResult.rows[0];
+                const stoie_id = scopeThree.stoie_id;
+
+                // Tables with BOM details
+                const childTablesWithBOM = [
+                    { key: 'raw_materials_used_in_component_manufacturing_questions', table: 'raw_materials_used_in_component_manufacturing_questions' },
+                    { key: 'recycled_materials_with_percentage_questions', table: 'recycled_materials_with_percentage_questions' },
+                    { key: 'type_of_pack_mat_used_for_delivering_questions', table: 'type_of_pack_mat_used_for_delivering_questions' },
+                    { key: 'weight_of_packaging_per_unit_product_questions', table: 'weight_of_packaging_per_unit_product_questions' },
+                    { key: 'weight_of_pro_packaging_waste_questions', table: 'weight_of_pro_packaging_waste_questions' },
+                    { key: 'type_of_by_product_questions', table: 'type_of_by_product_questions' },
+                    { key: 'co_two_emission_of_raw_material_questions', table: 'co_two_emission_of_raw_material_questions' },
+                    { key: 'mode_of_transport_used_for_transportation_questions', table: 'mode_of_transport_used_for_transportation_questions' }
+                ];
+
+                const childTablesWithoutBOM = [
+                    { key: 'pre_post_consumer_reutilization_percentage_questions', table: 'pre_post_consumer_reutilization_percentage_questions' },
+                    { key: 'pir_pcr_material_percentage_questions', table: 'pir_pcr_material_percentage_questions' },
+                    { key: 'energy_consumption_for_qsixtyseven_questions', table: 'energy_consumption_for_qsixtyseven_questions' },
+                    { key: 'destination_plant_component_transportation_questions', table: 'destination_plant_component_transportation_questions' }
+                ];
+
+                // Fetch tables with BOM details
+                for (const childTable of childTablesWithBOM) {
+                    const childQuery = `
+                            SELECT t.*,
+                                   b.id as bom_id,
+                                   b.code as bom_code,
+                                   b.material_number,
+                                   b.component_name
+                            FROM ${childTable.table} t
+                            LEFT JOIN bom b ON t.bom_id = b.id
+                            WHERE t.stoie_id = $1
+                            ORDER BY t.created_date;
+                        `;
+                    const childResult = await client.query(childQuery, [stoie_id]);
+                    scopeThree[childTable.key] = childResult.rows || [];
+                }
+
+                // Fetch tables without BOM
+                for (const childTable of childTablesWithoutBOM) {
+                    const childQuery = `
+                            SELECT *
+                            FROM ${childTable.table}
+                            WHERE stoie_id = $1
+                            ORDER BY created_date;
+                        `;
+                    const childResult = await client.query(childQuery, [stoie_id]);
+                    scopeThree[childTable.key] = childResult.rows || [];
+                }
+
+                supplierData.scope_three_other_indirect_emissions_questions = scopeThree;
+            } else {
+                supplierData.scope_three_other_indirect_emissions_questions = null;
+            }
+
+            // ============================================
+            // STEP 6: Fetch Scope Four Avoided Emissions
+            // ============================================
+            const scopeFourQuery = `
+                    SELECT *
+                    FROM scope_four_avoided_emissions_questions
+                    WHERE sgiq_id = $1;
+                `;
+            const scopeFourResult = await client.query(scopeFourQuery, [sgiq_id]);
+
+            supplierData.scope_four_avoided_emissions_questions = scopeFourResult.rows.length > 0
+                ? scopeFourResult.rows[0]
+                : null;
+
+            // Add this supplier's complete data to the array
+            // suppliersData.push(supplierData);
+            // }
+
+            // ============================================
+            // FINAL RESPONSE
+            // ============================================
+            const responseData = {
+                bom_pcf_details: bomPcfDetails,
+                suppliers: supplierData,
+                // total_suppliers: suppliersData.length
+            };
+
+            return res.send(
+                generateResponse(true, "Supplier sustainability data fetched successfully", 200, responseData)
+            );
+
+        } catch (err: any) {
+            console.error("Error fetching supplier sustainability data:", err);
+            return res.send(generateResponse(false, err.message, 400, null));
+        }
+    });
+}
