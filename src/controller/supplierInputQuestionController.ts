@@ -1360,38 +1360,79 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
         );
 
         /* ---- Economic Ratio Calculation ---- */
+        // below code also working fine
+        // for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
+        //     const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1::VARCHAR`, [bom_id]);
+        //     const bomPrice = bomRes.rows[0]?.price || 0;
+
+        //     const total = coProducts.reduce((s, p) => s + (p.price_per_product || 0), 0);
+        //     const avg = total / (coProducts.length || 1);
+        //     const ER = bomPrice / (avg || 1);
+
+        //     await client.query(
+        //         `UPDATE bom SET economic_ratio = $1::NUMERIC WHERE id = $2::VARCHAR`,
+        //         [ER, bom_id]
+        //     );
+
+        //     const econ = ER > 5 ? 'Economic' : 'NA';
+
+        //     await client.query(
+        //         `
+        //         INSERT INTO allocation_methodology (
+        //             id,
+        //             bom_id,
+        //             econ_allocation_er_greater_than_five,
+        //             phy_mass_allocation_er_less_than_five,
+        //             check_er_less_than_five
+        //         )
+        //         SELECT $1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR
+        //         WHERE NOT EXISTS (
+        //             SELECT 1 FROM allocation_methodology WHERE bom_id = $2
+        //         )
+        //         `,
+        //         [ulid(), bom_id, econ, 'Physical', 'Physical']
+        //     );
+        // }
+
+
         for (const [bom_id, coProducts] of Object.entries(bomGroups)) {
-            const bomRes = await client.query(`SELECT price FROM bom WHERE id = $1::VARCHAR`, [bom_id]);
+            const bomRes = await client.query(
+                `SELECT price FROM bom WHERE id = $1::VARCHAR`,
+                [bom_id]
+            );
             const bomPrice = bomRes.rows[0]?.price || 0;
 
             const total = coProducts.reduce((s, p) => s + (p.price_per_product || 0), 0);
-            const avg = total / (coProducts.length || 1);
-            const ER = bomPrice / (avg || 1);
+
+            // Handle case when no co-products exist
+            let ER, econ;
+            if (coProducts.length === 0 || total === 0) {
+                ER = null; // or 0, depending on your business logic
+                econ = 'NA';
+            } else {
+                const avg = total / coProducts.length;
+                ER = bomPrice / avg;
+                econ = ER > 5 ? 'Economic' : 'NA';
+            }
 
             await client.query(
                 `UPDATE bom SET economic_ratio = $1::NUMERIC WHERE id = $2::VARCHAR`,
                 [ER, bom_id]
             );
 
-            const econ = ER > 5 ? 'Economic' : 'NA';
-
             await client.query(
-                `
-                INSERT INTO allocation_methodology (
-                    id,
-                    bom_id,
-                    econ_allocation_er_greater_than_five,
-                    phy_mass_allocation_er_less_than_five,
-                    check_er_less_than_five
-                )
-                SELECT $1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM allocation_methodology WHERE bom_id = $2
-                )
-                `,
+                `INSERT INTO allocation_methodology (
+      id, bom_id, econ_allocation_er_greater_than_five,
+      phy_mass_allocation_er_less_than_five, check_er_less_than_five
+    )
+    SELECT $1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR
+    WHERE NOT EXISTS (
+      SELECT 1 FROM allocation_methodology WHERE bom_id = $2
+    )`,
                 [ulid(), bom_id, econ, 'Physical', 'Physical']
             );
         }
+
 
         allDQRConfigs.push({
             tableName: 'dqr_co_product_component_manufactured_rating_qfiftenone',
