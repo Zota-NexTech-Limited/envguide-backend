@@ -208,7 +208,7 @@ export const DQR_CONFIG: Record<string, { table: string; pk: string }> = {
 
     // Q19 – Q22
     q19: { table: 'dqr_refrigerants_rating_qnineten', pk: 'refrqn_id' },
-    q21: { table: 'dqr_process_emissions_sources_qtwentyone', pk: 'pesqto_id' },
+    dq21: { table: 'dqr_process_emissions_sources_qtwentyone', pk: 'pesqto_id' },
     q22: { table: 'dqr_scope_two_indirect_emis_from_pur_energy_qtwentytwo', pk: 'stidefpeqtt_id' },
 
     // Q24 – Q28
