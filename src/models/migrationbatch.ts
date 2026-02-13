@@ -670,9 +670,9 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             aosotte_id VARCHAR(255) PRIMARY KEY,
             sgiq_id VARCHAR(255),   
             country_iso_three VARCHAR(255),
-            scope_one NUMERIC(5,2),
-            scope_two NUMERIC(5,2),
-            scope_three NUMERIC(5,2),
+            scope_one BIGINT,
+            scope_two BIGINT,
+            scope_three BIGINT,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(sgiq_id) REFERENCES supplier_general_info_questions (sgiq_id)
