@@ -1322,7 +1322,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             FOREIGN KEY(sgiq_id) REFERENCES supplier_general_info_questions (sgiq_id)
   );`,
 
-        //  ==========>Supplier Organization Questionnaire Tables end<============
+        //  ==========>Supplier Organization Questionnaire Tables end 46 tables for quetions<============
 
 
         //===========> DQR Rating Tables total 50 tables
