@@ -1357,6 +1357,7 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
       OR ct.name ILIKE $${idx}
       OR m.name ILIKE $${idx}
       OR pd.product_name ILIKE $${idx}
+      OR pcf.request_organization ILIKE $${idx}
     )
   `);
                 values.push(`%${search}%`);
