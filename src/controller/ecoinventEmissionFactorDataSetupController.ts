@@ -201,6 +201,96 @@ export async function getMaterialsEmissionFactorListSearch(req: any, res: any) {
     });
 }
 
+// export async function materialsEmissionFactorDataSetup(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const data = req.body;
+
+//             if (!Array.isArray(data) || data.length === 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Invalid input array", 400, null));
+//             }
+
+//             // Check duplicate names inside payload
+//             const names = data.map(d => d.element_name.toLowerCase());
+//             const duplicatePayloadNames = names.filter(
+//                 (n, i) => names.indexOf(n) !== i
+//             );
+
+//             if (duplicatePayloadNames.length > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Duplicate names in payload", 400, null));
+//             }
+
+//             // Check existing names in DB
+//             const existing = await client.query(
+//                 `SELECT element_name FROM materials_emission_factor WHERE element_name ILIKE ANY($1)`,
+//                 [names]
+//             );
+
+//             if (existing.rowCount > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "One or more names already exist", 400, null));
+//             }
+
+//             const rows: any[] = [];
+
+//             let nextNumber = await generateDynamicCode(client, 'MEF', 'materials_emission_factor');
+
+//             for (const item of data) {
+
+//                 if (!item.element_name) {
+//                     throw new Error("Name is required");
+//                 }
+
+//                 const code = formatCode('MEF', nextNumber);
+//                 nextNumber++;
+
+//                 rows.push({
+//                     mef_id: ulid(),
+//                     code: code,
+//                     element_name: item.element_name,
+//                     ef_eu_region: item.ef_eu_region,
+//                     ef_india_region: item.ef_india_region,
+//                     ef_global_region: item.ef_global_region,
+//                     year: item.year,
+//                     iso_country_code: item.iso_country_code,
+//                     unit: item.unit,
+//                     created_by: req.user_id
+//                 });
+//             }
+
+//             const columns = Object.keys(rows[0]);
+//             const values: any[] = [];
+//             const placeholders: string[] = [];
+
+//             rows.forEach((row, rowIndex) => {
+//                 const rowValues = Object.values(row);
+//                 values.push(...rowValues);
+//                 placeholders.push(
+//                     `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+//                 );
+//             });
+
+//             const insertQuery = `
+//                 INSERT INTO materials_emission_factor (${columns.join(', ')})
+//                 VALUES ${placeholders.join(', ')}
+//                 RETURNING *;
+//             `;
+
+//             const result = await client.query(insertQuery, values);
+
+//             return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+//         } catch (error: any) {
+//             return res
+//                 .status(500)
+//                 .send(generateResponse(false, error.message, 500, null));
+//         }
+//     });
+// }
 export async function materialsEmissionFactorDataSetup(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
@@ -212,47 +302,86 @@ export async function materialsEmissionFactorDataSetup(req: any, res: any) {
                     .send(generateResponse(false, "Invalid input array", 400, null));
             }
 
-            // Check duplicate names inside payload
-            const names = data.map(d => d.element_name.toLowerCase());
-            const duplicatePayloadNames = names.filter(
-                (n, i) => names.indexOf(n) !== i
+            // ------------------------------------
+            // Build combined names
+            // ------------------------------------
+            const combinedNames = data.map(d =>
+                `${d.element_name} - ${d.element_type}`.toLowerCase()
+            );
+
+            // ------------------------------------
+            // Check duplicate combined names in payload
+            // ------------------------------------
+            const duplicatePayloadNames = combinedNames.filter(
+                (n, i) => combinedNames.indexOf(n) !== i
             );
 
             if (duplicatePayloadNames.length > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+                    .send(generateResponse(false, "Duplicate element_name + element_type in payload", 400, null));
             }
 
-            // Check existing names in DB
+            // ------------------------------------
+            // Validate element_name from material_composition_metals
+            // ------------------------------------
+            const elementNames = [...new Set(data.map(d => d.element_name))];
+
+            const metalsCheck = await client.query(
+                `SELECT name FROM material_composition_metals WHERE name = ANY($1)`,
+                [elementNames]
+            );
+
+            if (metalsCheck.rowCount !== elementNames.length) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid element_name (not found in material_composition_metals)", 400, null));
+            }
+
+            // ------------------------------------
+            // Validate element_type from material_composition_metal_type
+            // ------------------------------------
+            const elementTypes = [...new Set(data.map(d => d.element_type))];
+
+            const metalTypeCheck = await client.query(
+                `SELECT name FROM material_composition_metal_type WHERE name = ANY($1)`,
+                [elementTypes]
+            );
+
+            if (metalTypeCheck.rowCount !== elementTypes.length) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid element_type (not found in material_composition_metal_type)", 400, null));
+            }
+
+            // ------------------------------------
+            // Check existing combined names in materials_emission_factor
+            // ------------------------------------
             const existing = await client.query(
-                `SELECT element_name FROM materials_emission_factor WHERE element_name ILIKE ANY($1)`,
-                [names]
+                `SELECT element_name FROM materials_emission_factor WHERE LOWER(element_name) = ANY($1)`,
+                [combinedNames]
             );
 
             if (existing.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "One or more names already exist", 400, null));
+                    .send(generateResponse(false, "Element already exists in materials_emission_factor", 400, null));
             }
 
+            // ------------------------------------
+            // Insert data
+            // ------------------------------------
             const rows: any[] = [];
-
             let nextNumber = await generateDynamicCode(client, 'MEF', 'materials_emission_factor');
 
             for (const item of data) {
-
-                if (!item.element_name) {
-                    throw new Error("Name is required");
-                }
-
-                const code = formatCode('MEF', nextNumber);
-                nextNumber++;
+                const code = formatCode('MEF', nextNumber++);
+                const combinedName = `${item.element_name} - ${item.element_type}`;
 
                 rows.push({
                     mef_id: ulid(),
-                    code: code,
-                    element_name: item.element_name,
+                    code,
+                    element_name: combinedName,
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
@@ -283,7 +412,10 @@ export async function materialsEmissionFactorDataSetup(req: any, res: any) {
 
             const result = await client.query(insertQuery, values);
 
-            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+            return res.send(
+                generateResponse(true, "Bulk import successful", 200, result.rows)
+            );
+
         } catch (error: any) {
             return res
                 .status(500)
@@ -523,6 +655,96 @@ export async function getElectricityEmissionFactorListSearch(req: any, res: any)
     });
 }
 
+// export async function electricityEmissionFactorDataSetup(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const data = req.body;
+
+//             if (!Array.isArray(data) || data.length === 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Invalid input array", 400, null));
+//             }
+
+//             // Check duplicate names inside payload
+//             const names = data.map(d => d.type_of_energy.toLowerCase());
+//             const duplicatePayloadNames = names.filter(
+//                 (n, i) => names.indexOf(n) !== i
+//             );
+
+//             if (duplicatePayloadNames.length > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Duplicate names in payload", 400, null));
+//             }
+
+//             // Check existing names in DB
+//             const existing = await client.query(
+//                 `SELECT type_of_energy FROM electricity_emission_factor WHERE type_of_energy ILIKE ANY($1)`,
+//                 [names]
+//             );
+
+//             if (existing.rowCount > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "One or more names already exist", 400, null));
+//             }
+
+//             const rows: any[] = [];
+
+//             let nextNumber = await generateDynamicCode(client, 'EEF', 'electricity_emission_factor');
+
+//             for (const item of data) {
+
+//                 if (!item.type_of_energy) {
+//                     throw new Error("type_of_energy is required");
+//                 }
+
+//                 const code = formatCode('EEF', nextNumber);
+//                 nextNumber++;
+
+//                 rows.push({
+//                     eef_id: ulid(),
+//                     code: code,
+//                     type_of_energy: item.type_of_energy,
+//                     ef_eu_region: item.ef_eu_region,
+//                     ef_india_region: item.ef_india_region,
+//                     ef_global_region: item.ef_global_region,
+//                     created_by: req.user_id,
+//                     year: item.year,
+//                     iso_country_code: item.iso_country_code,
+//                     unit: item.unit
+//                 });
+//             }
+
+//             const columns = Object.keys(rows[0]);
+//             const values: any[] = [];
+//             const placeholders: string[] = [];
+
+//             rows.forEach((row, rowIndex) => {
+//                 const rowValues = Object.values(row);
+//                 values.push(...rowValues);
+//                 placeholders.push(
+//                     `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+//                 );
+//             });
+
+//             const insertQuery = `
+//                 INSERT INTO electricity_emission_factor (${columns.join(', ')})
+//                 VALUES ${placeholders.join(', ')}
+//                 RETURNING *;
+//             `;
+
+//             const result = await client.query(insertQuery, values);
+
+//             return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+//         } catch (error: any) {
+//             return res
+//                 .status(500)
+//                 .send(generateResponse(false, error.message, 500, null));
+//         }
+//     });
+// }
 export async function electricityEmissionFactorDataSetup(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
@@ -534,54 +756,99 @@ export async function electricityEmissionFactorDataSetup(req: any, res: any) {
                     .send(generateResponse(false, "Invalid input array", 400, null));
             }
 
-            // Check duplicate names inside payload
-            const names = data.map(d => d.type_of_energy.toLowerCase());
-            const duplicatePayloadNames = names.filter(
-                (n, i) => names.indexOf(n) !== i
+            // ------------------------------------
+            // Build combined names
+            // ------------------------------------
+            const combinedNames = data.map(d =>
+                `${d.type_of_energy} - ${d.treatment_type}`.toLowerCase()
+            );
+
+            // ------------------------------------
+            // Check duplicate combined names in payload
+            // ------------------------------------
+            const duplicatePayloadNames = combinedNames.filter(
+                (n, i) => combinedNames.indexOf(n) !== i
             );
 
             if (duplicatePayloadNames.length > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+                    .send(generateResponse(false, "Duplicate type_of_energy + treatment_type in payload", 400, null));
             }
 
-            // Check existing names in DB
+            // ------------------------------------
+            // Validate type_of_energy from energy_source
+            // ------------------------------------
+            const energySources = [...new Set(data.map(d => d.type_of_energy))];
+
+            const energySourceCheck = await client.query(
+                `SELECT name FROM energy_source WHERE name = ANY($1)`,
+                [energySources]
+            );
+
+            if (energySourceCheck.rowCount !== energySources.length) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid type_of_energy (not found in energy_source)", 400, null));
+            }
+
+            // ------------------------------------
+            // Validate treatment_type from energy_type
+            // ------------------------------------
+            const treatmentTypes = [...new Set(data.map(d => d.treatment_type))];
+
+            const treatmentTypeCheck = await client.query(
+                `SELECT name FROM energy_type WHERE name = ANY($1)`,
+                [treatmentTypes]
+            );
+
+            if (treatmentTypeCheck.rowCount !== treatmentTypes.length) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid treatment_type (not found in energy_type)", 400, null));
+            }
+
+            // ------------------------------------
+            // Check existing combined names in electricity_emission_factor
+            // ------------------------------------
             const existing = await client.query(
-                `SELECT type_of_energy FROM electricity_emission_factor WHERE type_of_energy ILIKE ANY($1)`,
-                [names]
+                `SELECT type_of_energy 
+                 FROM electricity_emission_factor 
+                 WHERE LOWER(type_of_energy) = ANY($1)`,
+                [combinedNames]
             );
 
             if (existing.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "One or more names already exist", 400, null));
+                    .send(generateResponse(false, "Energy type already exists in electricity_emission_factor", 400, null));
             }
 
+            // ------------------------------------
+            // Insert records
+            // ------------------------------------
             const rows: any[] = [];
-
             let nextNumber = await generateDynamicCode(client, 'EEF', 'electricity_emission_factor');
 
             for (const item of data) {
-
-                if (!item.type_of_energy) {
-                    throw new Error("type_of_energy is required");
+                if (!item.type_of_energy || !item.treatment_type) {
+                    throw new Error("type_of_energy and treatment_type are required");
                 }
 
-                const code = formatCode('EEF', nextNumber);
-                nextNumber++;
+                const code = formatCode('EEF', nextNumber++);
+                const combinedName = `${item.type_of_energy} - ${item.treatment_type}`;
 
                 rows.push({
                     eef_id: ulid(),
-                    code: code,
-                    type_of_energy: item.type_of_energy,
+                    code,
+                    type_of_energy: combinedName,
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id,
                     year: item.year,
                     iso_country_code: item.iso_country_code,
-                    unit: item.unit
+                    unit: item.unit,
+                    created_by: req.user_id
                 });
             }
 
@@ -605,7 +872,10 @@ export async function electricityEmissionFactorDataSetup(req: any, res: any) {
 
             const result = await client.query(insertQuery, values);
 
-            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+            return res.send(
+                generateResponse(true, "Bulk import successful", 200, result.rows)
+            );
+
         } catch (error: any) {
             return res
                 .status(500)
@@ -845,6 +1115,96 @@ export async function getFuelEmissionFactorListSearch(req: any, res: any) {
     });
 }
 
+// export async function fuelEmissionFactorDataSetup(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const data = req.body;
+
+//             if (!Array.isArray(data) || data.length === 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Invalid input array", 400, null));
+//             }
+
+//             // Check duplicate names inside payload
+//             const names = data.map(d => d.fuel_type.toLowerCase());
+//             const duplicatePayloadNames = names.filter(
+//                 (n, i) => names.indexOf(n) !== i
+//             );
+
+//             if (duplicatePayloadNames.length > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "Duplicate names in payload", 400, null));
+//             }
+
+//             // Check existing names in DB
+//             const existing = await client.query(
+//                 `SELECT fuel_type FROM fuel_emission_factor WHERE fuel_type ILIKE ANY($1)`,
+//                 [names]
+//             );
+
+//             if (existing.rowCount > 0) {
+//                 return res
+//                     .status(400)
+//                     .send(generateResponse(false, "One or more names already exist", 400, null));
+//             }
+
+//             const rows: any[] = [];
+
+//             let nextNumber = await generateDynamicCode(client, 'FEF', 'fuel_emission_factor');
+
+//             for (const item of data) {
+
+//                 if (!item.fuel_type) {
+//                     throw new Error("fuel_type is required");
+//                 }
+
+//                 const code = formatCode('FEF', nextNumber);
+//                 nextNumber++;
+
+//                 rows.push({
+//                     fef_id: ulid(),
+//                     code: code,
+//                     fuel_type: item.fuel_type,
+//                     ef_eu_region: item.ef_eu_region,
+//                     ef_india_region: item.ef_india_region,
+//                     ef_global_region: item.ef_global_region,
+//                     created_by: req.user_id,
+//                     year: item.year,
+//                     iso_country_code: item.iso_country_code,
+//                     unit: item.unit
+//                 });
+//             }
+
+//             const columns = Object.keys(rows[0]);
+//             const values: any[] = [];
+//             const placeholders: string[] = [];
+
+//             rows.forEach((row, rowIndex) => {
+//                 const rowValues = Object.values(row);
+//                 values.push(...rowValues);
+//                 placeholders.push(
+//                     `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+//                 );
+//             });
+
+//             const insertQuery = `
+//                 INSERT INTO fuel_emission_factor (${columns.join(', ')})
+//                 VALUES ${placeholders.join(', ')}
+//                 RETURNING *;
+//             `;
+
+//             const result = await client.query(insertQuery, values);
+
+//             return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+//         } catch (error: any) {
+//             return res
+//                 .status(500)
+//                 .send(generateResponse(false, error.message, 500, null));
+//         }
+//     });
+// }
 export async function fuelEmissionFactorDataSetup(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
@@ -856,54 +1216,99 @@ export async function fuelEmissionFactorDataSetup(req: any, res: any) {
                     .send(generateResponse(false, "Invalid input array", 400, null));
             }
 
-            // Check duplicate names inside payload
-            const names = data.map(d => d.fuel_type.toLowerCase());
-            const duplicatePayloadNames = names.filter(
-                (n, i) => names.indexOf(n) !== i
+            // ------------------------------------
+            // Build combined names
+            // ------------------------------------
+            const combinedNames = data.map(d =>
+                `${d.fuel_type} - ${d.sub_fuel_type}`.toLowerCase()
+            );
+
+            // ------------------------------------
+            // Check duplicate combined names in payload
+            // ------------------------------------
+            const duplicatePayloadNames = combinedNames.filter(
+                (n, i) => combinedNames.indexOf(n) !== i
             );
 
             if (duplicatePayloadNames.length > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+                    .send(generateResponse(false, "Duplicate fuel_type + sub_fuel_type in payload", 400, null));
             }
 
-            // Check existing names in DB
+            // ------------------------------------
+            // Validate fuel_type from fuel_types
+            // ------------------------------------
+            const fuelTypes = [...new Set(data.map(d => d.fuel_type))];
+
+            const fuelTypeCheck = await client.query(
+                `SELECT name FROM fuel_types WHERE name = ANY($1)`,
+                [fuelTypes]
+            );
+
+            if (fuelTypeCheck.rowCount !== fuelTypes.length) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid fuel_type (not found in fuel_types)", 400, null));
+            }
+
+            // ------------------------------------
+            // Validate sub_fuel_type from sub_fuel_types
+            // ------------------------------------
+            const subFuelTypes = [...new Set(data.map(d => d.sub_fuel_type))];
+
+            const subFuelTypeCheck = await client.query(
+                `SELECT name FROM sub_fuel_types WHERE name = ANY($1)`,
+                [subFuelTypes]
+            );
+
+            if (subFuelTypeCheck.rowCount !== subFuelTypes.length) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, "Invalid sub_fuel_type (not found in sub_fuel_types)", 400, null));
+            }
+
+            // ------------------------------------
+            // Check existing combined names in fuel_emission_factor
+            // ------------------------------------
             const existing = await client.query(
-                `SELECT fuel_type FROM fuel_emission_factor WHERE fuel_type ILIKE ANY($1)`,
-                [names]
+                `SELECT fuel_type
+                 FROM fuel_emission_factor
+                 WHERE LOWER(fuel_type) = ANY($1)`,
+                [combinedNames]
             );
 
             if (existing.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "One or more names already exist", 400, null));
+                    .send(generateResponse(false, "Fuel emission factor already exists", 400, null));
             }
 
+            // ------------------------------------
+            // Insert records
+            // ------------------------------------
             const rows: any[] = [];
-
             let nextNumber = await generateDynamicCode(client, 'FEF', 'fuel_emission_factor');
 
             for (const item of data) {
-
-                if (!item.fuel_type) {
-                    throw new Error("fuel_type is required");
+                if (!item.fuel_type || !item.sub_fuel_type) {
+                    throw new Error("fuel_type and sub_fuel_type are required");
                 }
 
-                const code = formatCode('FEF', nextNumber);
-                nextNumber++;
+                const code = formatCode('FEF', nextNumber++);
+                const combinedName = `${item.fuel_type} - ${item.sub_fuel_type}`;
 
                 rows.push({
                     fef_id: ulid(),
-                    code: code,
-                    fuel_type: item.fuel_type,
+                    code,
+                    fuel_type: combinedName,
                     ef_eu_region: item.ef_eu_region,
                     ef_india_region: item.ef_india_region,
                     ef_global_region: item.ef_global_region,
-                    created_by: req.user_id,
                     year: item.year,
                     iso_country_code: item.iso_country_code,
-                    unit: item.unit
+                    unit: item.unit,
+                    created_by: req.user_id
                 });
             }
 
@@ -927,7 +1332,10 @@ export async function fuelEmissionFactorDataSetup(req: any, res: any) {
 
             const result = await client.query(insertQuery, values);
 
-            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
+            return res.send(
+                generateResponse(true, "Bulk import successful", 200, result.rows)
+            );
+
         } catch (error: any) {
             return res
                 .status(500)
@@ -1914,7 +2322,7 @@ export async function wasteEmissionFactorDataSetup(req: any, res: any) {
 
                 if (treatment.rowCount === 0) {
                     throw new Error(
-                        `Treatment type '${item.treatment_type_name}' not found`
+                        `Waste Treatment type '${item.treatment_type_name}' not found`
                     );
                 }
 
@@ -2276,6 +2684,27 @@ export async function vehicleTypeEmissionFactorDataSetup(req: any, res: any) {
                 return res
                     .status(400)
                     .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            }
+
+            // ------------------------------------
+            // Validate vehicle_type from vehicle_types table
+            // ------------------------------------
+            const vehicleTypes = [...new Set(data.map(d => d.vehicle_type))];
+
+            const vehicleTypeCheck = await client.query(
+                `SELECT name FROM vehicle_types WHERE name = ANY($1)`,
+                [vehicleTypes]
+            );
+
+            if (vehicleTypeCheck.rowCount !== vehicleTypes.length) {
+                return res
+                    .status(400)
+                    .send(generateResponse(
+                        false,
+                        "Invalid vehicle_type (not found in vehicle_types)",
+                        400,
+                        null
+                    ));
             }
 
             // Check existing names in DB
