@@ -456,13 +456,13 @@ export async function MaterialCompositionMetalTypeDataSetup(req: any, res: any) 
 
 
             for (const item of obj) {
-                if (!item.mcm_name) {
-                    return res.status(400).send(generateResponse(false, "mcm_name is required for all items", 400, null));
+                if (!item.composition_metal_name) {
+                    return res.status(400).send(generateResponse(false, "composition_metal_name is required for all items", 400, null));
                 }
 
                 const mcmLookup = await client.query(
                     `SELECT mcm_id FROM material_composition_metals WHERE name = $1`,
-                    [item.mcm_name]
+                    [item.composition_metal_name]
                 );
 
                 if (mcmLookup.rows.length === 0) {
