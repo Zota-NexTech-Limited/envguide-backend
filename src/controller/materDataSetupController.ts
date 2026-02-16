@@ -347,7 +347,7 @@ export async function getMaterialCompositionMetalType(req: any, res: any) {
             mcm.name AS mcm_name,
             mcm.description AS mcm_description
             FROM material_composition_metal_type mcmt
-            LEFT JOIN material_composition_metal mcm ON mcm.mcm_id = mcmt.mcm_id;`;
+            LEFT JOIN material_composition_metals mcm ON mcm.mcm_id = mcmt.mcm_id;`;
 
             const result = await client.query(query);
 
@@ -416,7 +416,7 @@ export async function getMaterialCompositionMetalTypeList(req: any, res: any) {
                     mcm.name AS mcm_name,
                     mcm.description AS mcm_description
                 FROM material_composition_metal_type i
-                LEFT JOIN material_composition_metal mcm ON mcm.mcm_id = i.mcm_id
+                LEFT JOIN material_composition_metals mcm ON mcm.mcm_id = i.mcm_id
                 WHERE 1=1 ${whereClause}
                 ${orderByClause};
             `;
@@ -461,7 +461,7 @@ export async function MaterialCompositionMetalTypeDataSetup(req: any, res: any) 
                 }
 
                 const mcmLookup = await client.query(
-                    `SELECT mcm_id FROM material_composition_metal WHERE name = $1`,
+                    `SELECT mcm_id FROM material_composition_metals WHERE name = $1`,
                     [item.mcm_name]
                 );
 
