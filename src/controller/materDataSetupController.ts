@@ -5086,15 +5086,34 @@ export async function EnergyTypeDataSetup(req: any, res: any) {
                     .send(generateResponse(false, "Duplicate names in payload", 400, null));
             }
 
+            // const existing = await client.query(
+            //     `SELECT name FROM energy_type WHERE name ILIKE ANY($1)`,
+            //     [names]
+            // );
+
+            // if (existing.rowCount > 0) {
+            //     return res
+            //         .status(400)
+            //         .send(generateResponse(false, "One or more names already exist", 400, null));
+            // }
+
             const existing = await client.query(
-                `SELECT name FROM energy_type WHERE name ILIKE ANY($1)`,
+                `SELECT LOWER(name) as name FROM energy_type WHERE LOWER(name) = ANY($1)`,
                 [names]
             );
 
             if (existing.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "One or more names already exist", 400, null));
+
+                const existingNames = existing.rows.map((r: { name: string }) => r.name);
+
+                return res.status(400).send(
+                    generateResponse(
+                        false,
+                        `These energy types already exist: ${existingNames.join(", ")}`,
+                        400,
+                        null
+                    )
+                );
             }
 
             let nextNumber = await generateDynamicCode(client, 'ET', 'energy_type');
