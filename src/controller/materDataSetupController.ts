@@ -542,7 +542,7 @@ export async function deleteMaterialCompositionMetalType(req: any, res: any) {
 export async function addCountryIsoTwo(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { name } = req.body;
+            const { name, country_name } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -568,12 +568,12 @@ export async function addCountryIsoTwo(req: any, res: any) {
             const code = formatCode('CIT', nextNumber);
 
             const query = `
-                INSERT INTO country_iso_two (citw_id, code, name, created_by)
+                INSERT INTO country_iso_two (citw_id, code, name,country_name, created_by)
                 VALUES ($1, $2, $3, $4)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [citw_id, code, name, req.user_id]);
+            const result = await client.query(query, [citw_id, code, name, country_name, req.user_id]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -615,7 +615,8 @@ export async function updateCountryIsoTwo(req: any, res: any) {
                     UPDATE country_iso_two
                     SET name = $1,
                         updated_by = $2,
-                        update_date = NOW()
+                        update_date = NOW(),
+                        country_name = $4
                     WHERE citw_id = $3
                     RETURNING *;
                 `;
@@ -623,7 +624,8 @@ export async function updateCountryIsoTwo(req: any, res: any) {
                 const result = await client.query(query, [
                     item.name,
                     req.user_id,
-                    item.citw_id
+                    item.citw_id,
+                    item.country_name
                 ]);
 
                 if (result.rows.length > 0) {
@@ -728,7 +730,8 @@ export async function CountryIsoTwoDataSetup(req: any, res: any) {
                     citw_id: ulid(),
                     code: code,
                     name: item.name,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    country_name: item.country_name
                 });
             }
 
@@ -802,7 +805,7 @@ export async function getCountryIsoTwoDropDownnList(req: any, res: any) {
 export async function addCountryIsoThree(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { name } = req.body;
+            const { name, country_name } = req.body;
 
             console.log(req.user_id, "user_id");
 
@@ -828,12 +831,12 @@ export async function addCountryIsoThree(req: any, res: any) {
             const code = formatCode('CITH', nextNumber);
 
             const query = `
-                INSERT INTO country_iso_three (cith_id, code, name, created_by)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO country_iso_three (cith_id, code, name, created_by, country_name)
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [cith_id, code, name, req.user_id]);
+            const result = await client.query(query, [cith_id, code, name, req.user_id, country_name]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -875,7 +878,8 @@ export async function updateCountryIsoThree(req: any, res: any) {
                     UPDATE country_iso_three
                     SET name = $1,
                         updated_by = $2,
-                        update_date = NOW()
+                        update_date = NOW(),
+                        country_name = $4
                     WHERE cith_id = $3
                     RETURNING *;
                 `;
@@ -883,7 +887,8 @@ export async function updateCountryIsoThree(req: any, res: any) {
                 const result = await client.query(query, [
                     item.name,
                     req.user_id,
-                    item.cith_id
+                    item.cith_id,
+                    item.country_name
                 ]);
 
                 if (result.rows.length > 0) {
@@ -988,7 +993,8 @@ export async function CountryIsoThreeDataSetup(req: any, res: any) {
                     cith_id: ulid(),
                     code: code,
                     name: item.name,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    country_name: item.country_name
                 });
             }
 
@@ -6949,7 +6955,7 @@ export async function getLifeCycleStageOfProductDropDownList(req: any, res: any)
 export async function addTimeZone(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { name } = req.body;
+            const { name, country_name } = req.body;
             if (!name) throw new Error("Name is required");
 
             const exists = await client.query(
@@ -6965,9 +6971,9 @@ export async function addTimeZone(req: any, res: any) {
             const code = formatCode('TMZ', nextNumber);
 
             const result = await client.query(
-                `INSERT INTO time_zone (tmz_id, code, name, created_by)
+                `INSERT INTO time_zone (tmz_id, code, name, created_by, country_name)
                  VALUES ($1,$2,$3,$4) RETURNING *`,
-                [tmz_id, code, name, req.user_id]
+                [tmz_id, code, name, req.user_id, country_name]
             );
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
@@ -6997,9 +7003,9 @@ export async function updateTimeZone(req: any, res: any) {
 
                 const result = await client.query(
                     `UPDATE time_zone
-                     SET name=$1, updated_by=$2, update_date=NOW()
+                     SET name=$1, updated_by=$2, update_date=NOW(),country_name=$4
                      WHERE tmz_id=$3 RETURNING *`,
-                    [item.name, req.user_id, item.tmz_id]
+                    [item.name, req.user_id, item.tmz_id, item.country_name]
                 );
                 updated.push(result.rows[0]);
             }
@@ -7071,7 +7077,8 @@ export async function TimeZoneDataSetup(req: any, res: any) {
                     tmz_id: ulid(),
                     code: formatCode('TMZ', nextNumber++),
                     name: item.name,
-                    created_by: req.user_id
+                    created_by: req.user_id,
+                    country_name: item.country_name
                 });
             }
 
