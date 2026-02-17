@@ -3035,6 +3035,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             citw_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255) NOT NULL, 
             name VARCHAR(255) NOT NULL,  
+            country_name VARCHAR(255)
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -3044,6 +3045,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             cith_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255) NOT NULL, 
             name VARCHAR(255) NOT NULL,  
+            country_name VARCHAR(255)
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -3288,7 +3290,8 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
         `CREATE TABLE IF NOT EXISTS time_zone (
             tmz_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255) NOT NULL, 
-            name VARCHAR(255) NOT NULL,  
+            name VARCHAR(255) NOT NULL, 
+            country_name VARCHAR(255) 
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
