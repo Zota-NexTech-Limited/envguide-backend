@@ -7820,7 +7820,7 @@ export async function deleteWaterSource(req: any, res: any) {
     return withClient(async (client: any) => {
         await client.query(
             `DELETE FROM water_source WHERE ws_id=$1`,
-            [req.body.cm_id]
+            [req.body.ws_id]
         );
         return res.send(generateResponse(true, "Deleted successfully", 200, null));
     });
@@ -7999,7 +7999,7 @@ export async function deleteWaterUnit(req: any, res: any) {
     return withClient(async (client: any) => {
         await client.query(
             `DELETE FROM water_unit WHERE wu_id=$1`,
-            [req.body.cm_id]
+            [req.body.wu_id]
         );
         return res.send(generateResponse(true, "Deleted successfully", 200, null));
     });
@@ -8177,7 +8177,7 @@ export async function deleteWaterTreatment(req: any, res: any) {
     return withClient(async (client: any) => {
         await client.query(
             `DELETE FROM water_treatment WHERE wt_id=$1`,
-            [req.body.cm_id]
+            [req.body.wt_id]
         );
         return res.send(generateResponse(true, "Deleted successfully", 200, null));
     });
@@ -8355,7 +8355,7 @@ export async function deleteDischargeDestination(req: any, res: any) {
     return withClient(async (client: any) => {
         await client.query(
             `DELETE FROM discharge_destination WHERE dd_id=$1`,
-            [req.body.cm_id]
+            [req.body.dd_id]
         );
         return res.send(generateResponse(true, "Deleted successfully", 200, null));
     });
