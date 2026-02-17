@@ -348,11 +348,37 @@ export async function materialsEmissionFactorDataSetup(req: any, res: any) {
                 [elementTypes]
             );
 
-            if (metalTypeCheck.rowCount !== elementTypes.length) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid element_type (not found in material_composition_metal_type)", 400, null));
+            // Get existing names from DB
+            const existingTypes = metalTypeCheck.rows.map((r: any) => r.name);
+
+            // Find missing ones
+            const missingTypes = elementTypes.filter(
+                type => !existingTypes.includes(type)
+            );
+
+            if (missingTypes.length > 0) {
+                return res.status(400).send(
+                    generateResponse(
+                        false,
+                        `Invalid element_type(s): ${missingTypes.join(", ")}`,
+                        400,
+                        null
+                    )
+                );
             }
+
+            // const elementTypes = [...new Set(data.map(d => d.element_type))];
+
+            // const metalTypeCheck = await client.query(
+            //     `SELECT name FROM material_composition_metal_type WHERE name = ANY($1)`,
+            //     [elementTypes]
+            // );
+
+            // if (metalTypeCheck.rowCount !== elementTypes.length) {
+            //     return res
+            //         .status(400)
+            //         .send(generateResponse(false, "Invalid element_type (not found in material_composition_metal_type)", 400, null));
+            // }
 
             // ------------------------------------
             // Check existing combined names in materials_emission_factor
