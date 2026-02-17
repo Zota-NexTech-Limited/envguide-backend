@@ -1288,11 +1288,38 @@ export async function fuelEmissionFactorDataSetup(req: any, res: any) {
                 [subFuelTypes]
             );
 
-            if (subFuelTypeCheck.rowCount !== subFuelTypes.length) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid sub_fuel_type (not found in sub_fuel_types)", 400, null));
+            // Existing names from DB
+            const existingSubFuelTypes = subFuelTypeCheck.rows.map((r: { name: string }) => r.name);
+
+            // Find missing ones
+            const missingSubFuelTypes = subFuelTypes.filter(
+                type => !existingSubFuelTypes.includes(type)
+            );
+
+            if (missingSubFuelTypes.length > 0) {
+                return res.status(400).send(
+                    generateResponse(
+                        false,
+                        `Invalid sub_fuel_type(s): ${missingSubFuelTypes.join(", ")}`,
+                        400,
+                        null
+                    )
+                );
             }
+
+
+            // const subFuelTypes = [...new Set(data.map(d => d.sub_fuel_type))];
+
+            // const subFuelTypeCheck = await client.query(
+            //     `SELECT name FROM sub_fuel_types WHERE name = ANY($1)`,
+            //     [subFuelTypes]
+            // );
+
+            // if (subFuelTypeCheck.rowCount !== subFuelTypes.length) {
+            //     return res
+            //         .status(400)
+            //         .send(generateResponse(false, "Invalid sub_fuel_type (not found in sub_fuel_types)", 400, null));
+            // }
 
             // ------------------------------------
             // Check existing combined names in fuel_emission_factor
