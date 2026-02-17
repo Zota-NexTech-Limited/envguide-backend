@@ -6972,7 +6972,7 @@ export async function addTimeZone(req: any, res: any) {
 
             const result = await client.query(
                 `INSERT INTO time_zone (tmz_id, code, name, created_by, country_name)
-                 VALUES ($1,$2,$3,$4) RETURNING *`,
+                 VALUES ($1,$2,$3,$4,$5) RETURNING *`,
                 [tmz_id, code, name, req.user_id, country_name]
             );
 
