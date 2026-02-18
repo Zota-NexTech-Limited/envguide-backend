@@ -3005,7 +3005,7 @@ export async function pcfCalculate(req: any, res: any) {
                 FROM materials_emission_factor WHERE element_name=$1 AND year=$2 AND unit=$3;
             `;
 
-                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "Kg"]);
+                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per unit"]);
 
                     let Material_Emission_Factor_kg_CO2E_kg = 0.01;
                     if (fetchEmissionMaterialFactorSupResult.rows[0]) {
