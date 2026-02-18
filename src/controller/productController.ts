@@ -895,6 +895,33 @@ export async function listProducts(req: any, res: any) {
             let params: any[] = [];
             let index = 1;
 
+            if (req.user_id) {
+                // First, check the user's role
+                const userRoleQuery = `
+        SELECT user_role 
+        FROM users_table 
+        WHERE user_id = $1
+    `;
+
+                const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
+
+                if (userRoleResult.rows.length > 0) {
+                    const userRole = userRoleResult.rows[0].user_role;
+
+                    const isSuperAdmin = userRole && (
+                        userRole.toLowerCase() === 'superadmin' ||
+                        userRole.toLowerCase() === 'super admin'
+                    );
+
+                    // If NOT super admin → show only own products
+                    if (!isSuperAdmin) {
+                        whereClauses.push(`p.created_by = $${index}`);
+                        params.push(req.user_id);
+                        index++;
+                    }
+                }
+            }
+
             // Filter: Date Range
             if (start_date && end_date) {
                 whereClauses.push(`p.update_date BETWEEN $${index} AND $${index + 1}`);
@@ -990,10 +1017,11 @@ export async function listProducts(req: any, res: any) {
             const totalcountQuery = `
                 SELECT COUNT(*) AS total_records
                 FROM product p
+                 ${whereSQL}
             `;
 
             const TotalcountResult = await client.query(
-                totalcountQuery
+                totalcountQuery, params
             );
 
             const total_records = Number(TotalcountResult.rows[0].total_records);
@@ -4507,7 +4535,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
                     product_name: p.product_name,
                     location: p.location,
                     own_emission_id: own_emission_id,
-                    detailed_location:p.detailed_location
+                    detailed_location: p.detailed_location
                 }
             });
         }
@@ -4515,7 +4543,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
         await bulkInsert(
             client,
             'production_site_details_questions',
-            ['psd_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'location', 'own_emission_id','detailed_location'],
+            ['psd_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'location', 'own_emission_id', 'detailed_location'],
             rows
         );
 
