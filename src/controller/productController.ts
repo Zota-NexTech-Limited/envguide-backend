@@ -4494,7 +4494,8 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
                 p.material_number,
                 p.product_name,
                 p.location,
-                own_emission_id
+                own_emission_id,
+                p.detailed_location
             ]);
 
             dqr.push({
@@ -4505,7 +4506,8 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
                     material_number: p.material_number,
                     product_name: p.product_name,
                     location: p.location,
-                    own_emission_id: own_emission_id
+                    own_emission_id: own_emission_id,
+                    detailed_location:p.detailed_location
                 }
             });
         }
@@ -4513,7 +4515,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
         await bulkInsert(
             client,
             'production_site_details_questions',
-            ['psd_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'location', 'own_emission_id'],
+            ['psd_id', 'spq_id', 'product_id', 'product_bom_pcf_id', 'material_number', 'product_name', 'location', 'own_emission_id','detailed_location'],
             rows
         );
 
