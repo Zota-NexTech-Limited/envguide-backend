@@ -2121,3 +2121,30 @@ export async function getUsersByRole(req: any, res: any) {
         }
     });
 }
+
+export async function getManufacturerDropDown(req: any, res: any) {
+    return withClient(async (client: any) => {
+
+        try {
+
+            const query = `
+                SELECT
+                    user_id,
+                    user_name,
+                    user_role
+                FROM users_table
+                WHERE LOWER(TRIM(user_role)) = 'manufacturer'
+                ORDER BY user_name ASC;
+            `;
+
+            const result = await client.query(query);
+
+            return res.status(200).send(
+                generateResponse(true, "Fetched successfully", 200, result.rows)
+            );
+        }
+        catch (error: any) {
+            return res.status(400).send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
