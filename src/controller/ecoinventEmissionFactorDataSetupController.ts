@@ -1619,7 +1619,17 @@ export async function PackingTreatmentTypeDataSetup(req: any, res: any) {
 export async function getPackingTreatmentTypeDropDownList(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const query = `SELECT ptt_id, code, name FROM packaging_treatment_type;`;
+            
+                        const query = `
+    SELECT DISTINCT ON (w.name)
+        w.ptt_id,
+        w.name,
+        w.code
+    FROM packaging_treatment_type w
+    ORDER BY w.name ASC, w.ptt_id ASC;
+`;
+
+            // const query = `SELECT ptt_id, code, name FROM packaging_treatment_type;`;
             const result = await client.query(query);
 
             return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
