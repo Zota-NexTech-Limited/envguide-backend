@@ -895,32 +895,32 @@ export async function listProducts(req: any, res: any) {
             let params: any[] = [];
             let index = 1;
 
-            if (req.user_id) {
-                // First, check the user's role
-                const userRoleQuery = `
-        SELECT user_role 
-        FROM users_table 
-        WHERE user_id = $1
-    `;
+    //         if (req.user_id) {
+    //             // First, check the user's role
+    //             const userRoleQuery = `
+    //     SELECT user_role 
+    //     FROM users_table 
+    //     WHERE user_id = $1
+    // `;
 
-                const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
+    //             const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
 
-                if (userRoleResult.rows.length > 0) {
-                    const userRole = userRoleResult.rows[0].user_role;
+    //             if (userRoleResult.rows.length > 0) {
+    //                 const userRole = userRoleResult.rows[0].user_role;
 
-                    const isSuperAdmin = userRole && (
-                        userRole.toLowerCase() === 'superadmin' ||
-                        userRole.toLowerCase() === 'super admin'
-                    );
+    //                 const isSuperAdmin = userRole && (
+    //                     userRole.toLowerCase() === 'superadmin' ||
+    //                     userRole.toLowerCase() === 'super admin'
+    //                 );
 
-                    // If NOT super admin → show only own products
-                    if (!isSuperAdmin) {
-                        whereClauses.push(`p.created_by = $${index}`);
-                        params.push(req.user_id);
-                        index++;
-                    }
-                }
-            }
+    //                 // If NOT super admin → show only own products
+    //                 if (!isSuperAdmin) {
+    //                     whereClauses.push(`p.created_by = $${index}`);
+    //                     params.push(req.user_id);
+    //                     index++;
+    //                 }
+    //             }
+    //         }
 
             // Filter: Date Range
             if (start_date && end_date) {
@@ -1014,14 +1014,23 @@ export async function listProducts(req: any, res: any) {
 
             const total = Number(countResult.rows[0].total);
 
-            const totalcountQuery = `
+            // const totalcountQuery = `
+            //     SELECT COUNT(*) AS total_records
+            //     FROM product p
+            //      ${whereSQL}
+            // `;
+
+            // const TotalcountResult = await client.query(
+            //     totalcountQuery, params
+            // );
+
+             const totalcountQuery = `
                 SELECT COUNT(*) AS total_records
                 FROM product p
-                 ${whereSQL}
             `;
 
             const TotalcountResult = await client.query(
-                totalcountQuery, params
+                totalcountQuery
             );
 
             const total_records = Number(TotalcountResult.rows[0].total_records);
