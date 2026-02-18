@@ -703,6 +703,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             material_number VARCHAR(255),   
             product_name VARCHAR(255),
             location TEXT,
+            detailed_location TEXT,
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(spq_id) REFERENCES supplier_product_questions (spq_id)

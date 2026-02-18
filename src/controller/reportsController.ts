@@ -817,6 +817,7 @@ LEFT JOIN LATERAL (
             'material_number', psd.material_number,
             'product_name', psd.product_name,
             'location', psd.location,
+            'detailed_location', psd.detailed_location,
             'created_date', psd.created_date
         )
     ) AS q13_data

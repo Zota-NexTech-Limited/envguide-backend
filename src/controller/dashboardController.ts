@@ -656,7 +656,8 @@ JOIN process_specific_energy_usage_questions pseq
 JOIN (
     SELECT DISTINCT ON (bom_id)
         bom_id,
-        LOWER(location) AS location
+        LOWER(location) AS location,
+        LOWER(detailed_location) AS detailed_location
     FROM production_site_details_questions
     ORDER BY bom_id
 ) psd
@@ -741,7 +742,8 @@ export async function processEnergyEmission(req: any, res: any) {
                 JOIN (
                     SELECT DISTINCT ON (bom_id)
                         bom_id,
-                        LOWER(location) AS location
+                        LOWER(location) AS location,
+                        LOWER(detailed_location) AS detailed_location
                     FROM production_site_details_questions
                     ORDER BY bom_id
                 ) psd ON psd.bom_id = b.id
