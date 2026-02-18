@@ -2177,7 +2177,15 @@ export async function WasteTreatmentTypeDataSetup(req: any, res: any) {
 export async function getWasteTreatmentTypeDropDownList(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const query = `SELECT wtt_id, code, name FROM waste_treatment_type;`;
+            // const query = `SELECT wtt_id, code, name FROM waste_treatment_type;`;
+            const query = `
+    SELECT DISTINCT ON (w.name)
+        w.wtt_id,
+        w.name,
+        w.code
+    FROM waste_treatment_type w
+    ORDER BY w.name ASC, w.wtt_id ASC;
+`;
             const result = await client.query(query);
 
             return res.send(generateResponse(true, "Fetched successfully!", 200, result.rows));
@@ -2482,18 +2490,26 @@ export async function getWasteEmissionFactorListSearch(req: any, res: any) {
 export async function getWasteEmissionFactorDropDownList(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const query = `
-                SELECT
-                    w.wmttef_id,
-                    w.code,
-                    w.waste_type,
-                    w.wtt_id,
-                    wt.name
-                FROM waste_material_treatment_type_emission_factor w
-                LEFT JOIN waste_treatment_type wt
-                    ON wt.wtt_id = w.wtt_id
-                ORDER BY w.waste_type ASC;
-            `;
+            // const query = `
+            //     SELECT
+            //         w.wmttef_id,
+            //         w.code,
+            //         w.waste_type,
+            //         w.wtt_id,
+            //         wt.name
+            //     FROM waste_material_treatment_type_emission_factor w
+            //     LEFT JOIN waste_treatment_type wt
+            //         ON wt.wtt_id = w.wtt_id
+            //     ORDER BY w.waste_type ASC;
+            // `;
+
+                        const query = `
+    SELECT DISTINCT ON (w.waste_type)
+       w.waste_type,
+        w.code
+    FROM waste_material_treatment_type_emission_factor w
+    ORDER BY w.waste_type ASC;
+`;
 
             const result = await client.query(query);
 
