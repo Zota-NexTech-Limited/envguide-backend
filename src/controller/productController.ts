@@ -22,7 +22,8 @@ export async function createProduct(req: any, res: any) {
                 ed_recyclability,
                 ed_life_cycle_stage_id,
                 ed_renewable_energy,
-                product_status
+                product_status,
+                client_or_manufacturer_ids
             } = req.body;
 
             const created_by = req.user_id;
@@ -75,9 +76,9 @@ export async function createProduct(req: any, res: any) {
                     ts_dimensions, ts_material, ts_manufacturing_process_id, 
                     ts_supplier, ts_part_number, ed_estimated_pcf, 
                     ed_recyclability, ed_life_cycle_stage_id, 
-                    ed_renewable_energy, created_by,product_status
+                    ed_renewable_energy, created_by,product_status,client_or_manufacturer_ids
                 ) VALUES (
-                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
+                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
                 ) RETURNING *;
             `;
 
@@ -87,7 +88,8 @@ export async function createProduct(req: any, res: any) {
                 ts_dimensions, ts_material, ts_manufacturing_process_id,
                 ts_supplier, ts_part_number, ed_estimated_pcf,
                 ed_recyclability, ed_life_cycle_stage_id,
-                ed_renewable_energy, created_by, product_status
+                ed_renewable_energy, created_by, product_status,
+                client_or_manufacturer_ids
             ]);
 
             await client.query("COMMIT");
@@ -123,7 +125,8 @@ export async function updateProduct(req: any, res: any) {
                 ed_life_cycle_stage_id,
                 ed_renewable_energy,
                 product_status,
-                own_emission_status
+                own_emission_status,
+                client_or_manufacturer_ids
             } = req.body;
 
             const updated_by = req.user_id;
@@ -155,7 +158,8 @@ export async function updateProduct(req: any, res: any) {
                     ed_renewable_energy = $14,
                     updated_by = $15,
                     update_date = NOW(),
-                    product_status=$17
+                    product_status=$17,
+                    client_or_manufacturer_ids=$18
                 WHERE id = $16
                 RETURNING *;
             `;
@@ -177,7 +181,8 @@ export async function updateProduct(req: any, res: any) {
                 ed_renewable_energy,
                 updated_by,
                 id,
-                product_status
+                product_status,
+                client_or_manufacturer_ids
             ]);
 
             const own_emission_id = result.rows[0].own_emission_id
@@ -895,32 +900,29 @@ export async function listProducts(req: any, res: any) {
             let params: any[] = [];
             let index = 1;
 
-    //         if (req.user_id) {
-    //             // First, check the user's role
-    //             const userRoleQuery = `
-    //     SELECT user_role 
-    //     FROM users_table 
-    //     WHERE user_id = $1
-    // `;
+            if (req.user_id) {
 
-    //             const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
+                const userRoleQuery = `
+                    SELECT user_role 
+                    FROM users_table 
+                    WHERE user_id = $1
+                `;
 
-    //             if (userRoleResult.rows.length > 0) {
-    //                 const userRole = userRoleResult.rows[0].user_role;
+                const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
 
-    //                 const isSuperAdmin = userRole && (
-    //                     userRole.toLowerCase() === 'superadmin' ||
-    //                     userRole.toLowerCase() === 'super admin'
-    //                 );
+                if (userRoleResult.rows.length > 0) {
+                    const userRole = userRoleResult.rows[0].user_role;
 
-    //                 // If NOT super admin → show only own products
-    //                 if (!isSuperAdmin) {
-    //                     whereClauses.push(`p.created_by = $${index}`);
-    //                     params.push(req.user_id);
-    //                     index++;
-    //                 }
-    //             }
-    //         }
+                    const isManufacturer =
+                        userRole && userRole.toLowerCase() === "manufacturer";
+
+                    if (isManufacturer) {
+                        whereClauses.push(`$${index} = ANY(p.client_or_manufacturer_ids)`);
+                        params.push(req.user_id);
+                        index++;
+                    }
+                }
+            }
 
             // Filter: Date Range
             if (start_date && end_date) {
@@ -1024,7 +1026,7 @@ export async function listProducts(req: any, res: any) {
             //     totalcountQuery, params
             // );
 
-             const totalcountQuery = `
+            const totalcountQuery = `
                 SELECT COUNT(*) AS total_records
                 FROM product p
             `;
@@ -1055,21 +1057,77 @@ export async function listProducts(req: any, res: any) {
     });
 }
 
+// export async function productsDropDown(req: any, res: any) {
+//     return withClient(async (client: any) => {
+//         try {
+//             const query = `
+//                 SELECT 
+//                 p.id,
+//                 p.product_code,
+//                 p.product_name
+//                 FROM product p
+//                 ORDER BY p.update_date DESC
+//             `;
+
+//             const result = await client.query(query);
+
+//             return res.send(generateResponse(true, "Fetched successfully", 200, result.rows));
+
+//         } catch (err: any) {
+//             console.error("❌ Error listing products:", err);
+//             return res.send(generateResponse(false, err.message, 400, null));
+//         }
+//     });
+// }
+
+// Below product dropdown based on manufacturer
+
 export async function productsDropDown(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+
+            let whereClause = "";
+            let values: any[] = [];
+
+            if (req.user_id) {
+
+                const userRoleQuery = `
+                    SELECT user_role 
+                    FROM users_table 
+                    WHERE user_id = $1
+                `;
+
+                const userRoleResult = await client.query(userRoleQuery, [req.user_id]);
+
+                if (userRoleResult.rows.length > 0) {
+                    const userRole = userRoleResult.rows[0].user_role;
+
+                    const isManufacturer =
+                        userRole && userRole.toLowerCase() === "manufacturer";
+
+                    if (isManufacturer) {
+                        // ✅ Check inside VARCHAR[] column
+                        whereClause = `WHERE $1 = ANY(p.client_or_manufacturer_ids)`;
+                        values.push(req.user_id);
+                    }
+                }
+            }
+
             const query = `
                 SELECT 
-                p.id,
-                p.product_code,
-                p.product_name
+                    p.id,
+                    p.product_code,
+                    p.product_name
                 FROM product p
+                ${whereClause}
                 ORDER BY p.update_date DESC
             `;
 
-            const result = await client.query(query);
+            const result = await client.query(query, values);
 
-            return res.send(generateResponse(true, "Fetched successfully", 200, result.rows));
+            return res.send(
+                generateResponse(true, "Fetched successfully", 200, result.rows)
+            );
 
         } catch (err: any) {
             console.error("❌ Error listing products:", err);
@@ -1077,6 +1135,7 @@ export async function productsDropDown(req: any, res: any) {
         }
     });
 }
+
 
 export async function getProductByCode(client: any, product_code: string) {
     const query = `

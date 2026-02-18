@@ -59,6 +59,9 @@ userRoutes.post('/api/delete/user', authService.authenticate, userController.del
 
 userRoutes.get('/api/users/by-role', userController.getUsersByRole)
 
+userRoutes.get('/api/users/get-manufacturer', userController.getManufacturerDropDown)
+
+
 
 userRoutes.post("/api/user/download-mfa-qr", async (req, res) => {
     try {
@@ -89,13 +92,13 @@ userRoutes.post('/api/manufacturer/onboarding/create', userController.createManu
 userRoutes.post('/api/manufacturer/onboarding/update', userController.updateManufacturerOnboardingForm)
 userRoutes.get('/api/manufacturer/onboarding/list', userController.getManufacturerList)
 userRoutes.get('/api/manufacturer/onboarding/get-by-id', userController.getManufacturerById)
-userRoutes.post('/api/manufacturer/onboarding/delete',authService.authenticate, userController.deleteManufacturer)
+userRoutes.post('/api/manufacturer/onboarding/delete', authService.authenticate, userController.deleteManufacturer)
 
 userRoutes.post('/api/supplier/onboarding/create', userController.addSupplierOnboardingForm)
 userRoutes.post('/api/supplier/onboarding/update', userController.updateSupplierOnboardingForm)
 userRoutes.get('/api/supplier/onboarding/list', userController.getSupplierList)
 userRoutes.get('/api/supplier/onboarding/get-by-id', userController.getSupplierById)
-userRoutes.post('/api/supplier/onboarding/delete', authService.authenticate,userController.deleteSupplier)
+userRoutes.post('/api/supplier/onboarding/delete', authService.authenticate, userController.deleteSupplier)
 
 
 import multer from "multer";

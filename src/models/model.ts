@@ -322,6 +322,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             ed_renewable_energy DOUBLE PRECISION,
             pcf_status VARCHAR(255) DEFAULT 'Not Available',
             product_status VARCHAR(255),
+            client_or_manufacturer_ids VARCHAR(255)[],
             created_by VARCHAR(255),
             updated_by VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
