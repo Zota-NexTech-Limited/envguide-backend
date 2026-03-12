@@ -1311,6 +1311,7 @@ COALESCE(
                 SELECT to_jsonb(mep)
                 FROM bom_emission_production_calculation_engine mep
                 WHERE mep.bom_id = b.id AND mep.product_id IS NULL
+                ORDER BY mep.created_date DESC
                 LIMIT 1
             ),
 
@@ -1717,6 +1718,7 @@ COALESCE(
                 SELECT to_jsonb(mep)
                 FROM bom_emission_production_calculation_engine mep
                 WHERE mep.bom_id = b.id AND mep.product_id IS NULL
+                ORDER BY mep.created_date DESC
                 LIMIT 1
             ),
 
@@ -6556,10 +6558,10 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetchEmissionMaterialFactor = `
                 SELECT element_name,year,unit,
                 ef_eu_region,ef_india_region,ef_global_region
-                FROM materials_emission_factor WHERE element_name=$1 AND year=$2 AND unit=$3;
+                FROM materials_emission_factor WHERE LOWER(element_name)=LOWER($1) AND year=$2 AND unit=$3;
             `;
 
-                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per unit"]);
+                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per kg"]);
 
                     let Material_Emission_Factor_kg_CO2E_kg = 0.01;
                     if (fetchEmissionMaterialFactorSupResult.rows[0]) {
@@ -6818,7 +6820,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT type_of_energy,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit
                                 FROM electricity_emission_factor
-                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
 
@@ -6854,7 +6856,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT type_of_energy,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit
                                 FROM electricity_emission_factor
-                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
 
@@ -6890,7 +6892,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT type_of_energy,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit
                                 FROM electricity_emission_factor
-                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
 
@@ -6926,7 +6928,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT type_of_energy,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit
                                 FROM electricity_emission_factor
-                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
 
@@ -7073,7 +7075,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchPTTId = `SELECT ptt_id ,name 
                                         FROM packaging_treatment_type
-                                        WHERE name=$1;`
+                                        WHERE LOWER(name)=LOWER($1);`
 
                     const fetchPTTIdFromTreatmentType = await client.query(fetchPTTId, [treatmentType]);
 
@@ -7086,7 +7088,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT material_type,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit,iso_country_code
                                 FROM packaging_material_treatment_type_emission_factor
-                                WHERE material_type = $1 AND year=$2 AND unit=$3 AND ptt_id=$4;
+                                WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3 AND ptt_id=$4;
                              `;
 
 
@@ -7211,7 +7213,7 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT vehicle_type,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit,iso_country_code
                                 FROM vehicle_type_emission_factor
-                                WHERE vehicle_type = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(vehicle_type)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
 

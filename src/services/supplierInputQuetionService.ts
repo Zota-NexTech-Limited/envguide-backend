@@ -1,3 +1,4 @@
+import { ulid } from 'ulid';
 
 export async function updateSupplierSustainabilityService(client: any, body: any) {
     const {
@@ -9,15 +10,36 @@ export async function updateSupplierSustainabilityService(client: any, body: any
         scope_four_avoided_emissions_questions
     } = body;
 
+    if (supplier_general_info_questions) {
     await updateSupplierGeneralInfo(client, supplier_general_info_questions);
-    await updateAvailabilityScope123(client, supplier_general_info_questions.availability_of_scope_one_two_three_emissions_questions);
+        await updateAvailabilityScope123(client, supplier_general_info_questions?.availability_of_scope_one_two_three_emissions_questions);
+    }
 
+    if (supplier_product_questions) {
     await updateSupplierProduct(client, supplier_product_questions);
+    }
 
+    if (scope_one_direct_emissions_questions) {
     await updateScopeOne(client, scope_one_direct_emissions_questions);
+    }
+
+    if (scope_two_indirect_emissions_questions) {
     await updateScopeTwo(client, scope_two_indirect_emissions_questions);
+    }
+
+    if (scope_three_other_indirect_emissions_questions) {
+        if (Array.isArray(scope_three_other_indirect_emissions_questions)) {
+            for (const scopeThree of scope_three_other_indirect_emissions_questions) {
+                await updateScopeThree(client, scopeThree);
+            }
+        } else {
     await updateScopeThree(client, scope_three_other_indirect_emissions_questions);
+        }
+    }
+
+    if (scope_four_avoided_emissions_questions) {
     await updateScopeFour(client, scope_four_avoided_emissions_questions);
+    }
 }
 
 async function updateSupplierGeneralInfo(client: any, d: any) {
@@ -64,6 +86,8 @@ async function updateSupplierGeneralInfo(client: any, d: any) {
 }
 
 async function updateAvailabilityScope123(client: any, rows: any[]) {
+    if (!Array.isArray(rows)) return;
+    
     for (const r of rows) {
         if (!r.aosotte_id) throw new Error('aosotte_id missing');
 
@@ -82,7 +106,7 @@ async function updateAvailabilityScope123(client: any, rows: any[]) {
 }
 
 async function updateSupplierProduct(client: any, d: any) {
-    if (!d.spq_id) throw new Error('spq_id missing');
+    if (!d || !d.spq_id) throw new Error('spq_id missing');
 
     await client.query(
         `
@@ -105,17 +129,17 @@ async function updateSupplierProduct(client: any, d: any) {
     );
 
     await updateByArray(client, 'production_site_details_questions', 'psd_id', d.production_site_details_questions,
-        ['product_name', 'location']);
+        ['product_name', 'location', 'bom_id']);
 
     await updateByArray(client, 'product_component_manufactured_questions', 'pcm_id', d.product_component_manufactured_questions,
-        ['product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity']);
+        ['product_name', 'production_period', 'weight_per_unit', 'unit', 'price', 'quantity', 'bom_id']);
 
     await updateByArray(client, 'co_product_component_economic_value_questions', 'cpcev_id', d.co_product_component_economic_value_questions,
-        ['product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity']);
+        ['product_name', 'co_product_name', 'weight', 'price_per_product', 'quantity', 'bom_id']);
 }
 
 async function updateScopeOne(client: any, d: any) {
-    if (!d.sode_id) throw new Error('sode_id missing');
+    if (!d || !d.sode_id) throw new Error('sode_id missing');
 
     await client.query(
         `
@@ -134,10 +158,12 @@ async function updateScopeOne(client: any, d: any) {
     await updateByArray(client, 'stationary_combustion_on_site_energy_use_questions', 'scoseu_id',
         d.stationary_combustion_on_site_energy_use_questions, ['fuel_type']);
 
+    if (Array.isArray(d.stationary_combustion_on_site_energy_use_questions)) {
     for (const sc of d.stationary_combustion_on_site_energy_use_questions) {
         await updateByArray(client, 'scoseu_sub_fuel_type_questions', 'ssft_id',
             sc.scoseu_sub_fuel_type_questions,
             ['sub_fuel_type', 'consumption_quantity', 'unit']);
+        }
     }
 
     await updateByArray(client, 'mobile_combustion_company_owned_vehicles_questions', 'mccov_id',
@@ -154,7 +180,7 @@ async function updateScopeOne(client: any, d: any) {
 }
 
 async function updateScopeTwo(client: any, d: any) {
-    if (!d.stide_id) throw new Error('stide_id missing');
+    if (!d || !d.stide_id) throw new Error('stide_id missing');
 
     await client.query(
         `UPDATE scope_two_indirect_emissions_questions SET 
@@ -197,7 +223,7 @@ async function updateScopeTwo(client: any, d: any) {
         'scope_two_indirect_emissions_from_purchased_energy_questions',
         'stidefpe_id',
         d.scope_two_indirect_emissions_from_purchased_energy_questions,
-        ['energy_source', 'energy_type', 'quantity', 'unit']
+        ['energy_source', 'energy_type', 'quantity', 'unit', 'bom_id']
     );
 
     await updateByArray(
@@ -222,7 +248,7 @@ async function updateScopeTwo(client: any, d: any) {
         'energy_intensity_of_production_estimated_kwhor_mj_questions',
         'eiopekm_id',
         d.energy_intensity_of_production_estimated_kwhor_mj_questions,
-        ['product_name', 'energy_intensity', 'unit']
+        ['product_name', 'energy_intensity', 'unit', 'bom_id']
     );
 
     await updateByArray(
@@ -230,7 +256,7 @@ async function updateScopeTwo(client: any, d: any) {
         'process_specific_energy_usage_questions',
         'pseu_id',
         d.process_specific_energy_usage_questions,
-        ['process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'energy_type']
+        ['process_specific_energy_type', 'quantity_consumed', 'unit', 'support_from_enviguide', 'energy_type', 'bom_id']
     );
 
     await updateByArray(
@@ -286,7 +312,7 @@ async function updateScopeTwo(client: any, d: any) {
         'weight_of_samples_destroyed_questions',
         'wosd_id',
         d.weight_of_samples_destroyed_questions,
-        ['component_name', 'weight', 'unit', 'period']
+        ['component_name', 'weight', 'unit', 'period', 'bom_id']
     );
 
     await updateByArray(
@@ -294,7 +320,7 @@ async function updateScopeTwo(client: any, d: any) {
         'defect_or_rejection_rate_identified_by_quality_control_questions',
         'dorriqc_id',
         d.defect_or_rejection_rate_identified_by_quality_control_questions,
-        ['component_name', 'percentage']
+        ['component_name', 'percentage', 'bom_id']
     );
 
     await updateByArray(
@@ -302,7 +328,7 @@ async function updateScopeTwo(client: any, d: any) {
         'rework_rate_due_to_quality_control_questions',
         'rrdqc_id',
         d.rework_rate_due_to_quality_control_questions,
-        ['component_name', 'processes_involved', 'percentage']
+        ['component_name', 'processes_involved', 'percentage', 'bom_id']
     );
 
     await updateByArray(
@@ -310,7 +336,7 @@ async function updateScopeTwo(client: any, d: any) {
         'weight_of_quality_control_waste_generated_questions',
         'woqcwg_id',
         d.weight_of_quality_control_waste_generated_questions,
-        ['waste_type', 'waste_weight', 'unit', 'treatment_type']
+        ['waste_type', 'waste_weight', 'unit', 'treatment_type', 'bom_id']
     );
 
     await updateByArray(
@@ -355,7 +381,7 @@ async function updateScopeTwo(client: any, d: any) {
 }
 
 async function updateScopeThree(client: any, d: any) {
-    if (!d.stoie_id) throw new Error('stoie_id missing');
+    if (!d || !d.stoie_id) throw new Error('stoie_id missing');
 
     await client.query(
         `UPDATE scope_three_other_indirect_emissions_questions SET
@@ -412,7 +438,7 @@ async function updateScopeThree(client: any, d: any) {
         'raw_materials_used_in_component_manufacturing_questions',
         'rmuicm_id',
         d.raw_materials_used_in_component_manufacturing_questions,
-        ['material_name', 'percentage']
+        ['material_name', 'percentage', 'bom_id', 'material_number']
     );
 
     await updateByArray(
@@ -444,7 +470,7 @@ async function updateScopeThree(client: any, d: any) {
         'type_of_pack_mat_used_for_delivering_questions',
         'topmudp_id',
         d.type_of_pack_mat_used_for_delivering_questions,
-        ['component_name', 'packagin_type','treatment_type', 'packaging_size', 'unit']
+        ['component_name', 'packagin_type','treatment_type', 'packaging_size', 'unit', 'bom_id']
     );
 
     await updateByArray(
@@ -452,7 +478,8 @@ async function updateScopeThree(client: any, d: any) {
         'weight_of_packaging_per_unit_product_questions',
         'woppup_id',
         d.weight_of_packaging_per_unit_product_questions,
-        ['component_name', 'packagin_weight', 'unit']
+        ['component_name', 'packagin_weight', 'unit', 'bom_id'],
+        { stoie_id: d.stoie_id }
     );
 
     await updateByArray(
@@ -468,7 +495,7 @@ async function updateScopeThree(client: any, d: any) {
         'weight_of_pro_packaging_waste_questions',
         'woppw_id',
         d.weight_of_pro_packaging_waste_questions,
-        ['waste_type', 'waste_weight', 'unit', 'treatment_type']
+        ['waste_type', 'waste_weight', 'unit', 'treatment_type', 'bom_id']
     );
 
     await updateByArray(
@@ -476,7 +503,7 @@ async function updateScopeThree(client: any, d: any) {
         'type_of_by_product_questions',
         'topbp_id',
         d.type_of_by_product_questions,
-        ['component_name', 'by_product', 'price_per_product', 'quantity']
+        ['component_name', 'by_product', 'price_per_product', 'quantity', 'bom_id']
     );
 
     await updateByArray(
@@ -484,7 +511,7 @@ async function updateScopeThree(client: any, d: any) {
         'co_two_emission_of_raw_material_questions',
         'coteorm_id',
         d.co_two_emission_of_raw_material_questions,
-        ['raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission']
+        ['raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission', 'bom_id']
     );
 
     await updateByArray(
@@ -492,7 +519,7 @@ async function updateScopeThree(client: any, d: any) {
         'mode_of_transport_used_for_transportation_questions',
         'motuft_id',
         d.mode_of_transport_used_for_transportation_questions,
-        ['mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance']
+        ['mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance', 'bom_id']
     );
 
     await updateByArray(
@@ -505,7 +532,7 @@ async function updateScopeThree(client: any, d: any) {
 }
 
 async function updateScopeFour(client: any, d: any) {
-    if (!d.sfae_id) throw new Error('sfae_id missing');
+    if (!d || !d.sfae_id) throw new Error('sfae_id missing');
 
     await client.query(
         `
@@ -530,13 +557,47 @@ async function updateByArray(
     table: string,
     pk: string,
     rows: any[],
-    fields: string[]
+    fields: string[],
+    context?: { stoie_id?: string }
 ) {
     if (!Array.isArray(rows)) return;
 
     for (const r of rows) {
-        if (!r[pk]) throw new Error(`${pk} missing for ${table}`);
+        if (!r[pk]) {
+            // If primary key is missing, INSERT new record
+            // Generate new ID
+            const newId = ulid();
+            
+            // Build INSERT query - include all fields from 'fields' array plus any additional required fields
+            const allFields = [pk, ...fields];
+            // Also include stoie_id and bom_id if they exist in the row or context (for foreign key relationships)
+            if ((r.stoie_id || context?.stoie_id) && !allFields.includes('stoie_id')) allFields.push('stoie_id');
+            // Include spq_id only for tables that actually have spq_id column (Q13/Q15/Q15.1)
+            if (
+                r.spq_id &&
+                ['production_site_details_questions', 'product_component_manufactured_questions', 'co_product_component_economic_value_questions'].includes(table) &&
+                !allFields.includes('spq_id')
+            ) {
+                allFields.push('spq_id');
+            }
+            if (r.bom_id && !allFields.includes('bom_id')) allFields.push('bom_id');
+            if (r.material_number && !allFields.includes('material_number')) allFields.push('material_number');
+            if (r.component_name && !allFields.includes('component_name')) allFields.push('component_name');
+            
+            const insertFields = allFields.join(', ');
+            const insertPlaceholders = allFields.map((_, i) => `$${i + 1}`).join(', ');
+            const insertValues = allFields.map(f => {
+                if (f === pk) return newId;
+                if (f === 'stoie_id') return r.stoie_id || context?.stoie_id || null;
+                return r[f] ?? null;
+            });
 
+            await client.query(
+                `INSERT INTO ${table} (${insertFields}) VALUES (${insertPlaceholders})`,
+                insertValues
+            );
+        } else {
+            // Primary key exists, UPDATE existing record
         const setClause = fields.map((f, i) => `${f}=$${i + 1}`).join(', ');
         const values = fields.map(f => r[f]);
 
@@ -544,5 +605,6 @@ async function updateByArray(
             `UPDATE ${table} SET ${setClause} WHERE ${pk}=$${fields.length + 1}`,
             [...values, r[pk]]
         );
+        }
     }
 }

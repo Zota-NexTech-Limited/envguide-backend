@@ -6,12 +6,19 @@ dotenv.config();
 export async function authenticate(req: any, res: any, next: any) {
 
     try {
-        const token = req.header('authorization');
-        console.log(token);
+        let token = req.header('authorization');
+        console.log('Raw token from header:', token);
+        
+        // Strip "Bearer " prefix if present
+        if (token && token.startsWith('Bearer ')) {
+            token = token.substring(7); // Remove "Bearer " prefix
+        }
+        
+        console.log('Token after stripping Bearer:', token);
         const TOKEN_SECRET: string = process.env.TOKEN_SECRET ?? 'defaultSecret';
 
-        console.log(TOKEN_SECRET)
-        if (TOKEN_SECRET) {
+        console.log('TOKEN_SECRET:', TOKEN_SECRET)
+        if (TOKEN_SECRET && token) {
             const user: any = jwt.verify(token, TOKEN_SECRET);
             console.log(user, "admindataaa")
 

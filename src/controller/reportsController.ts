@@ -1266,7 +1266,7 @@ ROUND(
         ON sgi.bom_pcf_id = b.bom_pcf_id AND sgi.own_emission_id IS NULL
     LEFT JOIN materials_emission_factor mef
         ON mef.year = sgi.annual_reporting_period
-        AND mef.unit = 'Kg'
+        AND mef.unit = 'KgCo2e/per kg'
         AND lower(mef.element_name) = lower(rm.material_name)
     WHERE rm.bom_id = b.id
 ) q52 ON TRUE
