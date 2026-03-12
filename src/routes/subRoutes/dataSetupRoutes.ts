@@ -3,6 +3,7 @@ import * as Controller from '../../controller/dataSetupController';
 import * as  authService from '../../middleware/authService'
 const Routes = Router();
 
+
 Routes.post('/api/data-setup/calculation-method/add', authService.authenticate, Controller.addCalculationMethod);
 Routes.post('/api/data-setup/calculation-method/update', authService.authenticate, Controller.updateCalculationMethod);
 Routes.get('/api/data-setup/calculation-method/list/search', authService.authenticate, Controller.getCalculationMethodList);
@@ -228,6 +229,5 @@ Routes.get('/api/data-setup/life-cycle-stage/list/search', authService.authentic
 Routes.post('/api/data-setup/life-cycle-stage/bulk/add', authService.authenticate, Controller.LifeCycleStageDataSetup);
 Routes.post('/api/data-setup/life-cycle-stage/delete', authService.authenticate, Controller.deleteLifeCycleStage);
 Routes.get('/api/data-setup/life-cycle-stage/list', authService.authenticate, Controller.getLifeCycleStage);
-
 
 export default Routes;

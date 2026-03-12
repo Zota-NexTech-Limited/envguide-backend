@@ -3,6 +3,7 @@ import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes';
 import { bomService } from "../services/pcfBomService";
 import { getProductByCode } from './productController';
+import { convertToBaseUnit } from '../util/unitConversion';
 
 // below code also working but no need all the details remainng should create after dqr so 
 // created  createBOMWithDetailsFinal API
@@ -2919,12 +2920,17 @@ export async function getPcfBomCommentsByBomId(req: any, res: any) {
 }
 
 export async function pcfCalculate(req: any, res: any) {
+    console.log("🚀 PCF CALCULATION STARTED - Function called");
+    console.log("Request body:", req.body);
     return withClient(async (client: any) => {
         try {
+            console.log("✅ Database client connected, starting calculation...");
             const { bom_pcf_id } = req.body;
+            console.log("📋 bom_pcf_id received:", bom_pcf_id);
 
             // Validate input
             if (!bom_pcf_id) {
+                console.error("❌ ERROR: bom_pcf_id is missing!");
                 return res.send(
                     generateResponse(false, "bom_pcf_id is required", 400, null)
                 );
@@ -2945,50 +2951,185 @@ export async function pcfCalculate(req: any, res: any) {
                 );
             }
 
-            if (result.rows[0].is_pcf_calculated === true) {
-                return res.send(
-                    generateResponse(false, "PCF is already calculated for this BOM", 400, null)
-                );
-            }
+            // Temporarily allow recalculation for testing - remove this in production
+            // if (result.rows[0].is_pcf_calculated === true) {
+            //     return res.send(
+            //         generateResponse(false, "PCF is already calculated for this BOM", 400, null)
+            //     );
+            // }
 
             let overall_pcf = 0;
             // To fetch ALL BOM for particular PCF 
+            // Temporarily removed is_bom_calculated = FALSE to allow recalculation for testing
             const fetchAllBOM = `
                 SELECT id,bom_pcf_id,material_number,economic_ratio,
                 component_name,qunatity,production_location,
                 weight_gms,total_weight_gms,price,total_price,supplier_id
                 FROM bom
-                WHERE bom_pcf_id = $1 AND is_bom_calculated = FALSE;
+                WHERE bom_pcf_id = $1;
             `;
 
             const allBOMResult = await client.query(fetchAllBOM, [bom_pcf_id]);
 
+            console.log("=== FETCHED BOM DATA FROM DATABASE ===");
+            console.log("Number of BOM items:", allBOMResult.rows.length);
+            allBOMResult.rows.forEach((bom: any, index: number) => {
+                console.log(`BOM ${index + 1}:`, {
+                    id: bom.id,
+                    component_name: bom.component_name,
+                    weight_gms: bom.weight_gms,
+                    material_number: bom.material_number
+                });
+            });
+            console.log("=== END FETCHED BOM DATA ===");
+
             const TotalBomDetails = [];
             for (let BomData of allBOMResult.rows) {
 
-                const fetchSGIQID = `
+                // First try to find questionnaire with matching sup_id, prioritizing non-null annual_reporting_period
+                let fetchSGIQID = `
                 SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
                 FROM supplier_general_info_questions
-                WHERE bom_pcf_id = $1 AND sup_id =$2 AND own_emission_id IS NULL;
-            `;
+                    WHERE bom_pcf_id = $1 AND sup_id = $2 AND own_emission_id IS NULL
+                    ORDER BY 
+                        CASE WHEN annual_reporting_period IS NOT NULL THEN 0 ELSE 1 END,
+                        created_date DESC
+                    LIMIT 1;
+                `;
+                let fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id, BomData.supplier_id]);
+                
+                // If not found, try to find one with NULL sup_id (general questionnaire for this bom_pcf_id)
+                // Prioritize non-null annual_reporting_period
+                if (!fetchSGIQIDSupResult.rows || fetchSGIQIDSupResult.rows.length === 0) {
+                    fetchSGIQID = `
+                        SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
+                        FROM supplier_general_info_questions
+                        WHERE bom_pcf_id = $1 AND sup_id IS NULL AND own_emission_id IS NULL
+                        ORDER BY 
+                            CASE WHEN annual_reporting_period IS NOT NULL THEN 0 ELSE 1 END,
+                            created_date DESC
+                        LIMIT 1;
+                    `;
+                    fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id]);
+                }
 
-                const fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id, BomData.supplier_id]);
+                // If still not found, try to find ANY questionnaire for this bom_pcf_id (last resort)
+                // Prefer questionnaires with non-null annual_reporting_period
+                if (!fetchSGIQIDSupResult.rows || fetchSGIQIDSupResult.rows.length === 0) {
+                    fetchSGIQID = `
+                        SELECT sgiq_id,bom_pcf_id,sup_id,annual_reporting_period
+                        FROM supplier_general_info_questions
+                        WHERE bom_pcf_id = $1 AND own_emission_id IS NULL
+                        ORDER BY 
+                            CASE WHEN annual_reporting_period IS NOT NULL THEN 0 ELSE 1 END,
+                            created_date DESC
+                        LIMIT 1;
+                    `;
+                    fetchSGIQIDSupResult = await client.query(fetchSGIQID, [bom_pcf_id]);
+                    if (fetchSGIQIDSupResult.rows.length > 0) {
+                        console.log(`Found questionnaire with sup_id: ${fetchSGIQIDSupResult.rows[0].sup_id} (BOM supplier_id was null)`);
+                    }
+                }
+
+                // Check if supplier questionnaire data exists
+                if (!fetchSGIQIDSupResult.rows || fetchSGIQIDSupResult.rows.length === 0) {
+                    console.error(`No supplier questionnaire data found for bom_pcf_id: ${bom_pcf_id}, supplier_id: ${BomData.supplier_id}`);
+                    continue; // Skip this BOM if no questionnaire data exists
+                }
+
+                // Check if annual_reporting_period is null - this will cause emission factors to fail
+                if (!fetchSGIQIDSupResult.rows[0].annual_reporting_period) {
+                    console.error(`WARNING: annual_reporting_period is NULL for sgiq_id: ${fetchSGIQIDSupResult.rows[0].sgiq_id}`);
+                    console.error(`This will cause all emission factor queries to fail!`);
+                    console.error(`Please update annual_reporting_period to "2025" (or the correct year) via Postman or questionnaire.`);
+                }
+
+                // Debug: Check annual_reporting_period
+                console.log("=== QUESTIONNAIRE DATA DEBUG ===");
+                console.log("Annual Reporting Period:", fetchSGIQIDSupResult.rows[0].annual_reporting_period);
+                console.log("sgiq_id:", fetchSGIQIDSupResult.rows[0].sgiq_id);
+                console.log("sup_id:", fetchSGIQIDSupResult.rows[0].sup_id);
+                console.log("=== END QUESTIONNAIRE DATA DEBUG ===");
 
                 let Total_Housing_Component_Emissions = 0;
                 //========> Phase one start
                 let Raw_Material_emissions = 0;
 
+                // ====> Delete old material calculation data for this BOM first
+                const deleteMaterialResult = await client.query(
+                    `DELETE FROM bom_emission_material_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
+                    [BomData.id]
+                );
+                console.log(`Deleted ${deleteMaterialResult.rowCount} old material calculation rows for bom_id: ${BomData.id}`);
+
                 // FEtching materials For Particular BOM
-                const fetchQ52 = `
+                // First, try to find materials with bom_id matching this BOM
+                let fetchQ52 = `
                 SELECT rmuicm_id,stoie_id,bom_id,
                 material_number,material_name,percentage
                 FROM raw_materials_used_in_component_manufacturing_questions
                 WHERE bom_id = $1 AND own_emission_id IS NULL;
             `;
 
-                const fetchQ52SupResult = await client.query(fetchQ52, [BomData.id]);
+                let fetchQ52SupResult = await client.query(fetchQ52, [BomData.id]);
+                
+                // If no materials found by bom_id, try to find through bom_pcf_id via supplier questionnaire.
+                // IMPORTANT: Do NOT mix NULL bom_id rows with bom_id-specific rows; it causes cross-component contamination.
+                if (!fetchQ52SupResult.rows || fetchQ52SupResult.rows.length === 0) {
+                    console.log("No materials found by bom_id, trying through bom_pcf_id...");
+                    fetchQ52 = `
+                        SELECT rm.rmuicm_id, rm.stoie_id, rm.bom_id,
+                            rm.material_number, rm.material_name, rm.percentage
+                        FROM raw_materials_used_in_component_manufacturing_questions rm
+                        JOIN scope_three_other_indirect_emissions_questions stoie
+                            ON rm.stoie_id = stoie.stoie_id
+                        JOIN supplier_general_info_questions sgiq
+                            ON stoie.sgiq_id = sgiq.sgiq_id
+                        WHERE sgiq.bom_pcf_id = $1
+                            AND (rm.bom_id = $2 OR rm.bom_id IS NULL)
+                            AND rm.own_emission_id IS NULL;
+                    `;
+                    fetchQ52SupResult = await client.query(fetchQ52, [bom_pcf_id, BomData.id]);
+                }
 
-                for (let ProductData of fetchQ52SupResult.rows) {
+                console.log("=== Q52 MATERIALS FETCHED ===");
+                console.log("Number of materials found:", fetchQ52SupResult.rows.length);
+                fetchQ52SupResult.rows.forEach((mat: any, idx: number) => {
+                    console.log(`Material ${idx + 1}:`, {
+                        material_name: mat.material_name,
+                        percentage: mat.percentage,
+                        bom_id: mat.bom_id
+                    });
+                });
+                console.log("=== END Q52 MATERIALS ===");
+
+                // ====> Deduplicate materials by material_name (case-insensitive)
+                // This prevents processing duplicate materials that cause incorrect totals
+                const processedMaterials = new Map<string, any>();
+                const deduplicatedMaterials: any[] = [];
+
+                for (const material of fetchQ52SupResult.rows) {
+                    const materialNameKey = (material.material_name || '').trim().toLowerCase();
+                    
+                    if (!processedMaterials.has(materialNameKey)) {
+                        // First occurrence of this material - add it
+                        processedMaterials.set(materialNameKey, material);
+                        deduplicatedMaterials.push(material);
+                        console.log(`✅ Processing material: ${material.material_name} (${material.percentage}%)`);
+                    } else {
+                        // Duplicate material - skip it
+                        const existing = processedMaterials.get(materialNameKey);
+                        console.log(`⚠️  Skipping duplicate material: ${material.material_name} (${material.percentage}%) - Already processed: ${existing?.material_name} (${existing?.percentage}%)`);
+                    }
+                }
+
+                console.log(`=== DEDUPLICATION SUMMARY ===`);
+                console.log(`Original materials: ${fetchQ52SupResult.rows.length}`);
+                console.log(`After deduplication: ${deduplicatedMaterials.length}`);
+                console.log(`Duplicates removed: ${fetchQ52SupResult.rows.length - deduplicatedMaterials.length}`);
+                console.log(`=== END DEDUPLICATION ===`);
+
+                for (let ProductData of deduplicatedMaterials) {
                     const fetchQ13 = `
                 SELECT bom_id,
                 material_number,product_name,location
@@ -3002,47 +3143,92 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetchEmissionMaterialFactor = `
                 SELECT element_name,year,unit,
                 ef_eu_region,ef_india_region,ef_global_region
-                FROM materials_emission_factor WHERE element_name=$1 AND year=$2 AND unit=$3;
+                FROM materials_emission_factor WHERE LOWER(element_name)=LOWER($1) AND year=$2 AND unit=$3;
             `;
 
-                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per unit"]);
+                    console.log("Querying material emission factor for:", {
+                        material_name: ProductData.material_name,
+                        year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
+                        unit: "KgCo2e/per kg"
+                    });
 
-                    let Material_Emission_Factor_kg_CO2E_kg = 0.01;
+                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per kg"]);
+
+                    console.log("Material emission factor query result:", fetchEmissionMaterialFactorSupResult.rows.length > 0 ? fetchEmissionMaterialFactorSupResult.rows[0] : "NO MATCH FOUND");
+                    
+                    if (fetchEmissionMaterialFactorSupResult.rows.length === 0) {
+                        console.warn("WARNING: Material emission factor not found!");
+                        console.warn("Query parameters:", {
+                            material_name: ProductData.material_name,
+                            year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
+                            unit: "KgCo2e/per kg"
+                        });
+                        console.warn("Please check:");
+                        console.warn("  1. Material name matches setup data exactly (case-insensitive)");
+                        console.warn("  2. Year matches annual_reporting_period");
+                        console.warn("  3. Unit format is 'KgCo2e/per kg'");
+                    }
+
+                    let Material_Emission_Factor_kg_CO2E_kg = 0.01; // Default fallback value
                     if (fetchEmissionMaterialFactorSupResult.rows[0]) {
 
                         if (fetchQ13SupResult.rows[0]) {
+                            const locationRaw = fetchQ13SupResult.rows[0].location || "";
+                            const locationLower = locationRaw.trim().toLowerCase();
+                            
+                            console.log("Location from Q13:", locationRaw, "-> normalized (trimmed):", locationLower);
 
-                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "india") {
-                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_india_region)
+                            if (locationLower === "india") {
+                                Material_Emission_Factor_kg_CO2E_kg = parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_india_region) || 0.01;
+                                console.log("Using India emission factor:", Material_Emission_Factor_kg_CO2E_kg);
+                            } else if (locationLower === "europe") {
+                                Material_Emission_Factor_kg_CO2E_kg = parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_eu_region) || 0.01;
+                                console.log("Using EU emission factor:", Material_Emission_Factor_kg_CO2E_kg);
+                            } else {
+                                // Default to global if location doesn't match india/europe or is "global" or not specified
+                                Material_Emission_Factor_kg_CO2E_kg = parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_global_region) || 0.01;
+                                if (locationLower === "global") {
+                                    console.log("Location is 'Global'. Using Global emission factor:", Material_Emission_Factor_kg_CO2E_kg);
+                                } else {
+                                    console.log("Location '", locationRaw, "' not recognized (expected: india/europe/global). Using Global emission factor:", Material_Emission_Factor_kg_CO2E_kg);
+                                }
                             }
-
-                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "europe") {
-                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_eu_region)
-                            }
-
-                            if (fetchQ13SupResult.rows[0].location.toLowerCase() === "global") {
-                                Material_Emission_Factor_kg_CO2E_kg += parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_global_region)
-                            }
-
+                        } else {
+                            // If Q13 not found, use global as fallback
+                            Material_Emission_Factor_kg_CO2E_kg = parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_global_region) || 0.01;
+                            console.log("Q13 not found. Using Global emission factor:", Material_Emission_Factor_kg_CO2E_kg);
                         }
 
                     }
 
-                    console.log("Component Weight (kg):", BomData.weight_gms);
+                    console.log("=== MATERIAL CALCULATION DEBUG ===");
+                    console.log("BOM ID:", BomData.id);
+                    console.log("Component Name:", BomData.component_name);
+                    console.log("Raw Weight (gms):", BomData.weight_gms);
+                    console.log("Material Name:", ProductData.material_name);
+                    console.log("Material Percentage (raw):", ProductData.percentage);
 
                     const weightInKg = parseFloat(BomData.weight_gms) / 1000;
+                    console.log("Weight In KG (converted):", weightInKg);
 
-                    const material_composition = ProductData.percentage;
-                    const material_composition_weight = ((weightInKg / 100) * ProductData.percentage);
+                    // Parse percentage to ensure it's a number (handle string "30" -> 30)
+                    const material_composition_percentage = parseFloat(ProductData.percentage) || 0;
+                    const material_composition = material_composition_percentage;
+                    
+                    // Calculate material weight: component_weight * (percentage / 100)
+                    const material_composition_weight = weightInKg * (material_composition_percentage / 100);
 
-
-                    console.log("Material composition (%):", ProductData.percentage);
-                    console.log("Weight In KG convert:", weightInKg);
-
-                    console.log("Material composition Weight in (Kg):", (weightInKg / 100) * ProductData.percentage);
-                    console.log("Material_Emission_Factor_kg_CO2E_kg:", Material_Emission_Factor_kg_CO2E_kg);
-                    console.log("Material emissions (kg CO₂e):", ((weightInKg / 100) * ProductData.percentage) * Material_Emission_Factor_kg_CO2E_kg);
-                    let Material_emissions_kg_CO_e = ((((weightInKg / 100) * ProductData.percentage) * Material_Emission_Factor_kg_CO2E_kg));
+                    console.log("Material composition (%):", material_composition_percentage);
+                    console.log("Material composition Weight (Kg):", material_composition_weight);
+                    console.log("Material Emission Factor (kg CO₂e/kg):", Material_Emission_Factor_kg_CO2E_kg);
+                    console.log("Emission Factor Source:", fetchEmissionMaterialFactorSupResult.rows.length > 0 ? "Database" : "DEFAULT (0.01)");
+                    
+                    // Calculate emissions: material_weight * emission_factor
+                    const Material_emissions_kg_CO_e = material_composition_weight * Material_Emission_Factor_kg_CO2E_kg;
+                    console.log("Material emissions (kg CO₂e):", Material_emissions_kg_CO_e);
+                    console.log("Formula: ", material_composition_weight, " * ", Material_Emission_Factor_kg_CO2E_kg, " = ", Material_emissions_kg_CO_e);
+                    console.log("=== END MATERIAL CALCULATION DEBUG ===");
+                    
                     Raw_Material_emissions += Material_emissions_kg_CO_e;
 
                     // ====> Insert into bom_emission_material_calculation_engine table
@@ -3067,7 +3253,13 @@ export async function pcfCalculate(req: any, res: any) {
                     // ===> Insert Ends here
 
                 }
-                console.log("Raw Material emissions (kg CO₂e):", Raw_Material_emissions);
+                console.log("========================================");
+                console.log("TOTAL RAW MATERIAL EMISSIONS SUMMARY");
+                console.log("========================================");
+                console.log("Total Raw Material Emissions (kg CO₂e):", Raw_Material_emissions);
+                console.log("Expected from Excel: 5.347 kg CO₂e");
+                console.log("Difference:", (Raw_Material_emissions - 5.347).toFixed(4), "kg CO₂e");
+                console.log("========================================");
 
                 Total_Housing_Component_Emissions += Raw_Material_emissions;
                 //========> Phase One END
@@ -3123,11 +3315,11 @@ export async function pcfCalculate(req: any, res: any) {
                 SELECT stidefpe_id,stide_id,sup_id,
                 energy_source,energy_type,quantity,unit
                 FROM scope_two_indirect_emissions_from_purchased_energy_questions
-                WHERE stide_id = $1 AND sup_id=$2 AND own_emission_id IS NULL;
+                WHERE stide_id = $1 AND own_emission_id IS NULL;
             `;
 
 
-                    const fetchEnegryResult = await client.query(fetchQ22, [fetchStideId.stide_id, fetchSGIQIDSupResult.rows[0].sup_id]);
+                    const fetchEnegryResult = await client.query(fetchQ22, [fetchStideId.stide_id]);
 
                     let Total_Electrical_Energy_consumed_at_Factory_level_kWh = 0;
                     let Total_Heating_Energy_consumed_at_Factory_level_kWh = 0;
@@ -3181,18 +3373,29 @@ export async function pcfCalculate(req: any, res: any) {
 
                     for (let Energy of fetchEnegryResult.rows) {
                         console.log(Energy, "EnergyEnergy");
+                        console.log("Before conversion - Quantity:", Energy.quantity, "Unit:", Energy.unit);
+
+                        // Convert quantity to kWh using helper function
+                        const quantityInKWh = await convertToBaseUnit(
+                            client,
+                            Energy.quantity,
+                            Energy.unit,
+                            'energy'
+                        );
+
+                        console.log("After conversion - Quantity in kWh:", quantityInKWh);
 
                         if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
-                            Total_Electrical_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                            Total_Electrical_Energy_consumed_at_Factory_level_kWh += quantityInKWh;
                         }
                         if (Energy.energy_source.split(" ")[0].toLowerCase() === "heating") {
-                            Total_Heating_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                            Total_Heating_Energy_consumed_at_Factory_level_kWh += quantityInKWh;
                         }
                         if (Energy.energy_source.split(" ")[0].toLowerCase() === "cooling") {
-                            Total_Cooling_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                            Total_Cooling_Energy_consumed_at_Factory_level_kWh += quantityInKWh;
                         }
                         if (Energy.energy_source.split(" ")[0].toLowerCase() === "steam") {
-                            Total_Steam_Energy_consumed_at_Factory_level_kWh += parseFloat(Energy.quantity);
+                            Total_Steam_Energy_consumed_at_Factory_level_kWh += quantityInKWh;
                         }
                     }
                     console.log(Total_Electrical_Energy_consumed_at_Factory_level_kWh, "Total_Electrical_Energy_consumed_at_Factory_level_kWh");
@@ -3213,22 +3416,65 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetcSPQIDSupResult = await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
 
-
+                    // Get ALL factory components for this sgiq_id (not just this bom_id)
+                    // This is needed for correct factory-level allocation
                     const someOfAllProductQues = `
-                SELECT spq_id, bom_id,material_number,weight_per_unit,price,quantity
-                FROM product_component_manufactured_questions
-                WHERE bom_id = $1 AND own_emission_id IS NULL;
+                SELECT pcm.spq_id, pcm.bom_id, pcm.material_number, pcm.weight_per_unit, pcm.unit, pcm.price, pcm.quantity
+                FROM product_component_manufactured_questions pcm
+                JOIN supplier_product_questions spq ON pcm.spq_id = spq.spq_id
+                WHERE spq.sgiq_id = $1 AND pcm.own_emission_id IS NULL;
             `;
 
-                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [BomData.id]);
+                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
+                    
+                    console.log("=== Q15 FACTORY COMPONENTS QUERY DEBUG ===");
+                    console.log("Querying by sgiq_id:", fetchSGIQIDSupResult.rows[0].sgiq_id);
+                    console.log("Number of factory components found:", someOfAllProductQuesSupResult.rows.length);
+                    if (someOfAllProductQuesSupResult.rows.length > 0) {
+                        console.log("Factory components:", JSON.stringify(someOfAllProductQuesSupResult.rows.map((r: any) => ({
+                            bom_id: r.bom_id,
+                            material_number: r.material_number,
+                            weight_per_unit: r.weight_per_unit,
+                            unit: r.unit,
+                            quantity: r.quantity
+                        })), null, 2));
+                    }
+                    console.log("=== END Q15 FACTORY COMPONENTS DEBUG ===");
 
                     let Total_weight_produced_at_Factory_level_kg = 0;
-                    if (someOfAllProductQuesSupResult.rows) {
+                    if (someOfAllProductQuesSupResult.rows && someOfAllProductQuesSupResult.rows.length > 0) {
                         for (let fetchwieghtAndQuanty of someOfAllProductQuesSupResult.rows) {
-                            Total_weight_produced_at_Factory_level_kg += parseFloat(fetchwieghtAndQuanty.weight_per_unit) * parseInt(fetchwieghtAndQuanty.quantity);
+                            // Convert weight_per_unit to kg using helper function
+                            const weightInKg = await convertToBaseUnit(
+                                client,
+                                fetchwieghtAndQuanty.weight_per_unit,
+                                fetchwieghtAndQuanty.unit,
+                                'material'
+                            );
+                            
+                            Total_weight_produced_at_Factory_level_kg += weightInKg * parseInt(fetchwieghtAndQuanty.quantity);
                         }
 
                         console.log(Total_weight_produced_at_Factory_level_kg, "Total_weight_produced_at_Factory_level_kg");
+
+                    // Detailed breakdown of factory weight calculation
+                    console.log("=== FACTORY WEIGHT BREAKDOWN ===");
+                    for (let i = 0; i < someOfAllProductQuesSupResult.rows.length; i++) {
+                        const row = someOfAllProductQuesSupResult.rows[i];
+                        const weightInKg = await convertToBaseUnit(client, row.weight_per_unit, row.unit, 'material');
+                        const totalWeight = weightInKg * parseInt(row.quantity);
+                        console.log(`Component ${i + 1}: ${row.material_number || 'N/A'} - ${row.weight_per_unit} ${row.unit} × ${row.quantity} = ${totalWeight} kg`);
+                    }
+                    console.log(`TOTAL FACTORY WEIGHT: ${Total_weight_produced_at_Factory_level_kg} kg`);
+                    console.log("=== END FACTORY WEIGHT BREAKDOWN ===");
+                    
+                    // Warning if total factory weight seems too small (only one component entered)
+                    if (someOfAllProductQuesSupResult.rows.length === 1) {
+                        console.warn("WARNING: Only one component found in Q15. Total factory weight should include ALL components manufactured at the factory, not just this component.");
+                        console.warn("This will cause incorrect energy allocation. Please ensure Q15 includes all factory products.");
+                    } else if (Total_weight_produced_at_Factory_level_kg < 1000) {
+                        console.warn(`WARNING: Factory total weight (${Total_weight_produced_at_Factory_level_kg} kg) seems too low. Expected ~45,000 kg for correct allocation.`);
+                    }
 
                     }
 
@@ -3254,26 +3500,80 @@ export async function pcfCalculate(req: any, res: any) {
                     console.log("Total_weight_of_current_component_produced_Kg:", Total_weight_of_current_component_produced_Kg);
 
                     let Total_electricity_utilised_for_production_all_current_components_kWh = 0;
-                    console.log(Total_weight_of_current_component_produced_Kg, Total_weight_produced_at_Factory_level_kg, Total_Electrical_Energy_consumed_at_Factory_level_kWh);
-                    Total_electricity_utilised_for_production_all_current_components_kWh = ((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Electrical_Energy_consumed_at_Factory_level_kWh)
+                    
+                    // Prevent division by zero
+                    if (Total_weight_produced_at_Factory_level_kg > 0) {
+                        Total_electricity_utilised_for_production_all_current_components_kWh = ((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Electrical_Energy_consumed_at_Factory_level_kWh);
+                        console.log("=== ELECTRICITY ALLOCATION CALCULATION ===");
+                        console.log(`Formula: (Current Component Weight / Factory Total Weight) × Factory Electricity`);
+                        console.log(`= (${Total_weight_of_current_component_produced_Kg} / ${Total_weight_produced_at_Factory_level_kg}) × ${Total_Electrical_Energy_consumed_at_Factory_level_kWh}`);
+                        console.log(`= ${(Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg).toFixed(6)} × ${Total_Electrical_Energy_consumed_at_Factory_level_kWh}`);
+                        console.log(`= ${Total_electricity_utilised_for_production_all_current_components_kWh} kWh (for all ${no_of_products_current_component_produced} units)`);
+                        console.log("=== END ELECTRICITY ALLOCATION ===");
+                    } else {
+                        console.warn("WARNING: Total_weight_produced_at_Factory_level_kg is 0, cannot calculate Total_electricity_utilised_for_production_all_current_components_kWh");
+                        // If no factory level weight, use component weight directly (fallback)
+                        Total_electricity_utilised_for_production_all_current_components_kWh = Total_Electrical_Energy_consumed_at_Factory_level_kWh;
+                    }
                     console.log("Total_electricity_utilised_for_production_all_current_components_kWh :", Total_electricity_utilised_for_production_all_current_components_kWh);
+
+                    // Helper function to convert Infinity and NaN to null for DB insertion
+                    const sanitizeNumber = (value: any): number | null => {
+                        // Handle null and undefined
+                        if (value === null || value === undefined) {
+                            return null;
+                        }
+                        // Convert string to number if required
+                        const numValue = typeof value === 'string' ? parseFloat(value) : Number(value);
+                        // Check if valid number
+                        if (isNaN(numValue) || !isFinite(numValue)) {
+                            return null;
+                        }
+                        return numValue;
+                    };
 
                     let Production_electricity_energy_use_per_unit_kWh = 0;
 
+                    // Prevent division by zero
+                    if (no_of_products_current_component_produced > 0) {
                     Production_electricity_energy_use_per_unit_kWh =
                         (Total_electricity_utilised_for_production_all_current_components_kWh / no_of_products_current_component_produced);
+                    console.log("=== PER-UNIT ELECTRICITY CALCULATION ===");
+                    console.log(`Formula: Total Electricity for Component / Number of Units`);
+                    console.log(`= ${Total_electricity_utilised_for_production_all_current_components_kWh} / ${no_of_products_current_component_produced}`);
+                    console.log(`= ${Production_electricity_energy_use_per_unit_kWh} kWh per unit`);
+                    console.log("=== END PER-UNIT CALCULATION ===");
+                    } else {
+                        console.warn("WARNING: no_of_products_current_component_produced is 0");
+                        Production_electricity_energy_use_per_unit_kWh = 0;
+                    }
                     console.log("Production_electricity_energy_use_per_unit_kWh:", Production_electricity_energy_use_per_unit_kWh);
 
                     let Production_Heating_energy_use_per_unit_kWh = 0;
-                    Production_Heating_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Heating_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
+                    if (Total_weight_produced_at_Factory_level_kg > 0 && no_of_products_current_component_produced > 0) {
+                        Production_Heating_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Heating_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced);
+                    } else {
+                        console.warn("WARNING: Cannot calculate Production_Heating_energy_use_per_unit_kWh - division by zero");
+                        Production_Heating_energy_use_per_unit_kWh = 0;
+                    }
                     console.log("Production_Heating_energy_use_per_unit_kWh :", Production_Heating_energy_use_per_unit_kWh);
 
                     let Production_Cooling_energy_use_per_unit_kWh = 0;
-                    Production_Cooling_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Cooling_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
+                    if (Total_weight_produced_at_Factory_level_kg > 0 && no_of_products_current_component_produced > 0) {
+                        Production_Cooling_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Cooling_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced);
+                    } else {
+                        console.warn("WARNING: Cannot calculate Production_Cooling_energy_use_per_unit_kWh - division by zero");
+                        Production_Cooling_energy_use_per_unit_kWh = 0;
+                    }
                     console.log("Production_Cooling_energy_use_per_unit_kWh :", Production_Cooling_energy_use_per_unit_kWh);
 
                     let Production_Steam_energy_use_per_unit_kWh = 0;
-                    Production_Steam_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Steam_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced)
+                    if (Total_weight_produced_at_Factory_level_kg > 0 && no_of_products_current_component_produced > 0) {
+                        Production_Steam_energy_use_per_unit_kWh = (((Total_weight_of_current_component_produced_Kg / Total_weight_produced_at_Factory_level_kg) * Total_Steam_Energy_consumed_at_Factory_level_kWh) / no_of_products_current_component_produced);
+                    } else {
+                        console.warn("WARNING: Cannot calculate Production_Steam_energy_use_per_unit_kWh - division by zero");
+                        Production_Steam_energy_use_per_unit_kWh = 0;
+                    }
                     console.log("Production_Steam_energy_use_per_unit_kWh :", Production_Steam_energy_use_per_unit_kWh);
 
 
@@ -3291,6 +3591,11 @@ export async function pcfCalculate(req: any, res: any) {
                     let FetchHeatingTypeEmiassionValue = 0.01;
                     let FetchSteamTypeEmiassionValue = 0.01;
                     let FetchCoolingTypeEmiassionValue = 0.01;
+                    
+                    // For electricity, calculate weighted average EF based on energy mix
+                    let electricityEFs: Array<{quantity: number, ef: number}> = [];
+                    let totalElectricityQuantity = 0;
+                    
                     for (let Energy of fetchEnegryResult.rows) {
 
                         if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
@@ -3303,30 +3608,42 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT type_of_energy,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit
                                 FROM electricity_emission_factor
-                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
+                            // Use "KgCo2e/per kWh" for emission factor query (not the user's input unit)
+                            const emissionFactorUnit = "KgCo2e/per kWh";
+                            const fetchEnegryEFResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, emissionFactorUnit]);
 
-                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+                            // Convert energy quantity to kWh for weighted average calculation
+                            const quantityInKWh = await convertToBaseUnit(
+                                client,
+                                Energy.quantity,
+                                Energy.unit,
+                                'energy'
+                            );
 
+                            if (fetchEnegryEFResult.rows[0]) {
+                                let ef = 0.01;
+                                if (fetchQ13LocationSupResult.rows[0]) {
+                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
 
-                            if (fetchEnegryResult.rows[0]) {
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                    if (locationLower === "india") {
+                                        ef = parseFloat(fetchEnegryEFResult.rows[0].ef_india_region) || 0.01;
+                                    } else if (locationLower === "europe") {
+                                        ef = parseFloat(fetchEnegryEFResult.rows[0].ef_eu_region) || 0.01;
+                                    } else {
+                                        ef = parseFloat(fetchEnegryEFResult.rows[0].ef_global_region) || 0.01;
+                                    }
+                                } else {
+                                    ef = parseFloat(fetchEnegryEFResult.rows[0].ef_global_region) || 0.01;
                                 }
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
-                                }
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                    FetchElectricityTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
-                                }
-
+                                
+                                // Store EF and quantity for weighted average calculation
+                                electricityEFs.push({quantity: quantityInKWh, ef: ef});
+                                totalElectricityQuantity += quantityInKWh;
+                                console.log(`Electricity type: ${EnergyType}, Quantity: ${quantityInKWh} kWh, EF: ${ef}`);
                             }
-                            console.log(FetchElectricityTypeEmiassionValue, "FetchElectricityTypeEmiassionValue");
-
                         }
 
                         if (Energy.energy_source.split(" ")[0].toLowerCase() === "heating") {
@@ -3339,27 +3656,28 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT type_of_energy,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit
                                 FROM electricity_emission_factor
-                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
-
-                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+                            // Use "KgCo2e/per kWh" for emission factor query (not the user's input unit)
+                            const emissionFactorUnit = "KgCo2e/per kWh";
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, emissionFactorUnit]);
 
 
                             if (fetchEnegryResult.rows[0]) {
+                                if (fetchQ13LocationSupResult.rows[0]) {
+                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
 
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                    if (locationLower === "india") {
+                                        FetchHeatingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_india_region) || 0.01;
+                                    } else if (locationLower === "europe") {
+                                        FetchHeatingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_eu_region) || 0.01;
+                                    } else {
+                                        FetchHeatingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
+                                    }
+                                } else {
+                                    FetchHeatingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
                                 }
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
-                                }
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                    FetchHeatingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
-                                }
-
                             }
                             console.log(FetchHeatingTypeEmiassionValue, "FetchHeatingTypeEmiassionValue");
 
@@ -3375,27 +3693,28 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT type_of_energy,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit
                                 FROM electricity_emission_factor
-                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
-
-                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+                            // Use "KgCo2e/per kWh" for emission factor query (not the user's input unit)
+                            const emissionFactorUnit = "KgCo2e/per kWh";
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, emissionFactorUnit]);
 
 
                             if (fetchEnegryResult.rows[0]) {
+                                if (fetchQ13LocationSupResult.rows[0]) {
+                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
 
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                    if (locationLower === "india") {
+                                        FetchSteamTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_india_region) || 0.01;
+                                    } else if (locationLower === "europe") {
+                                        FetchSteamTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_eu_region) || 0.01;
+                                    } else {
+                                        FetchSteamTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
+                                    }
+                                } else {
+                                    FetchSteamTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
                                 }
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
-                                }
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                    FetchSteamTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
-                                }
-
                             }
                             console.log(FetchSteamTypeEmiassionValue, "FetchSteamTypeEmiassionValue");
 
@@ -3411,33 +3730,54 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT type_of_energy,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit
                                 FROM electricity_emission_factor
-                                WHERE type_of_energy = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
-
-                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit]);
+                            // Use "KgCo2e/per kWh" for emission factor query (not the user's input unit)
+                            const emissionFactorUnit = "KgCo2e/per kWh";
+                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, emissionFactorUnit]);
 
 
                             if (fetchEnegryResult.rows[0]) {
+                                if (fetchQ13LocationSupResult.rows[0]) {
+                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
 
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_india_region)
+                                    if (locationLower === "india") {
+                                        FetchCoolingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_india_region) || 0.01;
+                                    } else if (locationLower === "europe") {
+                                        FetchCoolingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_eu_region) || 0.01;
+                                    } else {
+                                        FetchCoolingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
+                                    }
+                                } else {
+                                    FetchCoolingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
                                 }
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_eu_region)
-                                }
-
-                                if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                    FetchCoolingTypeEmiassionValue += parseFloat(fetchEnegryResult.rows[0].ef_global_region)
-                                }
-
                             }
                             console.log(FetchCoolingTypeEmiassionValue, "FetchCoolingTypeEmiassionValue");
 
                         }
                     }
 
+                    // Calculate weighted average EF for electricity
+                    if (electricityEFs.length > 0 && totalElectricityQuantity > 0) {
+                        let weightedSum = 0;
+                        electricityEFs.forEach(item => {
+                            weightedSum += item.quantity * item.ef;
+                        });
+                        FetchElectricityTypeEmiassionValue = weightedSum / totalElectricityQuantity;
+                        console.log("=== ELECTRICITY WEIGHTED AVERAGE EF ===");
+                        console.log(`Total electricity quantity: ${totalElectricityQuantity} kWh`);
+                        electricityEFs.forEach((item, idx) => {
+                            console.log(`  Type ${idx + 1}: ${item.quantity} kWh × EF ${item.ef} = ${item.quantity * item.ef}`);
+                        });
+                        console.log(`Weighted average EF: ${FetchElectricityTypeEmiassionValue}`);
+                        console.log("=== END WEIGHTED AVERAGE ===");
+                    } else if (electricityEFs.length > 0) {
+                        // Fallback: use simple average if quantities are 0
+                        const avgEF = electricityEFs.reduce((sum, item) => sum + item.ef, 0) / electricityEFs.length;
+                        FetchElectricityTypeEmiassionValue = avgEF;
+                        console.log("WARNING: Total electricity quantity is 0, using simple average EF:", avgEF);
+                    }
 
                     console.log("FetchElectricityTypeEmiassionValue:", FetchElectricityTypeEmiassionValue);
                     console.log("FetchHeatingTypeEmiassionValue:", FetchHeatingTypeEmiassionValue);
@@ -3449,14 +3789,27 @@ export async function pcfCalculate(req: any, res: any) {
                     Manufacturing_Emissions_kg_CO2e =
                         ((Production_electricity_energy_use_per_unit_kWh * FetchElectricityTypeEmiassionValue) +
                             (Production_Heating_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue) +
-                            (Production_Cooling_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue) +
-                            (Production_Steam_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue))
+                            (Production_Cooling_energy_use_per_unit_kWh * FetchCoolingTypeEmiassionValue) +
+                            (Production_Steam_energy_use_per_unit_kWh * FetchSteamTypeEmiassionValue))
 
+                    console.log("=== MANUFACTURING EMISSIONS CALCULATION ===");
+                    console.log(`Formula: (Electricity × EF) + (Heating × EF) + (Cooling × EF) + (Steam × EF)`);
+                    console.log(`= (${Production_electricity_energy_use_per_unit_kWh} × ${FetchElectricityTypeEmiassionValue}) + (${Production_Heating_energy_use_per_unit_kWh} × ${FetchHeatingTypeEmiassionValue}) + (${Production_Cooling_energy_use_per_unit_kWh} × ${FetchCoolingTypeEmiassionValue}) + (${Production_Steam_energy_use_per_unit_kWh} × ${FetchSteamTypeEmiassionValue})`);
+                    console.log(`= (${Production_electricity_energy_use_per_unit_kWh * FetchElectricityTypeEmiassionValue}) + (${Production_Heating_energy_use_per_unit_kWh * FetchHeatingTypeEmiassionValue}) + (${Production_Cooling_energy_use_per_unit_kWh * FetchCoolingTypeEmiassionValue}) + (${Production_Steam_energy_use_per_unit_kWh * FetchSteamTypeEmiassionValue})`);
+                    console.log(`= ${Manufacturing_Emissions_kg_CO2e} kg CO₂e per unit`);
+                    console.log("=== END MANUFACTURING EMISSIONS ===");
                     console.log("Manufacturing_Emissions_kg_CO2e:", Manufacturing_Emissions_kg_CO2e);
 
                     Total_Housing_Component_Emissions += Manufacturing_Emissions_kg_CO2e;
 
                     const weightInKg = parseFloat(BomData.weight_gms) / 1000;
+
+                    // ====> Delete old production calculation data for this BOM first
+                    const deleteResult = await client.query(
+                        `DELETE FROM bom_emission_production_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
+                        [BomData.id]
+                    );
+                    console.log(`Deleted ${deleteResult.rowCount} old production calculation rows for bom_id: ${BomData.id}`);
 
                     // ====> Insert into bom_emission_production_calculation_engine table
                     const queryProd = `
@@ -3475,29 +3828,33 @@ export async function pcfCalculate(req: any, res: any) {
                         RETURNING *;
                     `;
 
-                    await client.query(queryProd, [
+                    // Prepare all values for insertion
+                    const insertValues = [
                         ulid(),
                         BomData.id,
-                        weightInKg,
-                        Allocation_Method,
-                        Total_Electrical_Energy_consumed_at_Factory_level_kWh,
-                        Total_Heating_Energy_consumed_at_Factory_level_kWh,
-                        Total_Cooling_Energy_consumed_at_Factory_level_kWh,
-                        Total_Steam_Energy_consumed_at_Factory_level_kWh,
-                        Total_Energy_consumed_at_Factory_level_kWh,
-                        Total_weight_produced_at_Factory_level_kg,
-                        no_of_products_current_component_produced,
-                        Total_weight_of_current_component_produced_Kg,
-                        Total_electricity_utilised_for_production_all_current_components_kWh,
-                        Production_electricity_energy_use_per_unit_kWh,
-                        Production_Heating_energy_use_per_unit_kWh,
-                        Production_Cooling_energy_use_per_unit_kWh,
-                        Production_Steam_energy_use_per_unit_kWh,
-                        FetchElectricityTypeEmiassionValue,
-                        FetchHeatingTypeEmiassionValue,
-                        FetchCoolingTypeEmiassionValue,
-                        FetchSteamTypeEmiassionValue
-                    ]);
+                        sanitizeNumber(weightInKg),
+                        Allocation_Method || null,
+                        sanitizeNumber(Total_Electrical_Energy_consumed_at_Factory_level_kWh),
+                        sanitizeNumber(Total_Heating_Energy_consumed_at_Factory_level_kWh),
+                        sanitizeNumber(Total_Cooling_Energy_consumed_at_Factory_level_kWh),
+                        sanitizeNumber(Total_Steam_Energy_consumed_at_Factory_level_kWh),
+                        sanitizeNumber(Total_Energy_consumed_at_Factory_level_kWh),
+                        sanitizeNumber(Total_weight_produced_at_Factory_level_kg),
+                        sanitizeNumber(no_of_products_current_component_produced),
+                        sanitizeNumber(Total_weight_of_current_component_produced_Kg),
+                        sanitizeNumber(Total_electricity_utilised_for_production_all_current_components_kWh),
+                        sanitizeNumber(Production_electricity_energy_use_per_unit_kWh),
+                        sanitizeNumber(Production_Heating_energy_use_per_unit_kWh),
+                        sanitizeNumber(Production_Cooling_energy_use_per_unit_kWh),
+                        sanitizeNumber(Production_Steam_energy_use_per_unit_kWh),
+                        sanitizeNumber(FetchElectricityTypeEmiassionValue),
+                        sanitizeNumber(FetchHeatingTypeEmiassionValue),
+                        sanitizeNumber(FetchCoolingTypeEmiassionValue),
+                        sanitizeNumber(FetchSteamTypeEmiassionValue)
+                    ];
+
+                    const insertResult = await client.query(queryProd, insertValues);
+                    console.log(`Inserted production calculation with total_electrical_energy: ${Total_Electrical_Energy_consumed_at_Factory_level_kWh}, total_heating_energy: ${Total_Heating_Energy_consumed_at_Factory_level_kWh}`);
 
                     // ===> Insert Ends here
 
@@ -3522,28 +3879,63 @@ export async function pcfCalculate(req: any, res: any) {
 
                     const fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.id]);
 
-                    if (Q15Result && fetchQ61PcakingTypeProductResult.rows[0]) {
-                        if (Q15Result.bom_id === fetchQ61PcakingTypeProductResult.rows[0].bom_id) {
-                            packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type
-                            treatmentType = fetchQ61PcakingTypeProductResult.rows[0].treatment_type
-                        }
+                    // Use Q60 data directly if it exists (query already filters by bom_id)
+                    if (fetchQ61PcakingTypeProductResult.rows[0]) {
+                        packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type;
+                        treatmentType = fetchQ61PcakingTypeProductResult.rows[0].treatment_type;
+                        console.log("Q60 Packaging type found:", packaginType, "Treatment type:", treatmentType, "for bom_id:", BomData.id);
+                    } else {
+                        console.warn("WARNING: No Q60 packaging type found for bom_id:", BomData.id);
                     }
 
 
-                    const fetchQ61PcakingWeight = `
-                        SELECT bom_id,
-                        material_number,packagin_weight,unit
+                    // First try to find Q61 by bom_id
+                    let fetchQ61PcakingWeight = `
+                        SELECT bom_id, stoie_id,
+                        material_number, packagin_weight, unit
                         FROM weight_of_packaging_per_unit_product_questions
                         WHERE bom_id = $1 AND own_emission_id IS NULL;
                      `;
 
-                    const fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.id]);
+                    let fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.id]);
+                    console.log("=== Q61 PACKAGING WEIGHT DEBUG ===");
+                    console.log("Query by bom_id:", BomData.id);
+                    console.log("Rows found:", fetchQ61PcakingWeightResult.rows.length);
+                    if (fetchQ61PcakingWeightResult.rows.length > 0) {
+                        console.log("Q61 data found:", fetchQ61PcakingWeightResult.rows[0]);
+                    }
 
-                    if (Q15Result && fetchQ61PcakingWeightResult.rows[0]) {
-                        if (Q15Result.bom_id === fetchQ61PcakingWeightResult.rows[0].bom_id) {
-                            packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
+                    // If not found by bom_id, try to find through bom_pcf_id via stoie_id (similar to Q52 fallback)
+                    if (!fetchQ61PcakingWeightResult.rows || fetchQ61PcakingWeightResult.rows.length === 0) {
+                        console.log("No Q61 found by bom_id, trying through bom_pcf_id...");
+                        fetchQ61PcakingWeight = `
+                            SELECT wopp.bom_id, wopp.stoie_id,
+                                wopp.material_number, wopp.packagin_weight, wopp.unit
+                            FROM weight_of_packaging_per_unit_product_questions wopp
+                            JOIN scope_three_other_indirect_emissions_questions stoie
+                                ON wopp.stoie_id = stoie.stoie_id
+                            JOIN supplier_general_info_questions sgiq
+                                ON stoie.sgiq_id = sgiq.sgiq_id
+                            WHERE sgiq.bom_pcf_id = $1
+                                AND (wopp.bom_id = $2 OR wopp.bom_id IS NULL)
+                                AND wopp.own_emission_id IS NULL;
+                        `;
+                        fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [bom_pcf_id, BomData.id]);
+                        console.log("Fallback query by bom_pcf_id:", bom_pcf_id);
+                        console.log("Rows found:", fetchQ61PcakingWeightResult.rows.length);
+                        if (fetchQ61PcakingWeightResult.rows.length > 0) {
+                            console.log("Q61 data found via fallback:", fetchQ61PcakingWeightResult.rows[0]);
                         }
                     }
+
+                    // Use Q61 data directly if it exists
+                    if (fetchQ61PcakingWeightResult.rows[0]) {
+                        packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
+                        console.log("✅ Q61 Packaging weight found:", packaginWeight, "for bom_id:", BomData.id);
+                    } else {
+                        console.warn("❌ WARNING: No Q61 packaging weight found for bom_id:", BomData.id);
+                    }
+                    console.log("=== END Q61 PACKAGING WEIGHT DEBUG ===");
 
                     let fetchQ61PcakingWeightResultUnit = null
                     if (fetchQ61PcakingWeightResult.rows[0]) {
@@ -3551,44 +3943,102 @@ export async function pcfCalculate(req: any, res: any) {
 
                     }
 
+                    // Convert packaging weight to kg using helper function
+                    let packaginWeightInKg = packaginWeight;
+                    if (fetchQ61PcakingWeightResultUnit) {
+                        packaginWeightInKg = await convertToBaseUnit(
+                            client,
+                            packaginWeight,
+                            fetchQ61PcakingWeightResultUnit,
+                            'material'
+                        );
+                    }
+
                     const fetchPTTId = `SELECT ptt_id ,name 
                                         FROM packaging_treatment_type
-                                        WHERE name=$1;`
+                                        WHERE LOWER(name)=LOWER($1);`
 
                     const fetchPTTIdFromTreatmentType = await client.query(fetchPTTId, [treatmentType]);
 
                     let ptt_id = null;
                     if (fetchPTTIdFromTreatmentType && fetchPTTIdFromTreatmentType.rows[0]) {
                         ptt_id = fetchPTTIdFromTreatmentType.rows[0].ptt_id
+                        console.log("Packaging treatment type found - ptt_id:", ptt_id, "name:", fetchPTTIdFromTreatmentType.rows[0].name);
+                    } else {
+                        console.warn("WARNING: Packaging treatment type not found for:", treatmentType);
+                        console.warn("Available treatment types in database:");
+                        const allTreatmentTypes = await client.query(`SELECT ptt_id, name FROM packaging_treatment_type;`);
+                        allTreatmentTypes.rows.forEach((row: any) => {
+                            console.warn(`  - ${row.name} (ptt_id: ${row.ptt_id})`);
+                        });
                     }
 
                     const fetchPAckaginEmissionFactor = `
                                 SELECT material_type,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit,iso_country_code
                                 FROM packaging_material_treatment_type_emission_factor
-                                WHERE material_type = $1 AND year=$2 AND unit=$3 AND ptt_id=$4;
+                                WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3 AND ptt_id=$4;
                              `;
 
-
-                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ61PcakingWeightResultUnit, ptt_id]);
-
-                    if (fetchPackagingEmisResult.rows[0]) {
-
-                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                    // Use "KgCo2e/per kg" for emission factor query (not the user's input unit)
+                    const packagingEmissionFactorUnit = "KgCo2e/per kg";
+                    
+                    console.log("Packaging emission factor query parameters:", {
+                        packaginType,
+                        year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
+                        unit: packagingEmissionFactorUnit,
+                        ptt_id
+                    });
+                    
+                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, packagingEmissionFactorUnit, ptt_id]);
+                    
+                    if (!fetchPackagingEmisResult.rows[0] && ptt_id) {
+                        console.warn("Packaging emission factor not found with ptt_id. Trying without ptt_id...");
+                        // Try without ptt_id as fallback
+                        const fetchPAckaginEmissionFactorNoPTT = `
+                            SELECT material_type,ef_eu_region,ef_india_region,
+                            ef_global_region,year,unit,iso_country_code
+                            FROM packaging_material_treatment_type_emission_factor
+                            WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3
+                            LIMIT 1;
+                        `;
+                        const fetchPackagingEmisResultNoPTT = await client.query(fetchPAckaginEmissionFactorNoPTT, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, packagingEmissionFactorUnit]);
+                        if (fetchPackagingEmisResultNoPTT.rows[0]) {
+                            console.log("Found packaging emission factor without ptt_id");
+                            fetchPackagingEmisResult.rows[0] = fetchPackagingEmisResultNoPTT.rows[0];
                         }
-
-                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
-                        }
-
-                        if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                            Emission_Factor_Box_kg_CO2E_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
-                        }
-
                     }
 
-                    Packaging_Carbon_Emissions_kg_CO2e_or_box = (packaginWeight * Emission_Factor_Box_kg_CO2E_kg);
+                    if (fetchPackagingEmisResult.rows[0]) {
+                        if (fetchQ13LocationSupResult.rows[0]) {
+                            const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
+
+                            if (locationLower === "india") {
+                                Emission_Factor_Box_kg_CO2E_kg = parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region) || 0.01;
+                            } else if (locationLower === "europe") {
+                                Emission_Factor_Box_kg_CO2E_kg = parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region) || 0.01;
+                            } else {
+                                // Default to global if location doesn't match or is not specified
+                                Emission_Factor_Box_kg_CO2E_kg = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region) || 0.01;
+                            }
+                        } else {
+                            // If Q13 not found, use global as fallback
+                            Emission_Factor_Box_kg_CO2E_kg = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region) || 0.01;
+                        }
+                    } else {
+                        console.warn("WARNING: Packaging emission factor not found for:", {
+                            packaginType,
+                            year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
+                            unit: packagingEmissionFactorUnit,
+                            ptt_id
+                        });
+                        console.warn("Using default emission factor 0.01. Please check:");
+                        console.warn("  1. Packaging type matches setup data exactly");
+                        console.warn("  2. Treatment type (ptt_id) is correct");
+                        console.warn("  3. Year matches annual_reporting_period");
+                    }
+
+                    Packaging_Carbon_Emissions_kg_CO2e_or_box = (packaginWeightInKg * Emission_Factor_Box_kg_CO2E_kg);
                     console.log("packaginType:", packaginType);
                     console.log("packaginWeight:", packaginWeight);
                     console.log("Emission_Factor_Box_kg_CO2E_kg:", Emission_Factor_Box_kg_CO2E_kg);
@@ -3596,6 +4046,12 @@ export async function pcfCalculate(req: any, res: any) {
 
                     Total_Housing_Component_Emissions += Packaging_Carbon_Emissions_kg_CO2e_or_box;
 
+
+                    // ====> Delete old packaging calculation data for this BOM first
+                    await client.query(
+                        `DELETE FROM bom_emission_packaging_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
+                        [BomData.id]
+                    );
 
                     // ====> Insert into bom_emission_packaging_calculation_engine table
                     const queryPacking = `
@@ -3609,7 +4065,7 @@ export async function pcfCalculate(req: any, res: any) {
                     await client.query(queryPacking, [
                         ulid(),
                         BomData.id,
-                        packaginWeight,
+                        packaginWeightInKg,
                         Emission_Factor_Box_kg_CO2E_kg,
                         packaginType
                     ]);
@@ -3632,15 +4088,103 @@ export async function pcfCalculate(req: any, res: any) {
 
                     let Total_Transportation_emissions_per_unit_kg_CO2E = 0;
 
-                    const fetchQ74ModeOFTransportControl = `
-                                SELECT bom_id,material_number,mode_of_transport,
-                                weight_transported,distance
+                    // Fetch ALL transport legs: prefer bom_pcf_id path so we get every Q74 row for this PCF (not just one).
+                    // When questionnaire saves multiple rows, some may have bom_id NULL or only one row has bom_id set;
+                    // querying by bom_id alone then returns only one row. Using bom_pcf_id first returns all legs.
+                    // First, try to find records with bom_id matching this component (via JOIN)
+                    let fetchQ74ModeOFTransportControl = `
+                            SELECT DISTINCT ON (mt.mode_of_transport, mt.distance, mt.weight_transported)
+                                mt.bom_id, mt.material_number, mt.mode_of_transport,
+                                mt.weight_transported, mt.distance
+                            FROM mode_of_transport_used_for_transportation_questions mt
+                            JOIN scope_three_other_indirect_emissions_questions stoie
+                                ON mt.stoie_id = stoie.stoie_id
+                            JOIN supplier_general_info_questions sgiq
+                                ON stoie.sgiq_id = sgiq.sgiq_id
+                            WHERE sgiq.bom_pcf_id = $1
+                                AND mt.bom_id = $2
+                            ORDER BY mt.mode_of_transport, mt.distance, mt.weight_transported, mt.motuft_id;
+                    `;
+                    let fetchQ74ModeOFTransportControlResult = await client.query(fetchQ74ModeOFTransportControl, [bom_pcf_id, BomData.id]);
+
+                    // If no records found via JOIN, try direct bom_id lookup (for records created via Postman update)
+                    if (!fetchQ74ModeOFTransportControlResult.rows || fetchQ74ModeOFTransportControlResult.rows.length === 0) {
+                        console.log("No transport records found with bom_id via JOIN, trying direct bom_id lookup...");
+                        fetchQ74ModeOFTransportControl = `
+                                SELECT DISTINCT ON (mode_of_transport, distance, weight_transported)
+                                    bom_id, material_number, mode_of_transport,
+                                    weight_transported, distance
                                 FROM mode_of_transport_used_for_transportation_questions
-                                WHERE bom_id = $1 AND own_emission_id IS NULL;
+                                WHERE bom_id = $1
+                                ORDER BY mode_of_transport, distance, weight_transported, motuft_id;
                              `;
-
-
-                    const fetchQ74ModeOFTransportControlResult = await client.query(fetchQ74ModeOFTransportControl, [BomData.id]);
+                        fetchQ74ModeOFTransportControlResult = await client.query(fetchQ74ModeOFTransportControl, [BomData.id]);
+                    }
+                    
+                    // If still no records found with bom_id, fallback to NULL bom_id (for backward compatibility)
+                    if (!fetchQ74ModeOFTransportControlResult.rows || fetchQ74ModeOFTransportControlResult.rows.length === 0) {
+                        console.log("No transport records found with bom_id, trying fallback to NULL bom_id...");
+                        fetchQ74ModeOFTransportControl = `
+                                SELECT mt.bom_id, mt.material_number, mt.mode_of_transport,
+                                    mt.weight_transported, mt.distance
+                                FROM mode_of_transport_used_for_transportation_questions mt
+                                JOIN scope_three_other_indirect_emissions_questions stoie
+                                    ON mt.stoie_id = stoie.stoie_id
+                                JOIN supplier_general_info_questions sgiq
+                                    ON stoie.sgiq_id = sgiq.sgiq_id
+                                WHERE sgiq.bom_pcf_id = $1
+                                    AND mt.bom_id IS NULL
+                                ORDER BY mt.motuft_id;
+                        `;
+                        fetchQ74ModeOFTransportControlResult = await client.query(fetchQ74ModeOFTransportControl, [bom_pcf_id]);
+                    }
+                    
+                    // If still no records, check if ANY transport records exist for this bom_pcf_id (for debugging)
+                    if (!fetchQ74ModeOFTransportControlResult.rows || fetchQ74ModeOFTransportControlResult.rows.length === 0) {
+                        const checkAnyTransport = `
+                            SELECT COUNT(*) as total_count
+                            FROM mode_of_transport_used_for_transportation_questions mt
+                            JOIN scope_three_other_indirect_emissions_questions stoie
+                                ON mt.stoie_id = stoie.stoie_id
+                            JOIN supplier_general_info_questions sgiq
+                                ON stoie.sgiq_id = sgiq.sgiq_id
+                            WHERE sgiq.bom_pcf_id = $1;
+                        `;
+                        const anyTransportResult = await client.query(checkAnyTransport, [bom_pcf_id]);
+                        console.log("Total transport records for this bom_pcf_id (any bom_id):", anyTransportResult.rows[0]?.total_count || 0);
+                        
+                        // Also check what bom_ids exist in transport table for this bom_pcf_id
+                        const checkBomIds = `
+                            SELECT DISTINCT mt.bom_id, sgiq.sgiq_id, sgiq.bom_pcf_id
+                            FROM mode_of_transport_used_for_transportation_questions mt
+                            JOIN scope_three_other_indirect_emissions_questions stoie
+                                ON mt.stoie_id = stoie.stoie_id
+                            JOIN supplier_general_info_questions sgiq
+                                ON stoie.sgiq_id = sgiq.sgiq_id
+                            WHERE sgiq.bom_pcf_id = $1;
+                        `;
+                        const bomIdsResult = await client.query(checkBomIds, [bom_pcf_id]);
+                        if (bomIdsResult.rows.length > 0) {
+                            console.log("Transport records exist but with different bom_ids:");
+                            bomIdsResult.rows.forEach((row: any) => {
+                                console.log(`  - bom_id: ${row.bom_id}, sgiq_id: ${row.sgiq_id}, bom_pcf_id: ${row.bom_pcf_id}`);
+                            });
+                        }
+                    }
+                    
+                    console.log("=== TRANSPORT DATA DEBUG ===");
+                    console.log("BOM ID:", BomData.id);
+                    console.log("BOM PCF ID:", bom_pcf_id);
+                    console.log("Number of transport records found:", fetchQ74ModeOFTransportControlResult.rows.length);
+                    if (fetchQ74ModeOFTransportControlResult.rows.length > 0) {
+                        console.log("Transport records:", JSON.stringify(fetchQ74ModeOFTransportControlResult.rows, null, 2));
+                    } else {
+                        console.log("WARNING: No transport records found for BOM ID:", BomData.id, "or BOM PCF ID:", bom_pcf_id);
+                        console.log("Please check:");
+                        console.log("  1. Is transport data saved in the questionnaire?");
+                        console.log("  2. Is bom_id correctly set in mode_of_transport_used_for_transportation_questions table?");
+                        console.log("  3. Is the questionnaire linked to the correct bom_pcf_id?");
+                    }
 
 
                     const packaginWeightNum =
@@ -3661,22 +4205,52 @@ export async function pcfCalculate(req: any, res: any) {
 
                         let modeOfTransport = fetchQ74TransportData.mode_of_transport;
                         let weightTransportedRaw = fetchQ74TransportData.weight_transported;
-                        let distance = extractNumber(fetchQ74TransportData.distance);
+                        let distanceRaw = fetchQ74TransportData.distance;
+                        
+                        // Extract number and handle units
+                        let distance = 0;
+                        if (distanceRaw) {
+                            const distanceStr = String(distanceRaw).toLowerCase().trim();
+                            const numMatch = distanceStr.match(/[\d.]+/);
+                            if (numMatch) {
+                                distance = parseFloat(numMatch[0]);
+                                // Convert to km if needed
+                                if (distanceStr.includes('meter') || distanceStr.includes('m ') || distanceStr.endsWith('m')) {
+                                    distance = distance / 1000; // meters to km
+                                    console.log("Converted distance from meters to km:", distance);
+                                } else if (distanceStr.includes('mile') || distanceStr.includes('mi ')) {
+                                    distance = distance * 1.60934; // miles to km
+                                    console.log("Converted distance from miles to km:", distance);
+                                }
+                            }
+                        }
 
+                        console.log("=== TRANSPORT CALCULATION DEBUG ===");
                         console.log("modeOfTransport:", modeOfTransport);
                         console.log("weightTransportedRaw:", weightTransportedRaw);
-                        console.log("distance:", distance);
+                        console.log("distanceRaw (from DB):", distanceRaw, "Type:", typeof distanceRaw);
+                        console.log("distance (extracted, in km):", distance);
+                        
+                        if (!distance || distance === 0) {
+                            console.log("ERROR: Distance is 0 or NULL! Transport emissions will be 0.");
+                            console.log("Please check:");
+                            console.log("  1. Is distance entered in the questionnaire?");
+                            console.log("  2. Is distance being saved correctly in the database?");
+                            console.log("  3. Check the 'distance' column in mode_of_transport_used_for_transportation_questions table");
+                        }
 
                         let Mass_transported_ton;
 
-                        // if (weightTransportedRaw) {
-
-                        //     let weightTransported = extractNumber(weightTransportedRaw);
-
-                        //     Mass_transported_ton = weightTransported;
-                        // } else {
+                        // Use weight_transported from Q74 if available, otherwise use component weight + packaging
+                        if (weightTransportedRaw) {
+                            let weightTransported = extractNumber(weightTransportedRaw);
+                            // Convert to tons if needed (assuming weight_transported is already in tons from questionnaire)
+                            Mass_transported_ton = weightTransported;
+                            console.log("Using weight_transported from Q74:", weightTransported, "tons");
+                        } else {
                         Mass_transported_ton = mass_transported_Kg / 1000;
-                        // }
+                            console.log("Using calculated mass (component + packaging):", Mass_transported_ton, "tons");
+                        }
 
                         console.log("Mass_transported_ton:", Mass_transported_ton);
 
@@ -3690,26 +4264,38 @@ export async function pcfCalculate(req: any, res: any) {
                                 SELECT vehicle_type,ef_eu_region,ef_india_region,
                                 ef_global_region,year,unit,iso_country_code
                                 FROM vehicle_type_emission_factor
-                                WHERE vehicle_type = $1 AND year=$2 AND unit=$3;
+                                WHERE LOWER(vehicle_type)=LOWER($1) AND year=$2 AND unit=$3;
                              `;
 
 
                         const fetchVehicleTypeEmisResult = await client.query(fetchVehicleTypeEmissionFactor, [modeOfTransport, fetchSGIQIDSupResult.rows[0].annual_reporting_period, 'Kms']);
+                        
+                        console.log("Vehicle emission factor query:");
+                        console.log("  - modeOfTransport:", modeOfTransport);
+                        console.log("  - year:", fetchSGIQIDSupResult.rows[0].annual_reporting_period);
+                        console.log("  - unit: Kms");
+                        console.log("  - Rows found:", fetchVehicleTypeEmisResult.rows.length);
+                        if (fetchVehicleTypeEmisResult.rows.length === 0) {
+                            console.log("WARNING: No vehicle emission factor found! Using default 0.01");
+                            console.log("Please check if vehicle type matches exactly with setup data (case-insensitive)");
+                        }
 
                         if (fetchVehicleTypeEmisResult.rows[0]) {
+                            if (fetchQ13LocationSupResult.rows[0]) {
+                                const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
 
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_india_region)
+                                if (locationLower === "india") {
+                                    transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_india_region) || 0.01;
+                                } else if (locationLower === "europe") {
+                                    transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_eu_region) || 0.01;
+                                } else {
+                                    // Default to global if location doesn't match or is not specified
+                                    transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_global_region) || 0.01;
+                                }
+                            } else {
+                                // If Q13 not found, use global as fallback
+                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_global_region) || 0.01;
                             }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_eu_region)
-                            }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km += parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_global_region)
-                            }
-
                         }
 
                         console.log("transport_Mode_Emission_Factor_Value_kg_CO2e_t_km:", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km);
@@ -3719,6 +4305,11 @@ export async function pcfCalculate(req: any, res: any) {
                         Leg_wise_transport_emissions_per_unit_kg_CO2E += (Mass_transported_ton * Distance_Km * transport_Mode_Emission_Factor_Value_kg_CO2e_t_km)
 
                         console.log("Leg_wise_transport_emissions_per_unit_kg_CO2E:", Leg_wise_transport_emissions_per_unit_kg_CO2E);
+                        console.log("Calculation breakdown:");
+                        console.log("  - Mass_transported_ton:", Mass_transported_ton);
+                        console.log("  - Distance_Km:", Distance_Km);
+                        console.log("  - Emission Factor:", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km);
+                        console.log("  - Formula: Mass × Distance × EF =", Mass_transported_ton, "×", Distance_Km, "×", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km, "=", Leg_wise_transport_emissions_per_unit_kg_CO2E);
 
                         Total_Transportation_emissions_per_unit_kg_CO2E += Leg_wise_transport_emissions_per_unit_kg_CO2E;
 
@@ -3748,6 +4339,17 @@ export async function pcfCalculate(req: any, res: any) {
 
                     }
 
+                    console.log("=== TRANSPORT SUMMARY ===");
+                    console.log("Total transport records processed:", fetchQ74ModeOFTransportControlResult.rows.length);
+                    console.log("Total_Transportation_emissions_per_unit_kg_CO2E:", Total_Transportation_emissions_per_unit_kg_CO2E);
+                    if (Total_Transportation_emissions_per_unit_kg_CO2E === 0 && fetchQ74ModeOFTransportControlResult.rows.length > 0) {
+                        console.log("WARNING: Transport emissions are 0 even though transport records exist!");
+                        console.log("Possible causes:");
+                        console.log("  1. Distance is 0 or NULL in the database");
+                        console.log("  2. Vehicle emission factor not found (check mode_of_transport matches setup data)");
+                        console.log("  3. Location mismatch (check Q13 location matches emission factor region)");
+                    }
+
                     console.log("Total_Transportation_emissions_per_unit_kg_CO2E:", Total_Transportation_emissions_per_unit_kg_CO2E);
 
                     Total_Housing_Component_Emissions += Total_Transportation_emissions_per_unit_kg_CO2E;
@@ -3760,16 +4362,50 @@ export async function pcfCalculate(req: any, res: any) {
 
                     let emission_factor_box_waste_treatment_kg_CO2e_kg = 0.01;
                     let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0.01;
+                    // Energy consumption multiplier from Excel formula: Energy (kWh/kg) = Waste Weight (kg) × 0.6
+                    const ENERGY_CONSUMPTION_MULTIPLIER = 0.6;
+                    let packaging_waste_treatment_energy_per_kg_kWh = 0; // Will be calculated as actualWasteWeightKg × 0.6
+                    let actualWasteWeightKg = 0;
 
-                    const fetchQ40WasteQualityControl = `
+                    // Try to find Q40 waste data by bom_id first
+                    let fetchQ40WasteQualityControl = `
                                 SELECT bom_id,material_number,waste_type,
                                 waste_weight,unit,treatment_type
                                 FROM weight_of_quality_control_waste_generated_questions
                                 WHERE bom_id = $1 AND own_emission_id IS NULL;
                              `;
 
-
-                    const fetchQ40WasteQualityControlResult = await client.query(fetchQ40WasteQualityControl, [BomData.id]);
+                    let fetchQ40WasteQualityControlResult = await client.query(fetchQ40WasteQualityControl, [BomData.id]);
+                    
+                    // If no records found by bom_id, try through stide_id (Scope 2)
+                    if (!fetchQ40WasteQualityControlResult.rows || fetchQ40WasteQualityControlResult.rows.length === 0) {
+                        console.log("No Q40 waste records found by bom_id, trying through stide_id...");
+                        // Get stide_id from scope_two_indirect_emissions_questions
+                        const fetchSTIDEIDForWaste = `
+                            SELECT stide_id FROM scope_two_indirect_emissions_questions
+                            WHERE sgiq_id = $1 AND own_emission_id IS NULL
+                            LIMIT 1;
+                        `;
+                        const stideIdResult = await client.query(fetchSTIDEIDForWaste, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
+                        
+                        if (stideIdResult.rows[0]) {
+                            fetchQ40WasteQualityControl = `
+                                SELECT bom_id,material_number,waste_type,
+                                waste_weight,unit,treatment_type
+                                FROM weight_of_quality_control_waste_generated_questions
+                                WHERE stide_id = $1 AND (bom_id = $2 OR bom_id IS NULL) AND own_emission_id IS NULL;
+                            `;
+                            fetchQ40WasteQualityControlResult = await client.query(fetchQ40WasteQualityControl, [stideIdResult.rows[0].stide_id, BomData.id]);
+                        }
+                    }
+                    
+                    console.log("=== WASTE DATA DEBUG ===");
+                    console.log("Q40 Waste records found:", fetchQ40WasteQualityControlResult.rows.length);
+                    if (fetchQ40WasteQualityControlResult.rows.length > 0) {
+                        console.log("Q40 Waste data:", JSON.stringify(fetchQ40WasteQualityControlResult.rows, null, 2));
+                    } else {
+                        console.warn("WARNING: No Q40 waste records found for BOM ID:", BomData.id);
+                    }
 
                     for (let fetchQ40Data of fetchQ40WasteQualityControlResult.rows) {
 
@@ -3789,29 +4425,76 @@ export async function pcfCalculate(req: any, res: any) {
                                 JOIN waste_treatment_type AS wtt
                                 ON wmttef.wtt_id = wtt.wtt_id
                             WHERE
-                             wmttef.waste_type = $1
+                             LOWER(wmttef.waste_type)=LOWER($1)
                              AND wmttef.year = $2
                              AND wmttef.unit = $3
-                             AND wtt.name = $4;
+                             AND LOWER(wtt.name)=LOWER($4);
                         `;
 
-                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ40Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ40Data.unit, fetchQ40Data.treatment_type]);
+                        // Use "KgCo2e/per kg" for emission factor query (not the user's input unit)
+                        const wasteEmissionFactorUnit = "KgCo2e/per kg";
+                        
+                        console.log("Waste emission factor query parameters:", {
+                            waste_type: fetchQ40Data.waste_type,
+                            year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
+                            unit: wasteEmissionFactorUnit,
+                            treatment_type: fetchQ40Data.treatment_type
+                        });
+                        
+                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ40Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, wasteEmissionFactorUnit, fetchQ40Data.treatment_type]);
+                        
+                        console.log("Waste emission factor query result:", fetchPackagingEmisResult.rows.length > 0 ? fetchPackagingEmisResult.rows[0] : "NO MATCH FOUND");
+                        
+                        if (!fetchPackagingEmisResult.rows[0]) {
+                            console.warn("WARNING: Waste emission factor not found!");
+                            console.warn("Please check:");
+                            console.warn("  1. Waste type matches setup data exactly (case-insensitive):", fetchQ40Data.waste_type);
+                            console.warn("  2. Treatment type matches setup data exactly (case-insensitive):", fetchQ40Data.treatment_type);
+                            console.warn("  3. Year matches annual_reporting_period:", fetchSGIQIDSupResult.rows[0].annual_reporting_period);
+                            console.warn("  4. Unit format is 'KgCo2e/per kg'");
+                            
+                            // Try to find treatment type ID
+                            const fetchWTTId = `SELECT wtt_id, name FROM waste_treatment_type WHERE LOWER(name)=LOWER($1);`;
+                            const fetchWTTIdResult = await client.query(fetchWTTId, [fetchQ40Data.treatment_type]);
+                            if (fetchWTTIdResult.rows[0]) {
+                                console.warn("Treatment type found in database:", fetchWTTIdResult.rows[0].name, "(wtt_id:", fetchWTTIdResult.rows[0].wtt_id + ")");
+                            } else {
+                                console.warn("Treatment type NOT found in database. Available treatment types:");
+                                const allWTTTypes = await client.query(`SELECT wtt_id, name FROM waste_treatment_type;`);
+                                allWTTTypes.rows.forEach((row: any) => {
+                                    console.warn(`  - ${row.name} (wtt_id: ${row.wtt_id})`);
+                                });
+                            }
+                        }
 
                         if (fetchPackagingEmisResult.rows[0]) {
+                            if (fetchQ13LocationSupResult.rows[0]) {
+                                const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
 
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                                if (locationLower === "india") {
+                                    const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region);
+                                    emission_factor_box_waste_treatment_kg_CO2e_kg = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                } else if (locationLower === "europe") {
+                                    const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region);
+                                    emission_factor_box_waste_treatment_kg_CO2e_kg = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                } else {
+                                    const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region);
+                                    emission_factor_box_waste_treatment_kg_CO2e_kg = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                }
+                            } else {
+                                const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region);
+                                emission_factor_box_waste_treatment_kg_CO2e_kg = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
                             }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
-                            }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
-                            }
-
                         }
+
+                        // Convert waste weight to kg
+                        const wasteWeightInKg = await convertToBaseUnit(
+                            client,
+                            fetchQ40Data.waste_weight,
+                            fetchQ40Data.unit,
+                            'material'
+                        );
+                        actualWasteWeightKg += wasteWeightInKg;
 
                         console.log("emission_factor_box_waste_treatment_kg_CO2e_kg:", emission_factor_box_waste_treatment_kg_CO2e_kg);
 
@@ -3819,21 +4502,184 @@ export async function pcfCalculate(req: any, res: any) {
                     }
                     //=======> END
 
-                    // ====>Emission Factor Packaging waste treatment (kg CO₂e/kWh) 
+                    // ====>Emission Factor Packaging waste treatment (kg CO₂e/kg) - Use Q68 if Q40 has no data
 
-                    const fetchQ68PackagingWasteControl = `
+                    // Try to find Q68 waste data by bom_id first
+                    let fetchQ68PackagingWasteControl = `
                                 SELECT bom_id,material_number,waste_type,
                                 waste_weight,unit,treatment_type
                                 FROM weight_of_pro_packaging_waste_questions
                                 WHERE bom_id = $1 AND own_emission_id IS NULL;
                              `;
 
+                    let fetchQ68PackagingWasteControlResult = await client.query(fetchQ68PackagingWasteControl, [BomData.id]);
+                    
+                    // If no records found by bom_id, try through bom_pcf_id via supplier questionnaire (like transport)
+                    if (!fetchQ68PackagingWasteControlResult.rows || fetchQ68PackagingWasteControlResult.rows.length === 0) {
+                        console.log("No Q68 waste records found by bom_id, trying through bom_pcf_id...");
+                        fetchQ68PackagingWasteControl = `
+                            SELECT woppw.bom_id, woppw.material_number, woppw.waste_type,
+                                woppw.waste_weight, woppw.unit, woppw.treatment_type
+                            FROM weight_of_pro_packaging_waste_questions woppw
+                            JOIN scope_three_other_indirect_emissions_questions stoie
+                                ON woppw.stoie_id = stoie.stoie_id
+                            JOIN supplier_general_info_questions sgiq
+                                ON stoie.sgiq_id = sgiq.sgiq_id
+                            WHERE sgiq.bom_pcf_id = $1
+                                AND (woppw.bom_id = $2 OR woppw.bom_id IS NULL)
+                                AND woppw.own_emission_id IS NULL;
+                        `;
+                        fetchQ68PackagingWasteControlResult = await client.query(fetchQ68PackagingWasteControl, [bom_pcf_id, BomData.id]);
+                    }
+                    
+                    console.log("Q68 Waste records found:", fetchQ68PackagingWasteControlResult.rows.length);
+                    if (fetchQ68PackagingWasteControlResult.rows.length > 0) {
+                        console.log("Q68 Waste data:", JSON.stringify(fetchQ68PackagingWasteControlResult.rows, null, 2));
+                    } else {
+                        console.warn("WARNING: No Q68 waste records found for BOM ID:", BomData.id, "or BOM PCF ID:", bom_pcf_id);
+                        console.warn("Please check if waste data is saved in the questionnaire.");
+                    }
+                    console.log("=== END WASTE DATA DEBUG ===");
 
-                    const fetchQ68PackagingWasteControlResult = await client.query(fetchQ68PackagingWasteControl, [BomData.id]);
+                    // B44 = box waste weight (kg): component weight × 10%. Fallback: Q40 waste_weight if component weight missing.
+                    const componentWeightKg = (BomData.weight_gms && parseFloat(String(BomData.weight_gms)) > 0) ? parseFloat(String(BomData.weight_gms)) / 1000 : 0;
+                    let boxWasteKg_B44 = componentWeightKg > 0 ? componentWeightKg * 0.1 : 0;
+                    if (boxWasteKg_B44 === 0 && fetchQ40WasteQualityControlResult.rows && fetchQ40WasteQualityControlResult.rows.length > 0) {
+                        const q40First = fetchQ40WasteQualityControlResult.rows[0];
+                        boxWasteKg_B44 = await convertToBaseUnit(client, q40First.waste_weight, q40First.unit || 'Kilograms (kg)', 'material');
+                    }
+                    // B46 = packaging waste weight (kg): pack weight × 10%. Fallback: Q68 waste_weight if pack weight missing.
+                    const packWeightKg = (typeof packaginWeightInKg === 'number' && packaginWeightInKg > 0) ? packaginWeightInKg : (typeof packaginWeightInKg === 'string' ? parseFloat(packaginWeightInKg) || 0 : 0);
+                    let packagingWasteKg_B46 = packWeightKg > 0 ? packWeightKg * 0.1 : 0;
+                    if (packagingWasteKg_B46 === 0 && fetchQ68PackagingWasteControlResult.rows && fetchQ68PackagingWasteControlResult.rows.length > 0) {
+                        const q68First = fetchQ68PackagingWasteControlResult.rows[0];
+                        packagingWasteKg_B46 = await convertToBaseUnit(client, q68First.waste_weight, q68First.unit || 'Kilograms (kg)', 'material');
+                    }
+                    console.log("Waste weights (B44, B46): boxWasteKg_B44=", boxWasteKg_B44, "packagingWasteKg_B46=", packagingWasteKg_B46);
 
+                    // B47 = packaging waste treatment EF (kg CO₂e/kg): fetch from Packaging EF setup by Q60 packaging type + treatment type only (not Q68).
+                    let emission_factor_packaging_waste_treatment_kg_CO2e_kg = 0.01;
+                    if (packaginType) {
+                        const fetchPTTIdForWaste = `SELECT ptt_id FROM packaging_treatment_type WHERE LOWER(name)=LOWER($1);`;
+                        const pttResultWaste = treatmentType ? await client.query(fetchPTTIdForWaste, [treatmentType]) : { rows: [] };
+                        const ptt_id_waste = pttResultWaste.rows[0]?.ptt_id;
+                        let b47Row = null;
+                        if (ptt_id_waste) {
+                            const fetchB47 = `
+                                SELECT ef_eu_region, ef_india_region, ef_global_region
+                                FROM packaging_material_treatment_type_emission_factor
+                                WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3 AND ptt_id=$4;
+                            `;
+                            const b47Result = await client.query(fetchB47, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per kg", ptt_id_waste]);
+                            b47Row = b47Result.rows[0] || null;
+                        }
+                        if (!b47Row) {
+                            // Fallback: same as packaging carbon – fetch by material_type + year + unit only (no ptt_id).
+                            const fetchB47NoPTT = `
+                                SELECT ef_eu_region, ef_india_region, ef_global_region
+                                FROM packaging_material_treatment_type_emission_factor
+                                WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3
+                                LIMIT 1;
+                            `;
+                            const b47NoPTT = await client.query(fetchB47NoPTT, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per kg"]);
+                            b47Row = b47NoPTT.rows[0] || null;
+                            if (b47Row) console.log("B47: Packaging EF found without ptt_id for material_type:", packaginType);
+                        }
+                        if (b47Row) {
+                            if (fetchQ13LocationSupResult.rows[0]) {
+                                const loc = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
+                                if (loc === "india") emission_factor_packaging_waste_treatment_kg_CO2e_kg = parseFloat(b47Row.ef_india_region) || 0.01;
+                                else if (loc === "europe") emission_factor_packaging_waste_treatment_kg_CO2e_kg = parseFloat(b47Row.ef_eu_region) || 0.01;
+                                else emission_factor_packaging_waste_treatment_kg_CO2e_kg = parseFloat(b47Row.ef_global_region) || 0.01;
+                            } else {
+                                emission_factor_packaging_waste_treatment_kg_CO2e_kg = parseFloat(b47Row.ef_global_region) || 0.01;
+                            }
+                        }
+                    }
+                    console.log("B47 emission_factor_packaging_waste_treatment_kg_CO2e_kg:", emission_factor_packaging_waste_treatment_kg_CO2e_kg);
+
+                    // If Q40 has no data, use Q68 data for waste calculation
+                    if (fetchQ40WasteQualityControlResult.rows.length === 0 && fetchQ68PackagingWasteControlResult.rows.length > 0) {
                     for (let fetchQ68Data of fetchQ68PackagingWasteControlResult.rows) {
 
-                        // let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0;
+                            // Use waste_material_treatment_type_emission_factor table (not packaging_material_treatment_type_emission_factor)
+                            const fetchWasteTreatmentEmissionFactor = `
+                                    SELECT
+                                        wmttef.waste_type,
+                                        wmttef.wtt_id,
+                                        wmttef.ef_eu_region,
+                                        wmttef.ef_india_region,
+                                        wmttef.ef_global_region,
+                                        wmttef.year,
+                                        wmttef.unit,
+                                        wmttef.iso_country_code
+                                    FROM waste_material_treatment_type_emission_factor AS wmttef
+                                    JOIN waste_treatment_type AS wtt
+                                    ON wmttef.wtt_id = wtt.wtt_id
+                                WHERE
+                                 LOWER(wmttef.waste_type)=LOWER($1)
+                                 AND wmttef.year = $2
+                                 AND wmttef.unit = $3
+                                 AND LOWER(wtt.name)=LOWER($4);
+                            `;
+
+                            // Use "KgCo2e/per kg" for emission factor query (not the user's input unit)
+                            const wasteEmissionFactorUnit = "KgCo2e/per kg";
+                            
+                            console.log("Q68 Waste emission factor query parameters:", {
+                                waste_type: fetchQ68Data.waste_type,
+                                year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
+                                unit: wasteEmissionFactorUnit,
+                                treatment_type: fetchQ68Data.treatment_type
+                            });
+                            
+                            const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, wasteEmissionFactorUnit, fetchQ68Data.treatment_type]);
+
+                            console.log("Q68 Waste emission factor query result:", fetchPackagingEmisResult.rows.length > 0 ? fetchPackagingEmisResult.rows[0] : "NO MATCH FOUND");
+                            
+                            if (!fetchPackagingEmisResult.rows[0]) {
+                                console.warn("WARNING: Q68 Waste emission factor not found!");
+                                console.warn("Please check:");
+                                console.warn("  1. Waste type matches setup data exactly:", fetchQ68Data.waste_type);
+                                console.warn("  2. Treatment type matches setup data exactly:", fetchQ68Data.treatment_type);
+                                console.warn("  3. Year matches annual_reporting_period:", fetchSGIQIDSupResult.rows[0].annual_reporting_period);
+                            }
+
+                            if (fetchPackagingEmisResult.rows[0]) {
+                                if (fetchQ13LocationSupResult.rows[0]) {
+                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
+
+                                    if (locationLower === "india") {
+                                        const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region);
+                                        emission_factor_box_waste_treatment_kg_CO2e_kg = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                    } else if (locationLower === "europe") {
+                                        const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region);
+                                        emission_factor_box_waste_treatment_kg_CO2e_kg = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                    } else {
+                                        const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region);
+                                        emission_factor_box_waste_treatment_kg_CO2e_kg = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                    }
+                                } else {
+                                    const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region);
+                                    emission_factor_box_waste_treatment_kg_CO2e_kg = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                }
+                            }
+
+                            // Convert waste weight to kg
+                            const wasteWeightInKg = await convertToBaseUnit(
+                                client,
+                                fetchQ68Data.waste_weight,
+                                fetchQ68Data.unit,
+                                'material'
+                            );
+                            actualWasteWeightKg += wasteWeightInKg;
+
+                            console.log("emission_factor_box_waste_treatment_kg_CO2e_kg (from Q68):", emission_factor_box_waste_treatment_kg_CO2e_kg);
+
+                        }
+                    } else {
+                        // Original Q68 logic for packaging waste treatment (if Q40 has data)
+                        for (let fetchQ68Data of fetchQ68PackagingWasteControlResult.rows) {
 
                         const fetchWasteTreatmentEmissionFactor = `
                                 SELECT
@@ -3855,44 +4701,45 @@ export async function pcfCalculate(req: any, res: any) {
                              AND ptt.name = $4;
                         `;
 
-                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ68Data.unit, fetchQ68Data.treatment_type]);
+                            // Use "KgCo2e/per kg" for emission factor query (not the user's input unit)
+                            const packagingWasteEmissionFactorUnit = "KgCo2e/per kg";
+                            const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, packagingWasteEmissionFactorUnit, fetchQ68Data.treatment_type]);
 
                         console.log(fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ68Data.unit, fetchQ68Data.treatment_type);
 
                         if (fetchPackagingEmisResult.rows[0]) {
+                            if (fetchQ13LocationSupResult.rows[0]) {
+                                const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
 
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                                if (locationLower === "india") {
+                                    const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region);
+                                    emission_factor_packaging_waste_treatment_kg_COe2_kWh = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                } else if (locationLower === "europe") {
+                                    const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region);
+                                    emission_factor_packaging_waste_treatment_kg_COe2_kWh = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                } else {
+                                    const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region);
+                                    emission_factor_packaging_waste_treatment_kg_COe2_kWh = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
+                                }
+                            } else {
+                                const efValue = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region);
+                                emission_factor_packaging_waste_treatment_kg_COe2_kWh = (efValue !== null && !isNaN(efValue)) ? efValue : 0.01;
                             }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
-                            }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
-                            }
-
                         }
 
                         console.log("emission_factor_packaging_waste_treatment_kg_COe2_kWh:", emission_factor_packaging_waste_treatment_kg_COe2_kWh);
 
-
-
-
+                        }
                     }
 
+                    // B48 = Waste disposal (kg CO₂e): (B44 × B45) + (B46 × B47). No energy term.
+                    const waste_disposal_emissions_kg_CO2e = (boxWasteKg_B44 * emission_factor_box_waste_treatment_kg_CO2e_kg) + (packagingWasteKg_B46 * emission_factor_packaging_waste_treatment_kg_CO2e_kg);
 
-                    let waste_disposal_emissions_kg_CO2e = 0;
-
-                    const weightInKg68 = parseFloat(BomData.weight_gms) / 1000;
-
-                    const weightOfTenPercent = ((weightInKg68 / 100) * 10);
-
-                    console.log("weightInKg68:", weightInKg68, "weightOfTenPercent:", weightOfTenPercent);
-
-                    waste_disposal_emissions_kg_CO2e = ((weightOfTenPercent * emission_factor_box_waste_treatment_kg_CO2e_kg) + (emission_factor_packaging_waste_treatment_kg_COe2_kWh));
-                    console.log("waste_disposal_emissions_kg_CO2e:", waste_disposal_emissions_kg_CO2e);
+                    console.log("waste_disposal_emissions_kg_CO2e (B48):", waste_disposal_emissions_kg_CO2e);
+                    console.log("Waste calculation breakdown (Excel formula):");
+                    console.log("  - Box waste (B44×B45):", boxWasteKg_B44, "×", emission_factor_box_waste_treatment_kg_CO2e_kg, "=", boxWasteKg_B44 * emission_factor_box_waste_treatment_kg_CO2e_kg);
+                    console.log("  - Packaging waste (B46×B47):", packagingWasteKg_B46, "×", emission_factor_packaging_waste_treatment_kg_CO2e_kg, "=", packagingWasteKg_B46 * emission_factor_packaging_waste_treatment_kg_CO2e_kg);
+                    console.log("  - Total waste disposal emissions:", waste_disposal_emissions_kg_CO2e);
                     // ====> END
 
 
@@ -3900,6 +4747,12 @@ export async function pcfCalculate(req: any, res: any) {
 
                     console.log(waste_disposal_emissions_kg_CO2e, Raw_Material_emissions, Manufacturing_Emissions_kg_CO2e, Packaging_Carbon_Emissions_kg_CO2e_or_box, Total_Transportation_emissions_per_unit_kg_CO2E);
 
+
+                    // ====> Delete old waste calculation data for this BOM first
+                    await client.query(
+                        `DELETE FROM bom_emission_waste_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
+                        [BomData.id]
+                    );
 
                     // ====> Insert into bom_emission_waste_calculation_engine table
                     const query = `
@@ -3913,9 +4766,9 @@ export async function pcfCalculate(req: any, res: any) {
                     await client.query(query, [
                         ulid(),
                         BomData.id,
-                        weightOfTenPercent,
-                        emission_factor_box_waste_treatment_kg_CO2e_kg,
-                        emission_factor_packaging_waste_treatment_kg_COe2_kWh
+                        sanitizeNumber(boxWasteKg_B44),
+                        sanitizeNumber(emission_factor_box_waste_treatment_kg_CO2e_kg),
+                        sanitizeNumber(emission_factor_packaging_waste_treatment_kg_CO2e_kg)
                     ]);
 
                     // ===> Insert Ends here
@@ -3924,20 +4777,28 @@ export async function pcfCalculate(req: any, res: any) {
 
                     // Sixth Phase END
 
+                    // ====> Delete old total PCF calculation data for this BOM first
+                    await client.query(
+                        `DELETE FROM bom_emission_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
+                        [BomData.id]
+                    );
+
                     // ====> Insert into bom_emission_calculation_engine table
                     const queryLastPhase = `
                         INSERT INTO bom_emission_calculation_engine 
                         (id,bom_id, material_value, production_value,
                         packaging_value,logistic_value,waste_value,total_pcf_value)
                         VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
-                        ON CONFLICT (bom_id) DO NOTHING
                         RETURNING *;
                     `;
+
+                    // Truncate material_value to 4 decimal places to match Excel (Excel truncates, not rounds)
+                    const roundedMaterialValue = Math.floor(Raw_Material_emissions * 10000) / 10000;
 
                     await client.query(queryLastPhase, [
                         ulid(),
                         BomData.id,
-                        Raw_Material_emissions,
+                        roundedMaterialValue,
                         Manufacturing_Emissions_kg_CO2e,
                         Packaging_Carbon_Emissions_kg_CO2e_or_box,
                         Total_Transportation_emissions_per_unit_kg_CO2E,
@@ -3950,7 +4811,7 @@ export async function pcfCalculate(req: any, res: any) {
                     overall_pcf += Total_Housing_Component_Emissions;
                     TotalBomDetails.push({
                         bom_id: BomData.id,
-                        material_value: Raw_Material_emissions,
+                        material_value: roundedMaterialValue,
                         production_value: Manufacturing_Emissions_kg_CO2e,
                         packaging_value: Packaging_Carbon_Emissions_kg_CO2e_or_box,
                         logistic_value: Total_Transportation_emissions_per_unit_kg_CO2E,

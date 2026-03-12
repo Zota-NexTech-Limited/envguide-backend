@@ -3814,3 +3814,160 @@ export async function updatePcfBomSupplierQuestionClickedStatus(req: any, res: a
         }
     });
 }
+
+export async function deleteNullBomIdTransportRecords(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query('BEGIN');
+
+        try {
+            const { bom_pcf_id } = req.body;
+
+            if (!bom_pcf_id) {
+                await client.query('ROLLBACK');
+                return res.send(
+                    generateResponse(false, 'bom_pcf_id is required', 400, null)
+                );
+            }
+
+            // Delete transport records with NULL bom_id for this bom_pcf_id
+            const deleteQuery = `
+                DELETE FROM mode_of_transport_used_for_transportation_questions
+                WHERE bom_id IS NULL
+                AND stoie_id IN (
+                    SELECT stoie.stoie_id 
+                    FROM scope_three_other_indirect_emissions_questions stoie
+                    JOIN supplier_general_info_questions sgiq ON stoie.sgiq_id = sgiq.sgiq_id
+                    WHERE sgiq.bom_pcf_id = $1
+                )
+            `;
+
+            const result = await client.query(deleteQuery, [bom_pcf_id]);
+            const deletedCount = result.rowCount || 0;
+
+            await client.query('COMMIT');
+
+            return res.send(
+                generateResponse(
+                    true,
+                    `Deleted ${deletedCount} transport record(s) with NULL bom_id`,
+                    200,
+                    { deleted_count: deletedCount, bom_pcf_id }
+                )
+            );
+        } catch (error: any) {
+            await client.query('ROLLBACK');
+            console.error(error);
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
+        }
+    });
+}
+
+export async function deleteQ52Material(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query('BEGIN');
+
+        try {
+            const { rmuicm_id } = req.body;
+
+            if (!rmuicm_id) {
+                await client.query('ROLLBACK');
+                return res.send(
+                    generateResponse(false, 'rmuicm_id is required', 400, null)
+                );
+            }
+
+            // Delete the Q52 material record
+            const deleteQuery = `
+                DELETE FROM raw_materials_used_in_component_manufacturing_questions
+                WHERE rmuicm_id = $1
+                RETURNING rmuicm_id, material_name, bom_id;
+            `;
+
+            const result = await client.query(deleteQuery, [rmuicm_id]);
+            const deletedCount = result.rowCount || 0;
+
+            if (deletedCount === 0) {
+                await client.query('ROLLBACK');
+                return res.send(
+                    generateResponse(false, 'Material not found', 404, null)
+                );
+            }
+
+            await client.query('COMMIT');
+
+            return res.send(
+                generateResponse(
+                    true,
+                    `Deleted material: ${result.rows[0].material_name}`,
+                    200,
+                    { 
+                        deleted_count: deletedCount,
+                        deleted_material: result.rows[0]
+                    }
+                )
+            );
+        } catch (error: any) {
+            await client.query('ROLLBACK');
+            console.error("❌ Error in deleteQ52Material:", error);
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
+        }
+    });
+}
+
+export async function deleteQ52MaterialByName(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query('BEGIN');
+
+        try {
+            const { material_name, bom_id } = req.body;
+
+            if (!material_name || !bom_id) {
+                await client.query('ROLLBACK');
+                return res.send(
+                    generateResponse(false, 'material_name and bom_id are required', 400, null)
+                );
+            }
+
+            // Delete the Q52 material record by material_name and bom_id
+            const deleteQuery = `
+                DELETE FROM raw_materials_used_in_component_manufacturing_questions
+                WHERE material_name = $1 AND bom_id = $2
+                RETURNING rmuicm_id, material_name, bom_id;
+            `;
+
+            const result = await client.query(deleteQuery, [material_name, bom_id]);
+            const deletedCount = result.rowCount || 0;
+
+            if (deletedCount === 0) {
+                await client.query('ROLLBACK');
+                return res.send(
+                    generateResponse(false, 'Material not found', 404, null)
+                );
+            }
+
+            await client.query('COMMIT');
+
+            return res.send(
+                generateResponse(
+                    true,
+                    `Deleted ${deletedCount} material record(s): ${material_name}`,
+                    200,
+                    { 
+                        deleted_count: deletedCount,
+                        deleted_materials: result.rows
+                    }
+                )
+            );
+        } catch (error: any) {
+            await client.query('ROLLBACK');
+            console.error("❌ Error in deleteQ52MaterialByName:", error);
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
+        }
+    });
+}

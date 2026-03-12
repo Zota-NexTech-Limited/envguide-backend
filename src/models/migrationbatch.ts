@@ -3468,6 +3468,63 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
     created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );`,
 
+// Unit Conversion Table.
+        `CREATE TABLE IF NOT EXISTS unit_conversion (
+    uc_id VARCHAR(255) PRIMARY KEY,
+    unit_name VARCHAR(255),
+    unit_symbol VARCHAR(255),
+    unit_category VARCHAR(255),
+    base_unit VARCHAR(255),
+    conversion_factor_to_base NUMERIC(20, 10),
+    code VARCHAR(255),
+    created_by VARCHAR(255) DEFAULT 'system',
+    updated_by VARCHAR(255),
+    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);`,
+        // ENERGY UNITS → kWh base
+        `INSERT INTO unit_conversion (uc_id, unit_name, unit_symbol, unit_category, base_unit, conversion_factor_to_base, code, created_by) VALUES
+('UC001', 'Joule', 'J', 'energy', 'kWh', 0.000000278, 'UC-J', 'system'),
+('UC002', 'Kilojoule', 'kJ', 'energy', 'kWh', 0.000278, 'UC-kJ', 'system'),
+('UC003', 'Megajoule', 'MJ', 'energy', 'kWh', 0.278, 'UC-MJ', 'system'),
+('UC004', 'Gigajoule', 'GJ', 'energy', 'kWh', 278, 'UC-GJ', 'system'),
+('UC005', 'Watt-hour', 'Wh', 'energy', 'kWh', 0.001, 'UC-Wh', 'system'),
+('UC006', 'Kilowatt-hour', 'kWh', 'energy', 'kWh', 1, 'UC-kWh', 'system'),
+('UC007', 'Megawatt-hour', 'MWh', 'energy', 'kWh', 1000, 'UC-MWh', 'system'),
+('UC008', 'Gigawatt-hour', 'GWh', 'energy', 'kWh', 1000000, 'UC-GWh', 'system'),
+('UC009', 'Terawatt-hour', 'TWh', 'energy', 'kWh', 1000000000, 'UC-TWh', 'system')
+ON CONFLICT (uc_id) DO NOTHING;`,
+
+        // FUEL/VOLUME UNITS → Liters base
+        `INSERT INTO unit_conversion (uc_id, unit_name, unit_symbol, unit_category, base_unit, conversion_factor_to_base, code, created_by) VALUES
+('UC010', 'Milliliter', 'ml', 'fuel', 'Liters', 0.001, 'UC-ml', 'system'),
+('UC011', 'Centiliter', 'cL', 'fuel', 'Liters', 0.01, 'UC-cL', 'system'),
+('UC012', 'Deciliter', 'dL', 'fuel', 'Liters', 0.1, 'UC-dL', 'system'),
+('UC013', 'Liter', 'L', 'fuel', 'Liters', 1, 'UC-L', 'system'),
+('UC014', 'Cubic Meter', 'm3', 'fuel', 'Liters', 1000, 'UC-m3', 'system'),
+('UC015', 'Gallon (US)', 'gal (US)', 'fuel', 'Liters', 3.78541, 'UC-galUS', 'system'),
+('UC016', 'Gallon (UK)', 'gal (UK)', 'fuel', 'Liters', 4.54609, 'UC-galUK', 'system'),
+('UC017', 'Quart (US)', 'qt (US)', 'fuel', 'Liters', 0.946353, 'UC-qtUS', 'system'),
+('UC018', 'Pint (US)', 'pt (US)', 'fuel', 'Liters', 0.473176, 'UC-ptUS', 'system'),
+('UC019', 'Fluid Ounce (US)', 'fl oz (US)', 'fuel', 'Liters', 0.0295735, 'UC-flozUS', 'system'),
+('UC020', 'Cubic Inch', 'in3', 'fuel', 'Liters', 0.0163871, 'UC-in3', 'system'),
+('UC021', 'Cubic Foot', 'ft3', 'fuel', 'Liters', 28.3168, 'UC-ft3', 'system'),
+('UC022', 'Barrel (Oil)', 'bbl', 'fuel', 'Liters', 158.987, 'UC-bbl', 'system'),
+('UC023', 'Therm (US)', 'therm', 'fuel', 'Liters', 26.85, 'UC-therm', 'system'),
+('UC024', 'Million BTU', 'MMBtu', 'fuel', 'Liters', 26.17, 'UC-MMBtu', 'system')
+ON CONFLICT (uc_id) DO NOTHING;`,
+
+        // MATERIAL/MASS UNITS → kg base
+        `INSERT INTO unit_conversion (uc_id, unit_name, unit_symbol, unit_category, base_unit, conversion_factor_to_base, code, created_by) VALUES
+('UC025', 'Milligram', 'mg', 'material', 'kg', 0.000001, 'UC-mg', 'system'),
+('UC026', 'Gram', 'g', 'material', 'kg', 0.001, 'UC-g', 'system'),
+('UC027', 'Kilogram', 'kg', 'material', 'kg', 1, 'UC-kg', 'system'),
+('UC028', 'Metric Tonne', 'tonne', 'material', 'kg', 1000, 'UC-tonne', 'system'),
+('UC029', 'Pound', 'lb', 'material', 'kg', 0.453592, 'UC-lb', 'system'),
+('UC030', 'Short Ton (US)', 'US ton', 'material', 'kg', 907.1847, 'UC-USton', 'system'),
+('UC031', 'Long Ton (UK)', 'UK ton', 'material', 'kg', 1016.05, 'UC-UKton', 'system')
+ON CONFLICT (uc_id) DO NOTHING;`,
+
         `CREATE TABLE IF NOT EXISTS packaging_treatment_type (
             ptt_id VARCHAR(255) PRIMARY KEY,
             code VARCHAR(255), 
@@ -3640,16 +3697,19 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
         try {
             var query22
             for (const query of createTableQueries) {
-                //  console.log(query)
-                query22 = query
-                const tables = await client.query(query);
-                // console.log(tables.rows,query)
+                try {
+                    query22 = query
+                    await client.query(query);
+                } catch (queryError: any) {
+                    // Log individual query errors but continue
+                    console.error("Error executing query:", queryError.message);
+                    console.error("Query:", query.substring(0, 100) + "...");
+                }
             }
 
             console.log("Tables created successfully");
         } catch (error) {
             console.error("Error creating tables:", error);
-            // console.error("Error creating tables:", error);
         }
     })
 }
