@@ -1,7 +1,7 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
-import { generateResponse } from '../util/genRes';
-import { updateSupplierSustainabilityService } from '../services/supplierInputQuetionService';
+import { generateResponse } from '../util/genRes.js';
+import { updateSupplierSustainabilityService } from '../services/supplierInputQuetionService.js';
 
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
     return withClient(async (client: any) => {

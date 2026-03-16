@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as roleAndDeptController from '../../controller/roleAndDepartmentController';
-import * as  authService from '../../middleware/authService'
+import * as roleAndDeptController from '../../controller/roleAndDepartmentController.js';
+import * as  authService from '../../middleware/authService.js'
 const roleAndDeptRoutes = Router();
 
 roleAndDeptRoutes.post('/api/create-department', authService.authenticate, roleAndDeptController.createDepartment);

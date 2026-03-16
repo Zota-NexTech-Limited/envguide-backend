@@ -1,9 +1,9 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
-import { generateResponse } from '../util/genRes';
-import { bomService } from "../services/pcfBomService";
-import { getProductByCode } from './productController';
-import { convertToBaseUnit } from '../util/unitConversion';
+import { generateResponse } from '../util/genRes.js';
+import { bomService } from "../services/pcfBomService.js";
+import { getProductByCode } from './productController.js';
+import { convertToBaseUnit } from '../util/unitConversion.js';
 
 // below code also working but no need all the details remainng should create after dqr so 
 // created  createBOMWithDetailsFinal API

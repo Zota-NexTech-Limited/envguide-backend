@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/documentMasterController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/documentMasterController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.post('/api/document-master/add', authService.authenticate, Controller.addDocument);

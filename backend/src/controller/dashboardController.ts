@@ -1,5 +1,5 @@
-import { withClient } from '../util/database';
-import { generateResponse } from '../util/genRes';
+import { withClient } from '../util/database.js';
+import { generateResponse } from '../util/genRes.js';
 
 // Below code also working for product life cycle
 // interface ProductLifeCycleRow {

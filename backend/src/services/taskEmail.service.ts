@@ -1,4 +1,4 @@
-import { sendMail } from "../util/mailTransporter";
+import { sendMail } from "../util/mailTransporter.js";
 
 export async function sendSupplierTaskEmail(payload: {
     email: string;

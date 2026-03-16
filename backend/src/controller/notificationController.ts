@@ -1,8 +1,8 @@
-import { generateResponse } from '../util/genRes';
-import { addNotificationDetails, updateNotificationDetails, getNotificationLists, getNotificationListByIds, getAllAlertsLists } from '../services/notificationService';
-import { withClient } from '../util/database';
-import { sendNotificationImmediate, sendNotificationSqlQueryImmediate } from '../helper/cron_notification_alert';
-import { columnConfig } from "../helper/columnConfig ";
+import { generateResponse } from '../util/genRes.js';
+import { addNotificationDetails, updateNotificationDetails, getNotificationLists, getNotificationListByIds, getAllAlertsLists } from '../services/notificationService.js';
+import { withClient } from '../util/database.js';
+import { sendNotificationImmediate, sendNotificationSqlQueryImmediate } from '../helper/cron_notification_alert.js';
+import { columnConfig } from "../helper/columnConfig .js";
 
 export async function notificationCreate(req: any, res: any) {
   return withClient(async (client: any) => {

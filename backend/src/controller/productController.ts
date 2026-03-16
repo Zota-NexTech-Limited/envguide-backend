@@ -1,6 +1,6 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
-import { generateResponse } from '../util/genRes';
+import { generateResponse } from '../util/genRes.js';
 
 export async function createProduct(req: any, res: any) {
     return withClient(async (client: any) => {

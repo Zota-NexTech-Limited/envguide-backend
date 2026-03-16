@@ -1,5 +1,5 @@
-import { generateResponse } from '../util/genRes';
-import * as roleAndDeptService from '../services/roleAndDepartmentService';
+import { generateResponse } from '../util/genRes.js';
+import * as roleAndDeptService from '../services/roleAndDepartmentService.js';
 
 export async function createDepartment(req: any, res: any) {
   try {

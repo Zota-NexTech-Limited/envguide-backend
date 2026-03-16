@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/supplierInputQuestionController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/supplierInputQuestionController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.post('/api/create-supplier-input-questions', Controller.addSupplierSustainabilityData);

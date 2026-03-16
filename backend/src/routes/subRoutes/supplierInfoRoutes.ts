@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/supplierInfoController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/supplierInfoController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.post('/api/supplier/add', authService.authenticate, Controller.addSupplierDetails);

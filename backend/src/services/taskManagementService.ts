@@ -1,4 +1,4 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 
 export async function updateTaskService(id: string, data: any) {
     return withClient(async (client: any) => {

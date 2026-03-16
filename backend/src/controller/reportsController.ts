@@ -1,6 +1,6 @@
 import { ulid } from 'ulid';
-import { withClient } from '../util/database';
-import { generateResponse } from '../util/genRes';
+import { withClient } from '../util/database.js';
+import { generateResponse } from '../util/genRes.js';
 
 //  export async function getMaterialFootPrint(req: any, res: any) {
 //     const {
