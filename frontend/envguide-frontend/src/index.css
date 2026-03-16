@@ -1,0 +1,245 @@
+@import "tailwindcss";
+
+/* ========================================
+   EnviGuide Design System - Green Accent Theme
+   Primary Green: #16a34a (green-600)
+   Light Green: #22c55e (green-500)
+   Dark Green: #15803d (green-700)
+   ======================================== */
+
+/* CSS Custom Properties for Theme */
+:root {
+  --color-primary: #16a34a;
+  --color-primary-light: #22c55e;
+  --color-primary-dark: #15803d;
+  --color-primary-50: #f0fdf4;
+  --color-primary-100: #dcfce7;
+  --color-sidebar-bg: #0f172a;
+  --color-sidebar-hover: #1e293b;
+}
+
+/* ========================================
+   Scrollbar Styling
+   ======================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Dark scrollbar for dark containers */
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* ========================================
+   Ant Design Component Overrides - Green Theme
+   ======================================== */
+
+/* Tabs */
+.components-master-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn,
+.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--color-primary) !important;
+  font-weight: 600;
+}
+
+.components-master-tabs .ant-tabs-ink-bar,
+.ant-tabs-ink-bar {
+  background: var(--color-primary) !important;
+}
+
+/* Primary Buttons */
+.ant-btn-primary {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.ant-btn-primary:hover {
+  background: var(--color-primary-dark) !important;
+  border-color: var(--color-primary-dark) !important;
+}
+
+/* Links and Anchors */
+.ant-anchor-link-active>.ant-anchor-link-title {
+  color: var(--color-primary) !important;
+}
+
+/* Steps */
+.ant-steps-item-finish .ant-steps-item-icon {
+  border-color: var(--color-primary) !important;
+}
+
+.ant-steps-item-finish .ant-steps-item-icon>.ant-steps-icon {
+  color: var(--color-primary) !important;
+}
+
+.ant-steps-item-process .ant-steps-item-icon {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+/* Checkboxes */
+.ant-checkbox-checked .ant-checkbox-inner {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+/* Radio Buttons */
+.ant-radio-checked .ant-radio-inner {
+  border-color: var(--color-primary) !important;
+}
+
+.ant-radio-checked .ant-radio-inner::after {
+  background-color: var(--color-primary) !important;
+}
+
+/* Switch */
+.ant-switch-checked {
+  background: var(--color-primary) !important;
+}
+
+/* Progress */
+.ant-progress-bg {
+  background-color: var(--color-primary) !important;
+}
+
+/* Tag */
+.ant-tag-green {
+  color: var(--color-primary-dark) !important;
+  background: var(--color-primary-50) !important;
+  border-color: var(--color-primary-light) !important;
+}
+
+/* Input Focus */
+.ant-input:focus,
+.ant-input-focused,
+.ant-input:hover {
+  border-color: var(--color-primary) !important;
+}
+
+.ant-input:focus,
+.ant-input-focused {
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.1) !important;
+}
+
+/* Select Focus */
+.ant-select-focused .ant-select-selector,
+.ant-select-selector:hover {
+  border-color: var(--color-primary) !important;
+}
+
+.ant-select-focused .ant-select-selector {
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.1) !important;
+}
+
+/* Pagination */
+.ant-pagination-item-active {
+  border-color: var(--color-primary) !important;
+}
+
+.ant-pagination-item-active a {
+  color: var(--color-primary) !important;
+}
+
+/* ========================================
+   Smooth Transitions
+   ======================================== */
+* {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Reset transition for elements that shouldn't animate */
+input,
+textarea,
+[contenteditable] {
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+/* ========================================
+   Custom Utility Classes
+   ======================================== */
+.glass-effect {
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.card-shadow {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.card-shadow-hover:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* Sidebar Menu Styles */
+.sidebar-menu-item {
+  background-color: transparent !important;
+  color: #e2e8f0 !important;
+  text-decoration: none !important;
+}
+
+.sidebar-menu-item:hover {
+  background-color: #16a34a !important;
+  color: white !important;
+  box-shadow: 0 10px 15px -3px rgba(22, 163, 74, 0.2) !important;
+}
+
+.sidebar-menu-item.active,
+.sidebar-menu-item:active {
+  background-color: #16a34a !important;
+  color: white !important;
+  box-shadow: 0 10px 15px -3px rgba(22, 163, 74, 0.25) !important;
+}
+
+/* Override any default link colors in sidebar */
+nav a.sidebar-menu-item,
+nav a.sidebar-menu-item:link,
+nav a.sidebar-menu-item:visited {
+  color: #e2e8f0 !important;
+  text-decoration: none !important;
+}
+
+nav a.sidebar-menu-item:hover,
+nav a.sidebar-menu-item.active {
+  color: white !important;
+}
+
+/* Dashboard Chart Custom Scrollbar */
+.chart-scrollbar::-webkit-scrollbar {
+  height: 10px;
+}
+
+.chart-scrollbar::-webkit-scrollbar-track {
+  background: #EBFADC;
+  border-radius: 9999px;
+  margin: 0 32px;
+}
+
+.chart-scrollbar::-webkit-scrollbar-thumb {
+  background: #52C41A;
+  border-radius: 9999px;
+  border: 2px solid #EBFADC;
+  /* creates spacing effect if needed */
+}
+
+.chart-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #45A617;
+}

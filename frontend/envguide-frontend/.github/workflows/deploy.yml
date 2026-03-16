@@ -1,0 +1,70 @@
+name: Build and Deploy React (Password SSH)
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Step 2: Setup Node.js
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # Step 4: Build the React app
+      - name: Build React app
+        env:
+          CI: false
+        run: npm run build
+
+      # Step 5: Verify dist folder exists
+      - name: List build output
+        run: ls -R dist
+
+      # Step 6: Prepare remote directory (via SSH)
+      - name: Prepare remote directory
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            sudo mkdir -p /var/www/react-app
+            sudo chown -R $USER:www-data /var/www/react-app
+            sudo chmod -R 750 /var/www/react-app
+
+      # Step 7: Upload build to the server
+      - name: Upload dist folder via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "dist/*"            # Vite default output
+          target: "/var/www/react-app"
+          strip_components: 0
+          overwrite: true
+
+      # Step 8: Reload Nginx to serve new build
+      - name: Reload Nginx
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            sudo nginx -t
+            sudo systemctl reload nginx

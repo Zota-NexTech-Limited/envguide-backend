@@ -1,0 +1,984 @@
+Create PCF Request – Basic Information (Overview)
+
+User can create a new PCF request by filling Basic Information first.
+
+Page clearly shows Create PCF Request with PCF Request → New Request as reference text.
+
+User can go back to the PCF list using < PCF Request.
+
+Only one Save button is available at the bottom.
+
+The process follows a step-by-step flow; users cannot skip steps.
+
+Basic Information shows as Active while filling and Completed after saving.
+
+Completed steps can be reopened and edited if needed.
+
+Mandatory fields must be filled before moving forward.
+
+Due Date is selected using a calendar; past dates are not allowed.
+
+Clear error messages are shown if required information is missing.
+
+
+
+PCF Request – Create PCF Request
+
+Module: PCF Request
+
+Feature: Create PCF Request – Basic Information (End to End)
+
+1️⃣ USER STORY 
+
+US-01: Create PCF Request – Basic Information
+
+As a PCF user
+I want to enter and save the Basic Information of a PCF request
+So that I can proceed step by step and complete the PCF request successfully
+
+2️⃣ USER STORIES 
+
+US-02: View Page Title and Subtitle
+
+As a user
+I want to see a clear title and subtitle
+So that I understand where I am in the application
+
+US-03: Navigate Back to PCF List
+
+As a user
+I want to go back using < PCF Request
+So that I can return to the PCF Request list screen
+
+US-04: Use Single Save Button
+
+As a user
+I want only one Save button at the bottom
+So that saving is simple and not confusing
+
+US-05: Follow Step-by-Step Flow
+
+As a user
+I want to complete the PCF request in a fixed order
+So that no required information is missed
+
+US-06: Edit Completed Steps
+
+As a user
+I want to edit completed steps
+So that I can correct information if required
+
+3️⃣ ACCEPTANCE CRITERIA (GIVEN / WHEN / THEN)
+
+ID
+
+Title
+
+Given
+
+When
+
+Then
+
+Description / Example
+
+AC-01
+
+Page Title
+
+User opens Create PCF
+
+Page loads
+
+Title shown
+
+“Create PCF Request”
+
+AC-02
+
+Subtitle
+
+User views header
+
+Page loads
+
+Subtitle shown
+
+“PCF Request → New Request” (not clickable)
+
+AC-03
+
+Back Navigation
+
+User on Create PCF
+
+Clicks < PCF Request
+
+Redirect to PCF list
+
+Back navigation
+
+AC-04
+
+Save Button
+
+User views page
+
+Page loads
+
+Only bottom Save visible
+
+No top Save
+
+AC-05
+
+Initial Step
+
+New request
+
+Page loads
+
+Basic Info Active
+
+Others Pending
+
+AC-06
+
+Stepper – Active
+
+Step is active
+
+Displayed
+
+Number, title, status green
+
+Active shown clearly
+
+AC-07
+
+Stepper – Completed
+
+Step completed
+
+Move forward
+
+Number, title, status green
+
+Completed shown
+
+AC-08
+
+Sequential Flow
+
+Step incomplete
+
+Click next step
+
+Block navigation
+
+Cannot skip
+
+AC-09
+
+Save & Move
+
+Mandatory fields filled
+
+Click Save
+
+Move to Product Details
+
+Auto scroll
+
+AC-10
+
+Edit Completed
+
+Step completed
+
+Click step
+
+Step opens
+
+Editable
+
+AC-11
+
+Save After Edit
+
+Editing completed step
+
+Click Save
+
+Step remains completed
+
+No reset
+
+AC-12
+
+Field Focus
+
+User interacts
+
+Hover / type
+
+Border green
+
+Removed on blur
+
+AC-13
+
+Validation
+
+Mandatory missing
+
+Click Save
+
+Error shown
+
+Below field
+
+AC-14
+
+Calendar Toggle
+
+Calendar open
+
+Click icon again
+
+Calendar closes
+
+Toggle behavior
+
+AC-15
+
+Calendar Icon
+
+User views field
+
+Page loads
+
+Icon visible
+
+Not dim
+
+4️⃣ FIELD DETAILS & VALIDATIONS
+
+🔹 Request Title
+
+Mandatory
+
+Auto-fetched from DB
+
+Max length: 50 characters
+
+Numbers & special characters allowed
+
+Validation: “Enter request title”
+
+🔹 Priority
+
+Mandatory
+
+Values from DB: High / Medium / Low
+
+Validation: “Select priority”
+
+🔹 Requesting Organization
+
+Mandatory
+
+Auto-fetched from DB
+
+Max length: 50 characters
+
+Numbers allowed
+
+Validation: “Enter organization name”
+
+🔹 Due Date
+
+Mandatory
+
+Format: MM / DD / YYYY
+
+Past dates not allowed
+
+Minimum date: Today
+
+🔹 Request Description
+
+Optional
+
+Length: 150–200 characters
+
+Numbers & special characters allowed
+
+5️⃣ CALENDAR FUNCTIONALITY (COMPLETE)
+
+Calendar Open
+
+Opens on:
+
+Clicking date field
+
+Clicking calendar icon
+
+Today
+
+Today’s date highlighted in green
+
+Clicking Today selects today’s date
+
+Navigation
+
+<< → Previous year
+
+>> → Next year
+
+< → Previous month
+
+> → Next month
+
+Month / Year Picker
+
+Clicking Month-Year opens month grid
+
+Hover → cursor hand, grey highlight
+
+Selecting month/year updates calendar
+
+Close Behavior
+
+Calendar auto-closes after date selection
+
+Calendar icon toggles open/close
+
+6️⃣ BUSINESS RULES
+
+Rule ID
+
+Rule
+
+BR-01
+
+Only one Save button (bottom)
+
+BR-02
+
+Steps must be sequential
+
+BR-03
+
+Completed steps are editable
+
+BR-04
+
+Editing does not reset completion
+
+BR-05
+
+Active & Completed shown in green
+
+BR-06
+
+Subtitle not clickable
+
+BR-07
+
+Past due dates not allowed
+
+BR-08
+
+Calendar icon must be clearly visible
+
+7️⃣ USE CASES & SCENARIOS (UML STYLE – TEXT)
+
+🧩 Use Case 1: Create PCF – Basic Information
+
+Actor: PCF User
+
+Main Flow:
+
+User opens Create PCF Request
+
+System shows title, subtitle, stepper
+
+Basic Information marked Active
+
+User fills mandatory fields
+
+User clicks Save
+
+System validates data
+
+Data saved
+
+Basic Info marked Completed
+
+Product Details marked Active
+
+🧩 Use Case 2: Edit Completed Step
+
+User clicks completed Basic Information
+
+System opens step
+
+User edits fields
+
+User clicks Save
+
+Step remains Completed
+
+🧩 Alternate Flow: Validation Failure
+
+Mandatory field missing
+
+User clicks Save
+
+System blocks save
+
+Error shown below field
+
+8️⃣ ERROR MESSAGES
+
+Scenario
+
+Error Message
+
+Missing Request Title
+
+Enter request title
+
+Missing Priority
+
+Select priority
+
+Missing Organization
+
+Enter organization name
+
+Missing Due Date
+
+Select due date
+
+Past Date
+
+Past dates are not allowed
+
+Step Skip
+
+Complete previous step first
+
+Save Failure
+
+Unable to save. Please try again
+
+9️⃣ NON-FUNCTIONAL (UX / USABILITY)
+
+Clear progress indication
+
+Consistent green color usage
+
+Accessible error messages
+
+Predictable save behavior
+
+Keyboard navigation supported
+
+
+
+
+Create PCF Request – Product Details (Functional Overview)
+
+After saving Basic Information, the system automatically moves the user to Product Details.
+
+The progress bar clearly shows which step is Completed, Active, or Pending.
+
+Users must select Product Category, Component Category, and Component Type before proceeding.
+
+Users can add or remove Product Specifications as needed.
+
+Import BOM opens a new screen where users upload the BOM file.
+
+BOM can be uploaded using Excel or CSV files only.
+
+If a BOM already exists, the system asks for confirmation before replacing it.
+
+Uploaded BOM data automatically fills Overview, Emissions, Transport, and Allocation sections.
+
+BOM data is read-only; changes require editing and re-uploading the BOM file.
+
+Users can freely switch between Overview, Emissions, Transport, and Allocation tabs.
+
+Saving each section moves the user to the next section automatically.
+
+After completing Allocation, Product Details is marked Completed and the user moves to Documentation.
+
+All entered and imported data is saved and retained during navigation.
+
+
+CREATE PCF REQUEST – PRODUCT DETAILS
+
+1️⃣ USER STORIES
+
+US-01: Redirect to Product Details After Saving Basic Information
+
+As a PCF user
+I want to be redirected to the Product Details step after saving Basic Information
+So that I can continue creating the PCF request in sequence.
+
+US-02: Display Stepper Status Correctly
+
+As a PCF user
+I want the stepper to show Completed, Active, and Pending states
+So that I clearly understand my progress.
+
+US-03: Capture Product Details Information
+
+As a PCF user
+I want to enter product and component details with mandatory and optional indicators
+So that all required data is captured accurately.
+
+US-04: Manage Product Specifications Dynamically
+
+As a PCF user
+I want to add or remove multiple product specifications
+So that I can record all relevant product attributes.
+
+US-05: Import BOM File
+
+As a PCF user
+I want to import a BOM file (Excel or CSV)
+So that BOM data is populated automatically.
+
+US-06: Validate BOM File on Upload
+
+As a PCF user
+I want the system to validate the BOM file
+So that incorrect or incomplete files are rejected.
+
+US-07: Replace Existing BOM with Confirmation
+
+As a PCF user
+I want a confirmation before replacing an existing BOM
+So that I do not lose data accidentally.
+
+US-08: View BOM Data Across All Tabs
+
+As a PCF user
+I want imported BOM data to appear in Overview, Emissions, Transport, and Allocation tabs
+So that I can review lifecycle data.
+
+US-09: Navigate Between BOM Tabs
+
+As a PCF user
+I want to navigate freely between BOM tabs
+So that I can review data in any order.
+
+US-10: Save and Progress Through BOM Tabs
+
+As a PCF user
+I want to move to the next BOM tab after clicking Save
+So that the workflow remains smooth.
+
+US-11: Complete Product Details and Move to Documentation
+
+As a PCF user
+I want Product Details to be marked completed after Allocation is saved
+So that I can proceed to Documentation.
+
+US-12: Preserve Entered and Imported Data
+
+As a PCF user
+I want entered and imported data to persist during navigation
+So that progress is not lost.
+
+US-13: Display Read-Only BOM Data
+
+As a PCF user
+I want BOM data to be read-only
+So that changes are controlled via file re-upload.
+
+US-14: Auto-Calculate Emissions Data
+
+As a PCF user
+I want emission values to be auto-calculated from the BOM
+So that calculations remain accurate.
+
+US-15: Handle Missing or Zero BOM Values
+
+As a PCF user
+I want the system to handle zero or missing values gracefully
+So that data is displayed clearly.
+
+US-16: Back Navigation from Product Details
+
+As a PCF user
+I want to navigate back using the Back button
+So that navigation feels intuitive.
+
+US-17: Maintain Stepper State on Navigation
+
+As a PCF user
+I want the stepper to retain correct status on navigation
+So that progress indication is always accurate.
+
+US-18: Secure Access to Product Details
+
+As a PCF user
+I want access restricted to authorized users
+So that data remains secure.
+
+US-19: Handle BOM Upload Failures
+
+As a PCF user
+I want clear error messages when BOM upload fails
+So that I know how to fix and retry.
+
+US-20: End-to-End Product Details Completion
+
+As a PCF user
+I want to complete Product Details without manual BOM edits
+So that the process follows system rules.
+
+US-21: Open Import BOM Screen (NEW)
+
+As a PCF user
+I want a new Import BOM screen to open when I click Import BOM
+So that BOM upload is handled in a dedicated screen.
+
+2️⃣ ACCEPTANCE CRITERIA
+
+ID
+
+Title
+
+Given
+
+When
+
+Then
+
+Description / Example
+
+AC-01
+
+Redirect Flow
+
+Basic Info saved
+
+Save clicked
+
+Product Details opens
+
+Sequential navigation
+
+AC-02
+
+Stepper Status
+
+Product Details loaded
+
+Page loads
+
+Basic Info = Completed, Product Details = Active
+
+Green status
+
+AC-03
+
+Mandatory Validation
+
+Mandatory field empty
+
+Save clicked
+
+Error shown
+
+“This field is required”
+
+AC-04
+
+Optional Fields
+
+Optional fields empty
+
+Save clicked
+
+Save allowed
+
+Product code optional
+
+AC-05
+
+Add Specification
+
+Specs section visible
+
++Add clicked
+
+New row added
+
+Name, Value, Unit
+
+AC-06
+
+Delete Specification
+
+Spec exists
+
+Delete clicked
+
+Row removed
+
+Red icon
+
+AC-07
+
+Open Import Screen
+
+On Product Details
+
+Import BOM clicked
+
+Import screen opens
+
+New page
+
+AC-08
+
+Valid Upload
+
+Valid file selected
+
+Upload clicked
+
+Upload success
+
+Data processed
+
+AC-09
+
+Invalid Format
+
+Wrong format
+
+Upload clicked
+
+Error shown
+
+Unsupported format
+
+AC-10
+
+Empty File
+
+Empty file
+
+Upload clicked
+
+Error shown
+
+File empty
+
+AC-11
+
+Replace BOM
+
+BOM exists
+
+New upload
+
+Confirmation shown
+
+Prevent overwrite
+
+AC-12
+
+Populate Tabs
+
+Upload success
+
+Redirect back
+
+All tabs populated
+
+Overview → Allocation
+
+AC-13
+
+Tab Navigation
+
+BOM loaded
+
+Tab clicked
+
+Tab active
+
+Green underline
+
+AC-14
+
+Save Progress
+
+Any tab
+
+Save clicked
+
+Next tab opens
+
+Auto move
+
+AC-15
+
+Allocation Save
+
+Allocation tab
+
+Save clicked
+
+Documentation opens
+
+Product Details completed
+
+3️⃣ VALIDATIONS
+
+Product Details
+
+Mandatory:
+
+Product Category
+
+Component Category
+
+Component Type
+
+Inline error below field
+
+Red * indicator
+
+Product Specifications
+
+Name, Value, Unit mandatory per row
+
+Unlimited rows
+
+Delete allowed per row
+
+Import BOM
+
+Allowed formats: .xlsx, .csv
+
+File must not be empty
+
+Mandatory columns required
+
+File size within limit
+
+4️⃣ BUSINESS RULES
+
+Product Details accessible only after Basic Information completion
+
+Import BOM opens in a new screen
+
+Manual BOM entry is not allowed
+
+BOM changes only via re-upload
+
+Re-upload replaces existing BOM after confirmation
+
+BOM data is read-only in all tabs
+
+Allocation is final Product Details step
+
+Product Details marked Completed only after Allocation save
+
+Data persists across navigation
+
+5️⃣ USE CASES & SCENARIOS (UML-STYLE – TEXT)
+
+Use Case 1: Complete Product Details
+
+Actor: PCF User
+Precondition: Basic Information completed
+
+Main Flow:
+
+User lands on Product Details
+
+Fills mandatory fields
+
+Adds specifications
+
+Saves details
+
+Clicks Import BOM
+
+Use Case 2: Import BOM
+
+Actor: PCF User
+
+Main Flow:
+
+User clicks Import BOM
+
+Import BOM screen opens
+
+User uploads valid file
+
+System validates file
+
+User redirected to Product Details
+
+BOM data populated in all tabs
+
+Alternate Flow:
+
+Invalid file → error shown
+
+Existing BOM → confirmation popup
+
+Cancel → return without changes
+
+Use Case 3: Review BOM Tabs
+
+Actor: PCF User
+
+Flow:
+
+Overview opens by default
+
+User reviews data
+
+Save → Emissions
+
+Save → Transport
+
+Save → Allocation
+
+Save → Documentation
+
+6️⃣ ERROR MESSAGES 
+
+Product Details
+
+“This field is required”
+
+“Invalid value entered”
+
+Import BOM
+
+“Unsupported file format. Please upload Excel or CSV.”
+
+“Uploaded file is empty.”
+
+“Missing required columns in BOM file.”
+
+“Unable to process BOM file. Please check the data.”
+
+
+
+
+
+
