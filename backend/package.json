@@ -5,9 +5,11 @@
   "main": "src/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "fix-imports": "node scripts/fix-esm-imports.cjs",
     "build-main": "tsc",
     "build": "npm run build-main && npm run copy-uploads",
-    "copy-uploads": "xcopy src\\uploads dist\\uploads /E /I /Y",
+    "build:server": "npm run fix-imports && npm run build",
+    "copy-uploads": "node -e \"try{require('fs').cpSync('src/uploads', 'dist/uploads', {recursive:true}); console.log('uploads copied');}catch(e){}\"",
     "start-main": "node --es-module-specifier-resolution=node dist/server.js",
     "install-all": "npm install",
     "start": "npm run install-all && npm run build-main && node ./postbuild.js && npm run start-main"
@@ -29,6 +31,7 @@
     "axios": "^1.13.4",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
+    "decimal.js": "^10.6.0",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "fs": "^0.0.1-security",
