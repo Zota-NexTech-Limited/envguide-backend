@@ -1,12 +1,14 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/supplierInputQuestionController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/supplierInputQuestionController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.post('/api/create-supplier-input-questions', Controller.addSupplierSustainabilityData);
 Routes.get('/api/supplier-input-questions-list', authService.authenticate, Controller.getSupplierDetailsList);
 Routes.get('/api/supplier-input-questions-get-by-id', authService.authenticate, Controller.getSupplierDetailsById);
 Routes.post('/api/update-supplier-input-questions', authService.authenticate, Controller.updateSupplierSustainabilityData);
+Routes.get('/api/questionnaire-ids-for-patch', authService.authenticate, Controller.getQuestionnaireIdsForPatch);
+Routes.post('/api/patch-bom-id-transport-waste', authService.authenticate, Controller.patchBomIdOnTransportAndWaste);
 Routes.post('/api/delete-null-bom-id-transport-records', authService.authenticate, Controller.deleteNullBomIdTransportRecords);
 Routes.post('/api/delete-q52-material', authService.authenticate, Controller.deleteQ52Material);
 Routes.post('/api/delete-q52-material-by-name', authService.authenticate, Controller.deleteQ52MaterialByName);
