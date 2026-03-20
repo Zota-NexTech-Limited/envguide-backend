@@ -1,7 +1,7 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
-import { generateResponse } from '../util/genRes';
-import { updateSupplierSustainabilityService } from '../services/supplierInputQuetionService';
+import { generateResponse } from '../util/genRes.js';
+import { updateSupplierSustainabilityService } from '../services/supplierInputQuetionService.js';
 
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -3811,6 +3811,155 @@ export async function updatePcfBomSupplierQuestionClickedStatus(req: any, res: a
         } catch (error: any) {
             console.error("❌ Error in updateBomRejectionStatus:", error.message);
             return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+/**
+ * GET questionnaire row IDs and BOM list by bom_pcf_id for Postman testing.
+ * Query: bom_pcf_id
+ * Returns: sgiq_id, boms: [{ id (bom_id), material_number, component_name }], transport_rows: [{ motuft_id, bom_id, material_number, ... }], waste_rows: [{ woppw_id, bom_id, material_number, ... }]
+ */
+export async function getQuestionnaireIdsForPatch(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const bom_pcf_id = req.query?.bom_pcf_id;
+            if (!bom_pcf_id) {
+                return res.send(generateResponse(false, 'bom_pcf_id query is required', 400, null));
+            }
+
+            const sgiqQuery = `
+                SELECT sgiq_id FROM supplier_general_info_questions
+                WHERE bom_pcf_id = $1 AND own_emission_id IS NULL LIMIT 1
+            `;
+            const sgiqRes = await client.query(sgiqQuery, [bom_pcf_id]);
+            const sgiq_id = sgiqRes.rows[0]?.sgiq_id;
+            if (!sgiq_id) {
+                return res.send(generateResponse(false, 'No questionnaire found for this bom_pcf_id', 404, null));
+            }
+
+            const stoieQuery = `SELECT stoie_id FROM scope_three_other_indirect_emissions_questions WHERE sgiq_id = $1`;
+            const stoieRes = await client.query(stoieQuery, [sgiq_id]);
+            const stoie_id = stoieRes.rows[0]?.stoie_id;
+
+            const bomsQuery = `
+                SELECT id AS bom_id, material_number, component_name
+                FROM bom WHERE bom_pcf_id = $1 ORDER BY id
+            `;
+            const bomsRes = await client.query(bomsQuery, [bom_pcf_id]);
+
+            let transport_rows: any[] = [];
+            let waste_rows: any[] = [];
+
+            if (stoie_id) {
+                const transportQuery = `
+                    SELECT motuft_id, bom_id, material_number, component_name, mode_of_transport, weight_transported, source_point, drop_point, distance
+                    FROM mode_of_transport_used_for_transportation_questions WHERE stoie_id = $1 ORDER BY motuft_id
+                `;
+                const wasteQuery = `
+                    SELECT woppw_id, bom_id, material_number, component_name, waste_type, waste_weight, unit, treatment_type
+                    FROM weight_of_pro_packaging_waste_questions WHERE stoie_id = $1 ORDER BY woppw_id
+                `;
+                transport_rows = (await client.query(transportQuery, [stoie_id])).rows;
+                waste_rows = (await client.query(wasteQuery, [stoie_id])).rows;
+            }
+
+            return res.send(
+                generateResponse(true, 'Questionnaire IDs for patch', 200, {
+                    bom_pcf_id,
+                    sgiq_id,
+                    boms: bomsRes.rows,
+                    transport_rows,
+                    waste_rows
+                })
+            );
+        } catch (error: any) {
+            console.error(error);
+            return res.send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+/**
+ * Patch bom_id (and material_number, component_name) on existing transport and waste rows.
+ * Use from Postman to test PCF without re-filling the questionnaire.
+ * Body: { bom_pcf_id, transport_updates?: [{ motuft_id, bom_id, material_number?, component_name? }], waste_updates?: [{ woppw_id, bom_id, material_number?, component_name? }] }
+ */
+export async function patchBomIdOnTransportAndWaste(req: any, res: any) {
+    return withClient(async (client: any) => {
+        await client.query('BEGIN');
+
+        try {
+            const { bom_pcf_id, transport_updates = [], waste_updates = [] } = req.body;
+
+            if (!bom_pcf_id) {
+                await client.query('ROLLBACK');
+                return res.send(
+                    generateResponse(false, 'bom_pcf_id is required', 400, null)
+                );
+            }
+
+            const stoieIdsQuery = `
+                SELECT stoie.stoie_id FROM scope_three_other_indirect_emissions_questions stoie
+                JOIN supplier_general_info_questions sgiq ON stoie.sgiq_id = sgiq.sgiq_id
+                WHERE sgiq.bom_pcf_id = $1
+            `;
+            const stoieResult = await client.query(stoieIdsQuery, [bom_pcf_id]);
+            const stoieIds = (stoieResult.rows || []).map((r: any) => r.stoie_id).filter(Boolean);
+            if (stoieIds.length === 0) {
+                await client.query('ROLLBACK');
+                return res.send(
+                    generateResponse(false, 'No questionnaire (stoie) found for this bom_pcf_id', 404, null)
+                );
+            }
+
+            let transportUpdated = 0;
+            let wasteUpdated = 0;
+
+            if (Array.isArray(transport_updates) && transport_updates.length > 0) {
+                for (const u of transport_updates) {
+                    if (!u.motuft_id || u.bom_id == null) continue;
+                    const upd = await client.query(
+                        `UPDATE mode_of_transport_used_for_transportation_questions
+                         SET bom_id = $2, material_number = COALESCE($3, material_number), component_name = COALESCE($4, component_name)
+                         WHERE motuft_id = $1 AND stoie_id = ANY($5::text[])
+                         RETURNING motuft_id`,
+                        [u.motuft_id, u.bom_id, u.material_number ?? null, u.component_name ?? null, stoieIds]
+                    );
+                    if (upd.rowCount) transportUpdated += upd.rowCount;
+                }
+            }
+
+            if (Array.isArray(waste_updates) && waste_updates.length > 0) {
+                for (const u of waste_updates) {
+                    if (!u.woppw_id || u.bom_id == null) continue;
+                    const upd = await client.query(
+                        `UPDATE weight_of_pro_packaging_waste_questions
+                         SET bom_id = $2, material_number = COALESCE($3, material_number), component_name = COALESCE($4, component_name)
+                         WHERE woppw_id = $1 AND stoie_id = ANY($5::text[])
+                         RETURNING woppw_id`,
+                        [u.woppw_id, u.bom_id, u.material_number ?? null, u.component_name ?? null, stoieIds]
+                    );
+                    if (upd.rowCount) wasteUpdated += upd.rowCount;
+                }
+            }
+
+            await client.query('COMMIT');
+
+            return res.send(
+                generateResponse(
+                    true,
+                    'Bom IDs patched on transport and waste rows',
+                    200,
+                    { bom_pcf_id, transport_updated: transportUpdated, waste_updated: wasteUpdated }
+                )
+            );
+        } catch (error: any) {
+            await client.query('ROLLBACK');
+            console.error(error);
+            return res.send(
+                generateResponse(false, error.message, 400, null)
+            );
         }
     });
 }
