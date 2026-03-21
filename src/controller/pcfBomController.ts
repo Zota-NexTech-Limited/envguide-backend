@@ -3087,7 +3087,7 @@ export async function pcfCalculate(req: any, res: any) {
                         JOIN supplier_general_info_questions sgiq
                             ON stoie.sgiq_id = sgiq.sgiq_id
                         WHERE sgiq.bom_pcf_id = $1
-                            AND (rm.bom_id = $2 OR rm.bom_id IS NULL)
+                            AND rm.bom_id = $2
                             AND rm.own_emission_id IS NULL;
                     `;
                     fetchQ52SupResult = await client.query(fetchQ52, [bom_pcf_id, BomData.id]);
@@ -4710,9 +4710,15 @@ export async function pcfCalculate(req: any, res: any) {
 
                         if (ef_box_waste_B45 !== null) emission_factor_box_waste_treatment_kg_CO2e_kg = ef_box_waste_B45;
                         if (ef_packaging_waste_B47 !== null) emission_factor_packaging_waste_treatment_kg_CO2e_kg = ef_packaging_waste_B47;
-                        if (ef_packaging_waste_B47 === null) await tryResolvePackagingWasteEfFromPackagingTable();
+                        // Do NOT use packaging production EF (e.g. 2.1) as waste-treatment B47 when Q68 rows exist — it is wrong for Excel waste disposal.
+                        if (ef_packaging_waste_B47 === null) {
+                            console.warn(
+                                'WARNING: Q68 rows exist but packaging-waste treatment EF (B47) could not be resolved from waste setup. ' +
+                                    'Add a paper/cardboard (or second) waste row with correct treatment, or fix bom_id on Q68 rows. Not using packaging material EF as fallback.'
+                            );
+                        }
                     } else {
-                        // If no Q68 rows exist, fall back to packaging EF table for B47.
+                        // If no Q68 rows exist, fall back to packaging EF table for B47 (legacy questionnaires only).
                         await tryResolvePackagingWasteEfFromPackagingTable();
                     }
 
