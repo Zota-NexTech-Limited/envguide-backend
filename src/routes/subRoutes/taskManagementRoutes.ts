@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/taskManagementController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/taskManagementController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.get('/api/task-management/get-pcf-dropdown', authService.authenticate, Controller.getPCFListDropDown);

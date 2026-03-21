@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/ownEmissionController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/ownEmissionController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.post('/api/own-emission/add', authService.authenticate, Controller.addOwnEmission);

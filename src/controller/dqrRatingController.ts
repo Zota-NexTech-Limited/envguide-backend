@@ -1,7 +1,7 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
-import { generateResponse } from '../util/genRes';
-import { createDqrRatingService, getSupplierDqrDetailsService, updateDqrRatingService } from "../services/dqrRatingService";
+import { generateResponse } from '../util/genRes.js';
+import { createDqrRatingService, getSupplierDqrDetailsService, updateDqrRatingService } from "../services/dqrRatingService.js";
 
 const ALLOWED_TYPES = [
     "dqr_raw_material_product_rating",

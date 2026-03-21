@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/ecoinventEmissionFactorDataSetupController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/ecoinventEmissionFactorDataSetupController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 // Materials Emission Factor

@@ -433,12 +433,24 @@ async function updateScopeThree(client: any, d: any) {
         ]
     );
 
+    // Delete existing Q52 raw materials for this scope (stoie_id) per bom_id before inserting new set.
+    // This prevents duplicates and wrong material associations when re-submitting (e.g. from Postman).
+    if (Array.isArray(d.raw_materials_used_in_component_manufacturing_questions) && d.raw_materials_used_in_component_manufacturing_questions.length > 0) {
+        const distinctBomIds = [...new Set(d.raw_materials_used_in_component_manufacturing_questions.map((r: any) => r.bom_id).filter(Boolean))];
+        for (const bomId of distinctBomIds) {
+            await client.query(
+                `DELETE FROM raw_materials_used_in_component_manufacturing_questions WHERE bom_id = $1 AND stoie_id = $2`,
+                [bomId, d.stoie_id]
+            );
+        }
+    }
     await updateByArray(
         client,
         'raw_materials_used_in_component_manufacturing_questions',
         'rmuicm_id',
         d.raw_materials_used_in_component_manufacturing_questions,
-        ['material_name', 'percentage', 'bom_id', 'material_number']
+        ['material_name', 'percentage', 'bom_id', 'material_number'],
+        { stoie_id: d.stoie_id }
     );
 
     await updateByArray(

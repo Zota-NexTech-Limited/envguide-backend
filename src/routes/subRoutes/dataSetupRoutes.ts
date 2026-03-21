@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/dataSetupController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/dataSetupController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 

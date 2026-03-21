@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/productController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/productController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.post('/api/product/add', authService.authenticate, Controller.createProduct);

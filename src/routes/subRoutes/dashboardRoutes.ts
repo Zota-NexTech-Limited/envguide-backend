@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/dashboardController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/dashboardController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.get('/api/dashboard/clients-dropdown', authService.authenticate, Controller.getClients);

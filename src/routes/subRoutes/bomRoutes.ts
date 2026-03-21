@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/pcfBomController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/pcfBomController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 // Routes.post('/api/pcf-bom/add', authService.authenticate, Controller.createBOMWithDetails);

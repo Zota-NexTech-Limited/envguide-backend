@@ -1,16 +1,16 @@
 
 import express from "express";
-import { createTables } from './models/model'
+import { createTables } from './models/model.js'
 import * as dotenv from 'dotenv';
 dotenv.config();
 import cors from 'cors'
 import bodyParser from 'body-parser';
-import { routes } from './routes/routes';
-import { mirgation } from "./models/migrationbatch";
+import { routes } from './routes/routes.js';
+import { mirgation } from "./models/migrationbatch.js";
 
 const app = express();
 import axios from 'axios';
-import { generateResponse } from "./util/genRes";
+import { generateResponse } from "./util/genRes.js";
 import { Server } from 'socket.io';
 import { createServer } from 'http';
 import os from 'os';

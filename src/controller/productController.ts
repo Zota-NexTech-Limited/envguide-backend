@@ -1,6 +1,7 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
-import { generateResponse } from '../util/genRes';
+import { generateResponse } from '../util/genRes.js';
+import { add, roundDp, truncDp } from '../util/decimalMath.js';
 
 export async function createProduct(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -7280,10 +7281,19 @@ export async function pcfCalculate(req: any, res: any) {
 
                     // Sixth Phase Start 
 
-                    //=======> Emission Factor Box waste treatment (kg CO₂e/kg) 
+                    //=======> Waste disposal (Excel B48) from Q68:
+                    // B48 = (B44 × B45) + (B46 × B47)
+                    // - B45/B47 MUST come from waste_material_treatment_type_emission_factor (NOT packaging EF table).
 
-                    let emission_factor_box_waste_treatment_kg_CO2e_kg = 0.01;
-                    let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0.01;
+                    let emission_factor_box_waste_treatment_kg_CO2e_kg = 0.01; // B45
+                    let emission_factor_packaging_waste_treatment_kg_CO2e_kg = 0.01; // B47
+
+                    const getRegionalEf = (row: any): number => {
+                        const loc = (fetchQ13LocationSupResult.rows[0]?.location || "").trim().toLowerCase();
+                        if (loc === "india") return parseFloat(row?.ef_india_region) || 0.01;
+                        if (loc === "europe") return parseFloat(row?.ef_eu_region) || 0.01;
+                        return parseFloat(row?.ef_global_region) || 0.01;
+                    };
 
                     const fetchQ40WasteQualityControl = `
                                 SELECT product_id,material_number,waste_type,
@@ -7319,22 +7329,14 @@ export async function pcfCalculate(req: any, res: any) {
                              AND wtt.name = $4;
                         `;
 
-                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ40Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ40Data.unit, fetchQ40Data.treatment_type]);
+                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ40Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per kg", fetchQ40Data.treatment_type]);
 
                         if (fetchPackagingEmisResult.rows[0]) {
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                            // Q40 can contain multiple records; keep the first metal-like EF as B45.
+                            const wt = String(fetchQ40Data.waste_type || "").toLowerCase();
+                            if (wt.includes("metal") || wt.includes("steel") || wt.includes("al")) {
+                                emission_factor_box_waste_treatment_kg_CO2e_kg = getRegionalEf(fetchPackagingEmisResult.rows[0]);
                             }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
-                            }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                emission_factor_box_waste_treatment_kg_CO2e_kg += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
-                            }
-
                         }
 
                         console.log("emission_factor_box_waste_treatment_kg_CO2e_kg:", emission_factor_box_waste_treatment_kg_CO2e_kg);
@@ -7343,7 +7345,7 @@ export async function pcfCalculate(req: any, res: any) {
                     }
                     //=======> END
 
-                    // ====>Emission Factor Packaging waste treatment (kg CO₂e/kWh) 
+                    // ====> Emission Factor Packaging waste treatment (B47) from Q68 (waste EF table)
 
                     const fetchQ68PackagingWasteControl = `
                                 SELECT product_id,material_number,waste_type,
@@ -7356,66 +7358,52 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetchQ68PackagingWasteControlResult = await client.query(fetchQ68PackagingWasteControl, [BomData.product_id, BomData.bom_pcf_id]);
 
                     for (let fetchQ68Data of fetchQ68PackagingWasteControlResult.rows) {
-
-                        // let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0;
-
                         const fetchWasteTreatmentEmissionFactor = `
                                 SELECT
-                                    pmttef.material_type,
-                                    pmttef.ptt_id,
-                                    pmttef.ef_eu_region,
-                                    pmttef.ef_india_region,
-                                    pmttef.ef_global_region,
-                                    pmttef.year,
-                                    pmttef.unit,
-                                    pmttef.iso_country_code
-                                FROM packaging_material_treatment_type_emission_factor AS pmttef
-                                JOIN packaging_treatment_type AS ptt
-                                ON pmttef.ptt_id = ptt.ptt_id
+                                    wmttef.waste_type,
+                                    wmttef.wtt_id,
+                                    wmttef.ef_eu_region,
+                                    wmttef.ef_india_region,
+                                    wmttef.ef_global_region,
+                                    wmttef.year,
+                                    wmttef.unit,
+                                    wmttef.iso_country_code
+                                FROM waste_material_treatment_type_emission_factor AS wmttef
+                                JOIN waste_treatment_type AS wtt
+                                ON wmttef.wtt_id = wtt.wtt_id
                             WHERE
-                             pmttef.material_type = $1
-                             AND pmttef.year = $2
-                             AND pmttef.unit = $3
-                             AND ptt.name = $4;
+                             LOWER(wmttef.waste_type)=LOWER($1)
+                             AND wmttef.year = $2
+                             AND wmttef.unit = $3
+                             AND LOWER(wtt.name)=LOWER($4);
                         `;
 
-                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ68Data.unit, fetchQ68Data.treatment_type]);
-
-                        console.log(fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, fetchQ68Data.unit, fetchQ68Data.treatment_type);
+                        const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [fetchQ68Data.waste_type, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per kg", fetchQ68Data.treatment_type]);
+                        const wt = String(fetchQ68Data.waste_type || "").toLowerCase();
 
                         if (fetchPackagingEmisResult.rows[0]) {
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "india") {
-                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region)
+                            const efResolved = getRegionalEf(fetchPackagingEmisResult.rows[0]);
+                            if (wt.includes("metal") || wt.includes("steel") || wt.includes("al")) {
+                                emission_factor_box_waste_treatment_kg_CO2e_kg = efResolved;
                             }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "europe") {
-                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region)
+                            if (wt.includes("paper") || wt.includes("cardboard")) {
+                                emission_factor_packaging_waste_treatment_kg_CO2e_kg = efResolved;
                             }
-
-                            if (fetchQ13LocationSupResult.rows[0].location.toLowerCase() === "global") {
-                                emission_factor_packaging_waste_treatment_kg_COe2_kWh += parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region)
-                            }
-
                         }
 
-                        console.log("emission_factor_packaging_waste_treatment_kg_COe2_kWh:", emission_factor_packaging_waste_treatment_kg_COe2_kWh);
-
-
-
-
+                        console.log("Q68 row EF resolved:", fetchQ68Data.waste_type, "=>", fetchPackagingEmisResult.rows[0] ? getRegionalEf(fetchPackagingEmisResult.rows[0]) : "NO EF");
                     }
 
 
                     let waste_disposal_emissions_kg_CO2e = 0;
 
                     const weightInKg68 = WeightInKgResult.rows[0].ts_weight_kg / 1000;
+                    const boxWasteKg_B44 = ((weightInKg68 / 100) * 10);
+                    const packagingWasteKg_B46 = (typeof packaginWeight === 'number' && packaginWeight > 0) ? (packaginWeight * 0.1) : 0;
 
-                    const weightOfTenPercent = ((weightInKg68 / 100) * 10);
+                    console.log("Waste weights (B44, B46): boxWasteKg_B44=", boxWasteKg_B44, "packagingWasteKg_B46=", packagingWasteKg_B46);
 
-                    console.log("weightInKg68:", weightInKg68, "weightOfTenPercent:", weightOfTenPercent);
-
-                    waste_disposal_emissions_kg_CO2e = ((weightOfTenPercent * emission_factor_box_waste_treatment_kg_CO2e_kg) + (emission_factor_packaging_waste_treatment_kg_COe2_kWh));
+                    waste_disposal_emissions_kg_CO2e = (boxWasteKg_B44 * emission_factor_box_waste_treatment_kg_CO2e_kg) + (packagingWasteKg_B46 * emission_factor_packaging_waste_treatment_kg_CO2e_kg);
                     console.log("waste_disposal_emissions_kg_CO2e:", waste_disposal_emissions_kg_CO2e);
                     // ====> END
 
@@ -7437,9 +7425,9 @@ export async function pcfCalculate(req: any, res: any) {
                     await client.query(query, [
                         ulid(),
                         BomData.product_id,
-                        weightOfTenPercent,
+                        boxWasteKg_B44,
                         emission_factor_box_waste_treatment_kg_CO2e_kg,
-                        emission_factor_packaging_waste_treatment_kg_COe2_kWh,
+                        emission_factor_packaging_waste_treatment_kg_CO2e_kg,
                         bom_pcf_id
                     ]);
 
@@ -7459,15 +7447,31 @@ export async function pcfCalculate(req: any, res: any) {
                         RETURNING *;
                     `;
 
+                    const out_material_value = truncDp(Raw_Material_emissions, 4);
+                    const out_production_value = roundDp(Manufacturing_Emissions_kg_CO2e, 4);
+                    const out_packaging_value = roundDp(Packaging_Carbon_Emissions_kg_CO2e_or_box, 4);
+                    const out_logistic_value = roundDp(Total_Transportation_emissions_per_unit_kg_CO2E, 4);
+                    const out_waste_value = roundDp(waste_disposal_emissions_kg_CO2e, 4);
+                    const out_total_pcf_value = roundDp(
+                        add(
+                            out_material_value,
+                            out_production_value,
+                            out_packaging_value,
+                            out_logistic_value,
+                            out_waste_value
+                        ),
+                        4
+                    );
+
                     await client.query(queryLastPhase, [
                         ulid(),
                         BomData.product_id,
-                        Raw_Material_emissions,
-                        Manufacturing_Emissions_kg_CO2e,
-                        Packaging_Carbon_Emissions_kg_CO2e_or_box,
-                        Total_Transportation_emissions_per_unit_kg_CO2E,
-                        waste_disposal_emissions_kg_CO2e,
-                        Total_Housing_Component_Emissions,
+                        out_material_value,
+                        out_production_value,
+                        out_packaging_value,
+                        out_logistic_value,
+                        out_waste_value,
+                        out_total_pcf_value,
                         bom_pcf_id
                     ]);
 
@@ -7476,12 +7480,12 @@ export async function pcfCalculate(req: any, res: any) {
                     overall_pcf += Total_Housing_Component_Emissions;
                     TotalBomDetails.push({
                         product_id: BomData.product_id,
-                        material_value: Raw_Material_emissions,
-                        production_value: Manufacturing_Emissions_kg_CO2e,
-                        packaging_value: Packaging_Carbon_Emissions_kg_CO2e_or_box,
-                        logistic_value: Total_Transportation_emissions_per_unit_kg_CO2E,
-                        waste_value: waste_disposal_emissions_kg_CO2e,
-                        total_pcf_value: Total_Housing_Component_Emissions
+                        material_value: out_material_value,
+                        production_value: out_production_value,
+                        packaging_value: out_packaging_value,
+                        logistic_value: out_logistic_value,
+                        waste_value: out_waste_value,
+                        total_pcf_value: out_total_pcf_value
                     });
 
                 }
