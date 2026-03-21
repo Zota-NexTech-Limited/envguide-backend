@@ -2,6 +2,7 @@ import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes.js';
 import { updateSupplierSustainabilityService } from '../services/supplierInputQuetionService.js';
+import { assertScopeThreeBomRowsValid } from '../services/scopeThreeBomValidation.js';
 
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -757,6 +758,13 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const allDQRConfigs: any[] = [];
 
             scope_two_indirect_emissions_questions.sup_id = sup_id;
+
+            await assertScopeThreeBomRowsValid(
+                client,
+                bom_pcf_id,
+                sup_id,
+                scope_three_other_indirect_emissions_questions
+            );
 
             // ============================================
             // STEP 1: Insert General Info (REQUIRED FIRST)
@@ -3716,6 +3724,20 @@ export async function updateSupplierSustainabilityData(req: any, res: any) {
 
             if (!body?.supplier_general_info_questions?.sgiq_id) {
                 throw new Error('sgiq_id is required');
+            }
+
+            const sgiq_id = body.supplier_general_info_questions.sgiq_id;
+            const giRes = await client.query(
+                `SELECT bom_pcf_id, sup_id FROM supplier_general_info_questions WHERE sgiq_id = $1`,
+                [sgiq_id]
+            );
+            if (giRes.rows.length && body.scope_three_other_indirect_emissions_questions) {
+                await assertScopeThreeBomRowsValid(
+                    client,
+                    giRes.rows[0].bom_pcf_id,
+                    giRes.rows[0].sup_id,
+                    body.scope_three_other_indirect_emissions_questions
+                );
             }
 
             await updateSupplierSustainabilityService(client, body);

@@ -1,5 +1,5 @@
-import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
+import { withClient } from '../util/database.js';
 import { generateResponse } from '../util/genRes.js';
 import { bomService } from "../services/pcfBomService.js";
 import { getProductByCode } from './productController.js';
@@ -3104,33 +3104,10 @@ export async function pcfCalculate(req: any, res: any) {
                 });
                 console.log("=== END Q52 MATERIALS ===");
 
-                // ====> Deduplicate materials by material_name (case-insensitive)
-                // This prevents processing duplicate materials that cause incorrect totals
-                const processedMaterials = new Map<string, any>();
-                const deduplicatedMaterials: any[] = [];
+                // Process every Q52 row for this bom_id (no dedupe by material_name — duplicate names
+                // can be valid distinct rows; collapsing them skewed composition % / emissions).
 
-                for (const material of fetchQ52SupResult.rows) {
-                    const materialNameKey = (material.material_name || '').trim().toLowerCase();
-                    
-                    if (!processedMaterials.has(materialNameKey)) {
-                        // First occurrence of this material - add it
-                        processedMaterials.set(materialNameKey, material);
-                        deduplicatedMaterials.push(material);
-                        console.log(`✅ Processing material: ${material.material_name} (${material.percentage}%)`);
-                    } else {
-                        // Duplicate material - skip it
-                        const existing = processedMaterials.get(materialNameKey);
-                        console.log(`⚠️  Skipping duplicate material: ${material.material_name} (${material.percentage}%) - Already processed: ${existing?.material_name} (${existing?.percentage}%)`);
-                    }
-                }
-
-                console.log(`=== DEDUPLICATION SUMMARY ===`);
-                console.log(`Original materials: ${fetchQ52SupResult.rows.length}`);
-                console.log(`After deduplication: ${deduplicatedMaterials.length}`);
-                console.log(`Duplicates removed: ${fetchQ52SupResult.rows.length - deduplicatedMaterials.length}`);
-                console.log(`=== END DEDUPLICATION ===`);
-
-                for (let ProductData of deduplicatedMaterials) {
+                for (let ProductData of fetchQ52SupResult.rows) {
                     const fetchQ13 = `
                 SELECT bom_id,
                 material_number,product_name,location
@@ -3258,8 +3235,6 @@ export async function pcfCalculate(req: any, res: any) {
                 console.log("TOTAL RAW MATERIAL EMISSIONS SUMMARY");
                 console.log("========================================");
                 console.log("Total Raw Material Emissions (kg CO₂e):", Raw_Material_emissions);
-                console.log("Expected from Excel: 5.347 kg CO₂e");
-                console.log("Difference:", (Raw_Material_emissions - 5.347).toFixed(4), "kg CO₂e");
                 console.log("========================================");
 
                 Total_Housing_Component_Emissions += Raw_Material_emissions;

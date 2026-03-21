@@ -2,6 +2,7 @@ import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes.js';
 import { add, roundDp, truncDp } from '../util/decimalMath.js';
+import { assertScopeThreeBomRowsValid } from '../services/scopeThreeBomValidation.js';
 
 export async function createProduct(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -4163,6 +4164,13 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             if (supplier_product_questions) {
                 insertPromises.push(insertSupplierProduct(client, supplier_product_questions, sgiq_id, product_bom_pcf_id, own_emission_id));
             }
+
+            await assertScopeThreeBomRowsValid(
+                client,
+                bom_pcf_id,
+                supplier_general_info_questions?.sup_id ?? null,
+                scope_three_other_indirect_emissions_questions
+            );
 
             // SCOPE ONE
             if (scope_one_direct_emissions_questions) {
