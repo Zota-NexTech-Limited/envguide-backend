@@ -1,11 +1,11 @@
 
-import { generateResponse } from '../util/genRes';
-import { updateTaskService } from "../services/taskManagementService";
-import { withClient } from '../util/database';
+import { generateResponse } from '../util/genRes.js';
+import { updateTaskService } from "../services/taskManagementService.js";
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
-import { sendSupplierTaskEmail } from "../services/taskEmail.service";
+import { sendSupplierTaskEmail } from "../services/taskEmail.service.js";
 import pLimit from "p-limit";
-import { sendMail } from "../util/mailTransporter";
+import { sendMail } from "../util/mailTransporter.js";
 
 // need to confirm below update api needed or not
 export async function updateTask(req: any, res: any) {

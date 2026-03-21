@@ -1,18 +1,18 @@
 
 import { ulid } from 'ulid';
-import { generateResponse } from '../util/genRes';
-import * as userService from '../services/userService';
-import * as mfaService from "../services/mfaService";
+import { generateResponse } from '../util/genRes.js';
+import * as userService from '../services/userService.js';
+import * as mfaService from "../services/mfaService.js";
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import * as dotenv from 'dotenv';
-import { getLocalIP } from '../server';
-import { getModuleSetting } from './heplerController';
+import { getLocalIP } from '../server.js';
+import { getModuleSetting } from './heplerController.js';
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 
 dotenv.config();
-import { sendMail } from "../util/mailTransporter";
+import { sendMail } from "../util/mailTransporter.js";
 
 
 export async function signup(req: any, res: any) {
@@ -83,67 +83,67 @@ function generateAccessToken(data: any) {
 }
 
 export async function login(req: any, res: any) {
-    const { user_email, password } = req.body;
-    console.log(password);
-    const findUser = await userService.findUserByMultiple(user_email)
-
-    const localIP = getLocalIP();
-
-    const is_auto_batch = await getModuleSetting()
-    if (findUser.rows.length > 0) {
-        const user_password = findUser.rows[0].user_password
-        console.log(user_password)
-        const passwordMatch = await bcrypt.compare(password, user_password);
-
-        if (!passwordMatch) {
-            return res.status(401).json({ success: false, message: "Wrong password" });
-        }
-
-        // Check if MFA secret already exists
-        const existingSecret = await mfaService.getSecretByUserId(findUser.rows[0].user_id);
-        let secretBase32 = "";
-        let qrCodeUrl: string | null = null;
-
-        if (!existingSecret) {
-            // Generate new MFA secret
-            const secret = speakeasy.generateSecret({
-                name: `Enviguide portal (${user_email})`,
-            });
-
-            if (!secret.otpauth_url) {
-                return res.status(500).json({ success: false, message: "Failed to generate OTP URL" });
-            }
-
-            // Save secret in DB
-            await mfaService.saveMFASecret({
-                user_id: findUser.rows[0].user_id,
-                user_email,
-                mfa_secret: secret.base32
-            });
-
-            secretBase32 = secret.base32;
-            qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
-        } else {
-            // If already exists, just send manual code (optional)
-            secretBase32 = existingSecret.mfa_secret;
-        }
+    try {
+        const { user_email, password } = req.body;
+        console.log(password);
+        const findUser = await userService.findUserByMultiple(user_email);
 
         const localIP = getLocalIP();
         const is_auto_batch = await getModuleSetting();
 
-        return res.status(200).json({
-            success: true,
-            message: "MFA setup initiated. Scan QR or use manual code.",
-            qrCode: qrCodeUrl || null,
-            manualCode: secretBase32,
-            localIP,
-            is_auto_batch
-        });
+        if (findUser.rows.length > 0) {
+            const user_password = findUser.rows[0].user_password;
+            console.log(user_password);
+            const passwordMatch = await bcrypt.compare(password, user_password);
 
-    } else {
-        return res.status(404).json({ success: false, message: 'user not found' })
+            if (!passwordMatch) {
+                return res.status(401).json({ success: false, message: "Wrong password" });
+            }
+
+            // Check if MFA secret already exists
+            const existingSecret = await mfaService.getSecretByUserId(findUser.rows[0].user_id);
+            let secretBase32 = "";
+            let qrCodeUrl: string | null = null;
+
+            if (!existingSecret) {
+                // Generate new MFA secret
+                const secret = speakeasy.generateSecret({
+                    name: `Enviguide portal (${user_email})`,
+                });
+
+                if (!secret.otpauth_url) {
+                    return res.status(500).json({ success: false, message: "Failed to generate OTP URL" });
+                }
+
+                // Save secret in DB
+                await mfaService.saveMFASecret({
+                    user_id: findUser.rows[0].user_id,
+                    user_email,
+                    mfa_secret: secret.base32
+                });
+
+                secretBase32 = secret.base32;
+                qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+            } else {
+                // If already exists, just send manual code (optional)
+                secretBase32 = existingSecret.mfa_secret;
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "MFA setup initiated. Scan QR or use manual code.",
+                qrCode: qrCodeUrl || null,
+                manualCode: secretBase32,
+                localIP,
+                is_auto_batch
+            });
+        } else {
+            return res.status(404).json({ success: false, message: 'user not found' });
+        }
+    } catch (err) {
+        console.error('Login error:', err);
+        return res.status(500).json({ success: false, message: "Network error occurred" });
     }
-
 }
 
 export async function verifyMFA(req: any, res: any) {
@@ -1206,7 +1206,7 @@ export async function deleteUserById(req: any, res: any) {
 
 
 
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 
 // Manufacturer onboarding form
 async function generateManufacturerCode(client: any) {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as Controller from '../../controller/reportsController';
-import * as  authService from '../../middleware/authService'
+import * as Controller from '../../controller/reportsController.js';
+import * as  authService from '../../middleware/authService.js'
 const Routes = Router();
 
 Routes.get('/api/report/product-foot-print-list', authService.authenticate, Controller.getProductFootPrint);

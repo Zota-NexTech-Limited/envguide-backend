@@ -1,6 +1,6 @@
 // import client from "../util/database";
 
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 
 export async function createTables() {
     const createTableQueries = [

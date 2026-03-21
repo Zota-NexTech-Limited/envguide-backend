@@ -1,10 +1,10 @@
 import cron from "node-cron";
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import nodemailer from "nodemailer";
 import { ulid } from "ulid";
-import { columnConfig } from "../helper/columnConfig ";
+import { columnConfig } from "../helper/columnConfig .js";
 import PDFDocument from 'pdfkit';
-import { sendMail } from "../util/mailTransporter";
+import { sendMail } from "../util/mailTransporter.js";
 
 
 const operatorMap: Record<string, string> = {
@@ -140,7 +140,7 @@ async function generateInvoiceSqlPDF(
 
           for (const table of tables) {
             if (columnConfig[table]) {
-              const colObj = columnConfig[table].find(c => c.value === column);
+              const colObj = columnConfig[table].find((c: { value: string; label: string }) => c.value === column);
               if (colObj) return colObj.label;
             }
           }
@@ -559,7 +559,7 @@ export async function scheduleNotifications() {
       // Check if label exists in columnConfig
       for (const table of tables) {
         if (columnConfig[table]) {
-          const colObj = columnConfig[table].find(c => c.value === column);
+          const colObj = columnConfig[table].find((c: { value: string; label: string }) => c.value === column);
           if (colObj) return colObj.label;
         }
       }
@@ -1300,7 +1300,7 @@ export async function sendNotificationImmediate(ntf_id: string) {
       // Check if label exists in columnConfig
       for (const table of tables) {
         if (columnConfig[table]) {
-          const colObj = columnConfig[table].find(c => c.value === column);
+          const colObj = columnConfig[table].find((c: { value: string; label: string }) => c.value === column);
           if (colObj) return colObj.label;
         }
       }
@@ -1499,7 +1499,7 @@ export async function sendNotificationSqlQueryImmediate(ntf_id: string) {
       }
       for (const table of tables) {
         if (columnConfig[table]) {
-          const colObj = columnConfig[table].find(c => c.value === column);
+          const colObj = columnConfig[table].find((c: { value: string; label: string }) => c.value === column);
           if (colObj) return colObj.label;
         }
       }
@@ -1792,7 +1792,7 @@ export async function scheduleSqlQueryNotifications() {
       }
       for (const table of tables) {
         if (columnConfig[table]) {
-          const colObj = columnConfig[table].find(c => c.value === column);
+          const colObj = columnConfig[table].find((c: { value: string; label: string }) => c.value === column);
           if (colObj) return colObj.label;
         }
       }

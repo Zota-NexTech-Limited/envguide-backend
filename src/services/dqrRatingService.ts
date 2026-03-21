@@ -1,4 +1,4 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
 
 export async function createDqrRatingService(type: string, records: any[], created_by: string, code: string, bom_pcf_id: string) {

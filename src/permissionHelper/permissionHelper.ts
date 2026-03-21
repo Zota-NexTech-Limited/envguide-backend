@@ -1,4 +1,4 @@
-import * as userService from '../services/userService'
+import * as userService from '../services/userService.js'
 
 export async function permissionHelper(module:any,req_type:any,user_id:any){
 

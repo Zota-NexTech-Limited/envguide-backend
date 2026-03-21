@@ -1,4 +1,4 @@
-import { withClient } from '../util/database';
+import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
 
 export async function createDepartment(departmentData: any) {

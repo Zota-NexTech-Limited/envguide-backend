@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as userController from '../../controller/userController';
-import * as  authService from '../../middleware/authService'
+import * as userController from '../../controller/userController.js';
+import * as  authService from '../../middleware/authService.js'
 const userRoutes = Router();
 
 userRoutes.post('/api/user/create', userController.signup)

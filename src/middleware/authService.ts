@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
-import * as authService from '../services/userService'
-import { generateResponse } from '../util/genRes';
+import * as authService from '../services/userService.js'
+import { generateResponse } from '../util/genRes.js';
 import * as dotenv from 'dotenv';
 dotenv.config();
 export async function authenticate(req: any, res: any, next: any) {

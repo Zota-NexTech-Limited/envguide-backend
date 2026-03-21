@@ -1,6 +1,6 @@
 import express from "express";
-import * as notificationControler from "../../controller/notificationController";
-import * as  authService from '../../middleware/authService'
+import * as notificationControler from "../../controller/notificationController.js";
+import * as  authService from '../../middleware/authService.js'
 const router = express.Router();
 
 router.post("/api/notification/add", authService.authenticate, notificationControler.notificationCreate);
