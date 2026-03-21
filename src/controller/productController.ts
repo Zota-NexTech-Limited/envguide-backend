@@ -1,13 +1,10 @@
 import { withClient } from '../util/database.js';
 import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes.js';
-import { add, roundDp, truncDp } from '../util/decimalMath.js';
+import { D, add, roundDp, truncDp } from '../util/decimalMath.js';
 import { assertScopeThreeBomRowsValid } from '../services/scopeThreeBomValidation.js';
 import { convertToBaseUnit } from '../util/unitConversion.js';
-import {
-    findWasteTreatmentEmissionFactorRow,
-    findPaperCardboardRecyclingEfFallback
-} from '../services/wasteTreatmentEmissionFactor.js';
+import { findWasteTreatmentEmissionFactorRow } from '../services/wasteTreatmentEmissionFactor.js';
 
 export async function createProduct(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -7376,110 +7373,87 @@ export async function pcfCalculate(req: any, res: any) {
                             ? packaginWeight
                             : parseFloat(String(packaginWeight || 0)) || 0;
 
-                    let q68MetalWeightKg = 0;
-                    let q68PaperWeightKg = 0;
-                    for (const r of fetchQ68PackagingWasteControlResult.rows || []) {
-                        const wt = String(r.waste_type || "").toLowerCase();
-                        const wkg = await convertToBaseUnit(
-                            client,
-                            r.waste_weight,
-                            r.unit || "Kilograms (kg)",
-                            "material"
-                        );
-                        if (wt.includes("metal") || wt.includes("steel") || wt.includes("al")) q68MetalWeightKg += wkg;
-                        if (wt.includes("paper") || wt.includes("cardboard")) q68PaperWeightKg += wkg;
-                    }
-
-                    let boxWasteKg_B44 = (weightInKg68 / 100) * 10;
-                    if (q68MetalWeightKg > 0) boxWasteKg_B44 = q68MetalWeightKg;
-
-                    let packagingWasteKg_B46 = packKgRaw > 0 ? packKgRaw * 0.1 : 0;
-                    if (q68PaperWeightKg > 0) packagingWasteKg_B46 = q68PaperWeightKg;
-
                     const wasteEmissionFactorUnit = "KgCo2e/per kg";
-                    let ef_box_waste_B45: number | null = null;
-                    let ef_packaging_waste_B47: number | null = null;
+                    const reportingYear = fetchSGIQIDSupResult.rows[0].annual_reporting_period;
 
-                    for (let fetchQ68Data of fetchQ68PackagingWasteControlResult.rows) {
-                        const efRow = await findWasteTreatmentEmissionFactorRow(
-                            client,
-                            fetchQ68Data.waste_type,
-                            fetchQ68Data.treatment_type,
-                            fetchSGIQIDSupResult.rows[0].annual_reporting_period,
-                            wasteEmissionFactorUnit
-                        );
-                        const wt = String(fetchQ68Data.waste_type || "").toLowerCase();
+                    let boxWasteKg_B44 = 0;
+                    let packagingWasteKg_B46 = 0;
+                    let waste_disposal_emissions_kg_CO2e = 0;
 
-                        if (efRow) {
-                            const efResolved = getRegionalEf(efRow);
+                    if (fetchQ68PackagingWasteControlResult.rows.length > 0) {
+                        type Q68Resolved = { wKg: number; ef: number };
+                        const resolvedRows: Q68Resolved[] = [];
+                        let sumEmissions = D(0);
+
+                        for (const fetchQ68Data of fetchQ68PackagingWasteControlResult.rows) {
                             const wasteWeightInKg = await convertToBaseUnit(
                                 client,
                                 fetchQ68Data.waste_weight,
                                 fetchQ68Data.unit || "Kilograms (kg)",
                                 "material"
                             );
-                            const isMetalLike = wt.includes("metal") || wt.includes("steel") || wt.includes("al");
-                            const isPaperLike = wt.includes("paper") || wt.includes("cardboard");
-                            const distToB44 = Math.abs((boxWasteKg_B44 || 0) - wasteWeightInKg);
-                            const distToB46 = Math.abs((packagingWasteKg_B46 || 0) - wasteWeightInKg);
-                            const preferB45ByWeight = distToB44 <= distToB46;
 
-                            if (isMetalLike) {
-                                if (ef_box_waste_B45 === null) {
-                                    ef_box_waste_B45 = efResolved;
-                                } else if (ef_packaging_waste_B47 === null) {
-                                    ef_packaging_waste_B47 = efResolved;
-                                }
-                            } else if (isPaperLike) {
-                                if (ef_packaging_waste_B47 === null) {
-                                    ef_packaging_waste_B47 = efResolved;
-                                } else if (ef_box_waste_B45 === null) {
-                                    ef_box_waste_B45 = efResolved;
-                                }
-                            } else {
-                                const wantB45 = preferB45ByWeight;
-                                if (wantB45) {
-                                    if (ef_box_waste_B45 === null) {
-                                        ef_box_waste_B45 = efResolved;
-                                    } else if (ef_packaging_waste_B47 === null) {
-                                        ef_packaging_waste_B47 = efResolved;
-                                    }
-                                } else {
-                                    if (ef_packaging_waste_B47 === null) {
-                                        ef_packaging_waste_B47 = efResolved;
-                                    } else if (ef_box_waste_B45 === null) {
-                                        ef_box_waste_B45 = efResolved;
-                                    }
-                                }
+                            const efRow = await findWasteTreatmentEmissionFactorRow(
+                                client,
+                                fetchQ68Data.waste_type,
+                                fetchQ68Data.treatment_type,
+                                reportingYear,
+                                wasteEmissionFactorUnit
+                            );
+
+                            if (!efRow) {
+                                console.warn("WARNING: Q68 Waste EF not found — row skipped:", fetchQ68Data.waste_type, fetchQ68Data.treatment_type);
+                                console.log("Q68 row EF resolved:", fetchQ68Data.waste_type, "=> NO EF");
+                                continue;
                             }
+
+                            const efResolved = getRegionalEf(efRow);
+                            sumEmissions = sumEmissions.plus(D(wasteWeightInKg).mul(D(efResolved)));
+                            resolvedRows.push({ wKg: wasteWeightInKg, ef: efResolved });
+                            console.log(
+                                "Q68 row:",
+                                fetchQ68Data.waste_type,
+                                "/",
+                                fetchQ68Data.treatment_type,
+                                "=>",
+                                wasteWeightInKg,
+                                "kg ×",
+                                efResolved
+                            );
                         }
 
-                        console.log("Q68 row EF resolved:", fetchQ68Data.waste_type, "=>", efRow ? getRegionalEf(efRow) : "NO EF");
-                    }
+                        waste_disposal_emissions_kg_CO2e = sumEmissions.toNumber();
 
-                    if (ef_box_waste_B45 !== null) emission_factor_box_waste_treatment_kg_CO2e_kg = ef_box_waste_B45;
-                    if (ef_packaging_waste_B47 !== null) emission_factor_packaging_waste_treatment_kg_CO2e_kg = ef_packaging_waste_B47;
-                    if (
-                        ef_packaging_waste_B47 === null &&
-                        q68PaperWeightKg > 0
-                    ) {
-                        const paperFb = await findPaperCardboardRecyclingEfFallback(
-                            client,
-                            fetchSGIQIDSupResult.rows[0].annual_reporting_period,
-                            wasteEmissionFactorUnit
-                        );
-                        if (paperFb) {
-                            emission_factor_packaging_waste_treatment_kg_CO2e_kg = getRegionalEf(paperFb);
-                            console.log("✅ B47 (client PCF): paper/cardboard + recycling waste EF fallback:", emission_factor_packaging_waste_treatment_kg_CO2e_kg);
+                        if (resolvedRows.length >= 1) {
+                            boxWasteKg_B44 = resolvedRows[0].wKg;
+                            emission_factor_box_waste_treatment_kg_CO2e_kg = resolvedRows[0].ef;
                         }
+                        if (resolvedRows.length >= 2) {
+                            let wRem = D(0);
+                            let emRem = D(0);
+                            for (let i = 1; i < resolvedRows.length; i++) {
+                                wRem = wRem.plus(D(resolvedRows[i].wKg));
+                                emRem = emRem.plus(D(resolvedRows[i].wKg).mul(D(resolvedRows[i].ef)));
+                            }
+                            packagingWasteKg_B46 = wRem.toNumber();
+                            emission_factor_packaging_waste_treatment_kg_CO2e_kg = wRem.gt(0)
+                                ? emRem.div(wRem).toNumber()
+                                : 0.01;
+                        } else {
+                            packagingWasteKg_B46 = 0;
+                            emission_factor_packaging_waste_treatment_kg_CO2e_kg = 0.01;
+                        }
+
+                        console.log("waste_disposal_emissions_kg_CO2e (Q68 per-row sum):", waste_disposal_emissions_kg_CO2e);
+                    } else {
+                        boxWasteKg_B44 = (weightInKg68 / 100) * 10;
+                        packagingWasteKg_B46 = packKgRaw > 0 ? packKgRaw * 0.1 : 0;
+                        waste_disposal_emissions_kg_CO2e =
+                            boxWasteKg_B44 * emission_factor_box_waste_treatment_kg_CO2e_kg +
+                            packagingWasteKg_B46 * emission_factor_packaging_waste_treatment_kg_CO2e_kg;
+                        console.log("Waste weights (legacy): boxWasteKg_B44=", boxWasteKg_B44, "packagingWasteKg_B46=", packagingWasteKg_B46);
+                        console.log("waste_disposal_emissions_kg_CO2e (legacy):", waste_disposal_emissions_kg_CO2e);
                     }
-
-                    let waste_disposal_emissions_kg_CO2e = 0;
-
-                    console.log("Waste weights (B44, B46): boxWasteKg_B44=", boxWasteKg_B44, "packagingWasteKg_B46=", packagingWasteKg_B46);
-
-                    waste_disposal_emissions_kg_CO2e = (boxWasteKg_B44 * emission_factor_box_waste_treatment_kg_CO2e_kg) + (packagingWasteKg_B46 * emission_factor_packaging_waste_treatment_kg_CO2e_kg);
-                    console.log("waste_disposal_emissions_kg_CO2e:", waste_disposal_emissions_kg_CO2e);
                     // ====> END
 
 
