@@ -51,9 +51,7 @@ const port = 8000;
 // createTables().then(result=>{
 //   console.log(result)
 // })
-mirgation().then(result => {
-    console.log(result, "dddd")
-})
+void mirgation().catch((err: unknown) => console.error("Migration failed:", err));
 
 
 export function getLocalIP(): string {
