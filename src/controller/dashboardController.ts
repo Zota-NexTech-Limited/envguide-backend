@@ -1,6 +1,7 @@
 import { withClient } from '../util/database.js';
 import { generateResponse } from '../util/genRes.js';
 
+//ch
 // Below code also working for product life cycle
 // interface ProductLifeCycleRow {
 //     product_code: string;
@@ -626,25 +627,25 @@ SELECT
     /* emission factor based on location */
     CASE
         WHEN psd.location = 'india'
-            THEN AVG(eef.ef_india_region::numeric)
+            THEN COALESCE(AVG(eef.ef_india_region::numeric), 0)
         WHEN psd.location = 'europe'
-            THEN AVG(eef.ef_eu_region::numeric)
+            THEN COALESCE(AVG(eef.ef_eu_region::numeric), 0)
         ELSE
-            AVG(eef.ef_global_region::numeric)
+            COALESCE(AVG(eef.ef_global_region::numeric), 0)
     END AS emission_value,
 
     /* total emission */
-    SUM(
+    COALESCE(SUM(
         pseq.quantity_consumed *
         CASE
             WHEN psd.location = 'india'
-                THEN eef.ef_india_region::numeric
+                THEN COALESCE(eef.ef_india_region::numeric, 0)
             WHEN psd.location = 'europe'
-                THEN eef.ef_eu_region::numeric
+                THEN COALESCE(eef.ef_eu_region::numeric, 0)
             ELSE
-                eef.ef_global_region::numeric
+                COALESCE(eef.ef_global_region::numeric, 0)
         END
-    ) AS total_emission_value
+    ), 0) AS total_emission_value
 
 FROM bom_pcf_request bpr
 JOIN bom b
@@ -652,8 +653,8 @@ JOIN bom b
 JOIN process_specific_energy_usage_questions pseq
     ON pseq.bom_id = b.id
 
-/* 🔥 FIX: ensure ONE row per BOM */
-JOIN (
+/* LEFT JOIN: production site may not exist for all BOMs */
+LEFT JOIN (
     SELECT DISTINCT ON (bom_id)
         bom_id,
         LOWER(location) AS location,
@@ -663,7 +664,7 @@ JOIN (
 ) psd
     ON psd.bom_id = b.id
 
-JOIN electricity_emission_factor eef
+LEFT JOIN electricity_emission_factor eef
     ON eef.type_of_energy = pseq.energy_type
     AND eef.unit = pseq.unit
     AND eef.year = pseq.annual_reporting_period
@@ -716,30 +717,30 @@ export async function processEnergyEmission(req: any, res: any) {
 
                     CASE
                         WHEN psd.location = 'india'
-                            THEN AVG(eef.ef_india_region::numeric)
+                            THEN COALESCE(AVG(eef.ef_india_region::numeric), 0)
                         WHEN psd.location = 'europe'
-                            THEN AVG(eef.ef_eu_region::numeric)
+                            THEN COALESCE(AVG(eef.ef_eu_region::numeric), 0)
                         ELSE
-                            AVG(eef.ef_global_region::numeric)
+                            COALESCE(AVG(eef.ef_global_region::numeric), 0)
                     END AS emission_value,
 
-                    SUM(
+                    COALESCE(SUM(
                         pseq.quantity_consumed *
                         CASE
                             WHEN psd.location = 'india'
-                                THEN eef.ef_india_region::numeric
+                                THEN COALESCE(eef.ef_india_region::numeric, 0)
                             WHEN psd.location = 'europe'
-                                THEN eef.ef_eu_region::numeric
+                                THEN COALESCE(eef.ef_eu_region::numeric, 0)
                             ELSE
-                                eef.ef_global_region::numeric
+                                COALESCE(eef.ef_global_region::numeric, 0)
                         END
-                    ) AS total_emission_value
+                    ), 0) AS total_emission_value
 
                 FROM bom_pcf_request bpr
                 JOIN bom b ON b.bom_pcf_id = bpr.id
                 JOIN process_specific_energy_usage_questions pseq ON pseq.bom_id = b.id
 
-                JOIN (
+                LEFT JOIN (
                     SELECT DISTINCT ON (bom_id)
                         bom_id,
                         LOWER(location) AS location,
@@ -748,7 +749,7 @@ export async function processEnergyEmission(req: any, res: any) {
                     ORDER BY bom_id
                 ) psd ON psd.bom_id = b.id
 
-                JOIN electricity_emission_factor eef
+                LEFT JOIN electricity_emission_factor eef
                     ON eef.type_of_energy = pseq.energy_type
                     AND eef.unit = pseq.unit
                     AND eef.year = pseq.annual_reporting_period
