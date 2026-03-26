@@ -2133,7 +2133,7 @@ export async function getManufacturerDropDown(req: any, res: any) {
                     user_name,
                     user_role
                 FROM users_table
-                WHERE LOWER(TRIM(user_role)) = 'manufacturer'
+                WHERE LOWER(TRIM(user_role)) = 'client'
                 ORDER BY user_name ASC;
             `;
 
