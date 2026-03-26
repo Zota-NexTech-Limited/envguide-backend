@@ -34,7 +34,7 @@ export async function signup(req: any, res: any) {
             console.log(findUser.rows.length)
             const saltRounds = 10;
             console.log(saltRounds,)
-            bcrypt.genSalt(saltRounds, function (err, salt) {
+            bcrypt.genSalt(saltRounds, function (_err, salt) {
                 bcrypt.hash(adminObj.user_password, salt, async function (err, hash) {
                     // Store hash in your password DB.
                     if (err) {
@@ -220,7 +220,7 @@ export async function createRole(req: any, res: any) {
     }
 }
 
-export async function getRoles(req: any, res: any) {
+export async function getRoles(_req: any, res: any) {
     try {
 
         const getRole = await userService.getRole()
@@ -268,7 +268,7 @@ export async function createDepartment(req: any, res: any) {
     }
 }
 
-export async function getDeparmment(req: any, res: any) {
+export async function getDeparmment(_req: any, res: any) {
     try {
 
         const getDeparmment = await userService.getDepartment()
@@ -683,7 +683,7 @@ export async function addModule(req: any, res: any) {
     }
 }
 
-export async function getModule(req: any, res: any) {
+export async function getModule(_req: any, res: any) {
 
     try {
 
@@ -871,7 +871,7 @@ export async function resetPassword(req: any, res: any) {
 
             const saltRounds = 10;
             console.log(saltRounds,)
-            bcrypt.genSalt(saltRounds, function (err, salt) {
+            bcrypt.genSalt(saltRounds, function (_err, salt) {
                 bcrypt.hash(updateObj.user_password, salt, async function (err, hash) {
                     // Store hash in your password DB.
                     if (err) {
@@ -1086,7 +1086,7 @@ export async function asyncUserAuth(data: any) {
 
         console.log(result)
 
-        const userSync = await userService.userSync(result)
+        await userService.userSync(result)
 
 
     } catch (error: any) {
@@ -1122,7 +1122,7 @@ export async function createDocumentType(req: any, res: any) {
     }
 }
 
-export async function getDocumentType(req: any, res: any) {
+export async function getDocumentType(_req: any, res: any) {
     try {
 
         const getDocumentDropDown = await userService.getDocumentDropDown()
@@ -2122,7 +2122,7 @@ export async function getUsersByRole(req: any, res: any) {
     });
 }
 
-export async function getManufacturerDropDown(req: any, res: any) {
+export async function getManufacturerDropDown(_req: any, res: any) {
     return withClient(async (client: any) => {
 
         try {

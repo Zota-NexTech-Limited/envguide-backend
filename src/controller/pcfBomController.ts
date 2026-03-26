@@ -1227,8 +1227,6 @@ export async function getPcfRequestWithBOMDetailsList(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
-            const userId = req.user_id;
-
             let countWhere = '';
             const countValues: any[] = [];
             let statsWhere = '';
@@ -3241,27 +3239,24 @@ export async function pcfCalculate(req: any, res: any) {
                 //========> Phase One END
 
                 //========> Second Phase start
-                const fetchQ15 = `
-                SELECT pcm_id,spq_id,bom_id,
-                material_number,product_name,price
-                FROM product_component_manufactured_questions
-                WHERE bom_id = $1 AND own_emission_id IS NULL;
-            `;
+                // Kept for future use (Economic_Ratio_ER calculation)
+                // const fetchQ15 = `
+                //     SELECT pcm_id,spq_id,bom_id,
+                //     material_number,product_name,price
+                //     FROM product_component_manufactured_questions
+                //     WHERE bom_id = $1 AND own_emission_id IS NULL;
+                // `;
+                // const fetchQ15SupResult = await client.query(fetchQ15, [BomData.id]);
+                // const Q15Result = fetchQ15SupResult.rows[0];
 
-                const fetchQ15SupResult = await client.query(fetchQ15, [BomData.id]);
-
-                const Q15Result = fetchQ15SupResult.rows[0];
-
-                const fetchQ15PointOne = `
-                SELECT bom_id,
-                material_number,product_name,price_per_product
-                FROM co_product_component_economic_value_questions
-                WHERE bom_id = $1 AND own_emission_id IS NULL;
-            `;
-
-                const fetchQ15PointOneSupResult = await client.query(fetchQ15PointOne, [BomData.id]);
-
-                const Q15PointOneResult = fetchQ15PointOneSupResult.rows[0];
+                // const fetchQ15PointOne = `
+                //     SELECT bom_id,
+                //     material_number,product_name,price_per_product
+                //     FROM co_product_component_economic_value_questions
+                //     WHERE bom_id = $1 AND own_emission_id IS NULL;
+                // `;
+                // const fetchQ15PointOneSupResult = await client.query(fetchQ15PointOne, [BomData.id]);
+                // const Q15PointOneResult = fetchQ15PointOneSupResult.rows[0];
 
                 // const Economic_Ratio_ER = (Q15Result.price / Q15PointOneResult.price_per_product);
                 // console.log("Economic Ratio (ER):", Economic_Ratio_ER);
@@ -3390,7 +3385,7 @@ export async function pcfCalculate(req: any, res: any) {
                 WHERE sgiq_id = $1 AND own_emission_id IS NULL;
             `;
 
-                    const fetcSPQIDSupResult = await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
+                    await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
 
                     // Get ALL factory components for this sgiq_id (not just this bom_id)
                     // This is needed for correct factory-level allocation
@@ -3829,7 +3824,7 @@ export async function pcfCalculate(req: any, res: any) {
                         sanitizeNumber(FetchSteamTypeEmiassionValue)
                     ];
 
-                    const insertResult = await client.query(queryProd, insertValues);
+                    await client.query(queryProd, insertValues);
                     console.log(`Inserted production calculation with total_electrical_energy: ${Total_Electrical_Energy_consumed_at_Factory_level_kWh}, total_heating_energy: ${Total_Heating_Energy_consumed_at_Factory_level_kWh}`);
 
                     // ===> Insert Ends here
@@ -3841,7 +3836,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                     let packaginType = "";
                     let treatmentType = "";
-                    let packaginSize = "";
+                    // let packaginSize = ""; // unused
                     let packaginWeight = 0;
                     let Emission_Factor_Box_kg_CO2E_kg = 0.01;
                     let Packaging_Carbon_Emissions_kg_CO2e_or_box = 0;
@@ -4320,10 +4315,10 @@ export async function pcfCalculate(req: any, res: any) {
                     //=======> Emission Factor Box waste treatment (kg CO₂e/kg) 
 
                     let emission_factor_box_waste_treatment_kg_CO2e_kg = 0.01;
-                    let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0.01;
+                    // let emission_factor_packaging_waste_treatment_kg_COe2_kWh = 0.01; // unused
                     // Energy consumption multiplier from Excel formula: Energy (kWh/kg) = Waste Weight (kg) × 0.6
-                    const ENERGY_CONSUMPTION_MULTIPLIER = 0.6;
-                    let packaging_waste_treatment_energy_per_kg_kWh = 0; // Will be calculated as actualWasteWeightKg × 0.6
+                    // const ENERGY_CONSUMPTION_MULTIPLIER = 0.6; // unused
+                    // let packaging_waste_treatment_energy_per_kg_kWh = 0; // Will be calculated as actualWasteWeightKg × 0.6 // unused
                     let actualWasteWeightKg = 0;
 
                     // Try to find Q40 waste data by bom_id first

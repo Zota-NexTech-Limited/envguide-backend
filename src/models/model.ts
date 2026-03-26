@@ -3646,7 +3646,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             for (const query of createTableQueries) {
                 query1 = query
                 //   console.log("Executing query:", query);
-                const tables = await client.query(query);
+                await client.query(query);
                 //   console.log(tables.rows,query)
             }
 

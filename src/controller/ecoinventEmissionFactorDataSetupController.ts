@@ -467,7 +467,7 @@ export async function deleteMaterialsEmissionFactor(req: any, res: any) {
     });
 }
 
-export async function getMaterialsEmissionFactorDropDownnList(req: any, res: any) {
+export async function getMaterialsEmissionFactorDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -486,7 +486,7 @@ export async function getMaterialsEmissionFactorDropDownnList(req: any, res: any
     });
 }
 
-export async function getMaterialsPlusMaterialTypeDropDownnList(req: any, res: any) {
+export async function getMaterialsPlusMaterialTypeDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -927,7 +927,7 @@ export async function deleteElectricityEmissionFactor(req: any, res: any) {
     });
 }
 
-export async function getElectricityEmissionFactorDropDownnList(req: any, res: any) {
+export async function getElectricityEmissionFactorDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -946,7 +946,7 @@ export async function getElectricityEmissionFactorDropDownnList(req: any, res: a
     });
 }
 
-export async function getEnergySourceEnergyTypeDropDownnList(req: any, res: any) {
+export async function getEnergySourceEnergyTypeDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -1414,7 +1414,7 @@ export async function deleteFuelEmissionFactor(req: any, res: any) {
     });
 }
 
-export async function getFuelEmissionFactorDropDownnList(req: any, res: any) {
+export async function getFuelEmissionFactorDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -1433,7 +1433,7 @@ export async function getFuelEmissionFactorDropDownnList(req: any, res: any) {
     });
 }
 
-export async function getFuelFuelTypeDropDownnList(req: any, res: any) {
+export async function getFuelFuelTypeDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -1616,7 +1616,7 @@ export async function PackingTreatmentTypeDataSetup(req: any, res: any) {
     })
 }
 
-export async function getPackingTreatmentTypeDropDownList(req: any, res: any) {
+export async function getPackingTreatmentTypeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             
@@ -1934,7 +1934,7 @@ export async function getPackagingEmissionFactorListSearch(req: any, res: any) {
     });
 }
 
-export async function getPackagingEmissionFactorDropDownList(req: any, res: any) {
+export async function getPackagingEmissionFactorDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `
@@ -1961,7 +1961,7 @@ export async function getPackagingEmissionFactorDropDownList(req: any, res: any)
     });
 }
 
-export async function getPackagingTypeEmissionFactorDropDownList(req: any, res: any) {
+export async function getPackagingTypeEmissionFactorDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `
@@ -2184,7 +2184,7 @@ export async function WasteTreatmentTypeDataSetup(req: any, res: any) {
     })
 }
 
-export async function getWasteTreatmentTypeDropDownList(req: any, res: any) {
+export async function getWasteTreatmentTypeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             // const query = `SELECT wtt_id, code, name FROM waste_treatment_type;`;
@@ -2497,7 +2497,7 @@ export async function getWasteEmissionFactorListSearch(req: any, res: any) {
     });
 }
 
-export async function getWasteEmissionFactorDropDownList(req: any, res: any) {
+export async function getWasteEmissionFactorDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             // const query = `
@@ -2871,7 +2871,7 @@ export async function deleteVehicleTypeEmissionFactor(req: any, res: any) {
     });
 }
 
-export async function getVehicleTypeEmissionFactorDropDownnList(req: any, res: any) {
+export async function getVehicleTypeEmissionFactorDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 

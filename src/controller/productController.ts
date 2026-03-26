@@ -627,7 +627,7 @@ export async function getOwnEmissionWithBOMDetailsById(
     client: any,
     bom_pcf_id: string,
     client_id: string,
-    own_emission_id: string
+    _own_emission_id: string
 ) {
     const result = await client.query(
         `
@@ -4077,7 +4077,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                 RETURNING *;
             `;
 
-            const generalResult = await client.query(generalInsert, [
+            await client.query(generalInsert, [
                 sgiq_id, bom_pcf_id,
                 supplier_general_info_questions.ere_acknowledge ?? false,
                 supplier_general_info_questions.repm_acknowledge ?? false,
@@ -4816,7 +4816,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeOne(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, own_emission_id: string) {
+async function insertScopeOne(client: any, data: any, sgiq_id: string, _product_bom_pcf_id: string, own_emission_id: string) {
     const sode_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -6395,7 +6395,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, product
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeFour(client: any, data: any, sgiq_id: string, product_bom_pcf_id: string, own_emission_id: string) {
+async function insertScopeFour(client: any, data: any, sgiq_id: string, _product_bom_pcf_id: string, own_emission_id: string) {
     const sfae_id = ulid();
 
     await client.query(
@@ -6649,16 +6649,15 @@ export async function pcfCalculate(req: any, res: any) {
 
                 const Q15Result = fetchQ15SupResult.rows[0];
 
-                const fetchQ15PointOne = `
-                SELECT product_id,
-                material_number,product_name,price_per_product
-                FROM co_product_component_economic_value_questions
-                WHERE product_id = $1 AND product_bom_pcf_id = $2;
-            `;
-
-                const fetchQ15PointOneSupResult = await client.query(fetchQ15PointOne, [BomData.product_id, BomData.bom_pcf_id]);
-
-                const Q15PointOneResult = fetchQ15PointOneSupResult.rows[0];
+                // Kept for future use (Economic_Ratio_ER calculation)
+                // const fetchQ15PointOne = `
+                //     SELECT product_id,
+                //     material_number,product_name,price_per_product
+                //     FROM co_product_component_economic_value_questions
+                //     WHERE product_id = $1 AND product_bom_pcf_id = $2;
+                // `;
+                // const fetchQ15PointOneSupResult = await client.query(fetchQ15PointOne, [BomData.product_id, BomData.bom_pcf_id]);
+                // const Q15PointOneResult = fetchQ15PointOneSupResult.rows[0];
 
                 // const Economic_Ratio_ER = (Q15Result.price / Q15PointOneResult.price_per_product);
                 // console.log("Economic Ratio (ER):", Economic_Ratio_ER);
@@ -6733,7 +6732,7 @@ export async function pcfCalculate(req: any, res: any) {
                 WHERE sgiq_id = $1 AND own_emission_id IS NOT NULL;
             `;
 
-                    const fetcSPQIDSupResult = await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
+                    await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
 
 
                     const someOfAllProductQues = `
@@ -7037,7 +7036,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                     let packaginType = "";
                     let treatmentType = "";
-                    let packaginSize = "";
+                    // let packaginSize = ""; // unused
                     let packaginWeight = 0;
                     let Emission_Factor_Box_kg_CO2E_kg = 0.01;
                     let Packaging_Carbon_Emissions_kg_CO2e_or_box = 0;

@@ -357,7 +357,6 @@ export async function getComponnetMasterList(req: any, res: any) {
 
         createdBy,
         pcfCode,
-        productCode,
         requestTitle,
 
         search,
@@ -370,9 +369,6 @@ export async function getComponnetMasterList(req: any, res: any) {
     const limit = Number(pageSize);
     const offset = (page - 1) * limit;
 
-    let countWhere = '';
-    const countValues: any[] = [];
-    let statsWhere = '';
     const statsValues: any[] = [];
 
     return withClient(async (client: any) => {
@@ -434,7 +430,6 @@ export async function getComponnetMasterList(req: any, res: any) {
                         statsConditions.push(`pcf.created_by = $${sidx++}`);
                         statsValuess.push(req.user_id);
 
-                        statsWhere = 'WHERE pcf.created_by = $1 AND pcf.is_task_created = TRUE';
                         statsValues.push(req.user_id);
                     }
 

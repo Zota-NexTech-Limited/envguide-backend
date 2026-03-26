@@ -60,7 +60,7 @@ export async function updateTask(req: any, res: any) {
 }
 
 // =============== NEW API ===================
-export async function getPCFListDropDown(req: any, res: any) {
+export async function getPCFListDropDown(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `
@@ -150,8 +150,6 @@ export async function createTask(req: any, res: any) {
         estimated_hour,
         tags,
         attachments,
-        is_client,
-        client_id
     } = req.body;
 
     const created_by = req.user_id; // assuming auth middleware
@@ -769,7 +767,7 @@ export async function deleteTask(req: any, res: any) {
     });
 }
 
-export async function getSupplierDropDown(req: any, res: any) {
+export async function getSupplierDropDown(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 

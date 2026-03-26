@@ -631,7 +631,7 @@ export async function getSupplierSustainabilityDataById(req: any, res: any) {
 //     });
 // }
 
-export async function getMaterialCompositionMetal(req: any, res: any) {
+export async function getMaterialCompositionMetal(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT mcm_id, code, name, description FROM material_composition_metals;`;
@@ -752,7 +752,6 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             const sup_id = supplier_general_info_questions.sup_id;
             const bom_pcf_id = supplier_general_info_questions.bom_pcf_id;
-            const bom_id = supplier_general_info_questions.bom_id;
             const sgiq_id = ulid();
             const annual_reporting_period = supplier_general_info_questions.annual_reporting_period;
             const allDQRConfigs: any[] = [];
@@ -781,7 +780,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
                 RETURNING *;
             `;
 
-            const generalResult = await client.query(generalInsert, [
+            await client.query(generalInsert, [
                 sgiq_id, bom_pcf_id,
                 supplier_general_info_questions.ere_acknowledge ?? false,
                 supplier_general_info_questions.repm_acknowledge ?? false,

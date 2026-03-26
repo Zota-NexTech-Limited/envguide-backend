@@ -40,7 +40,7 @@ export function routes(app: any) {
     app.use(reports);
     app.use(dashboard);
     app.use(notification);
-    app.get('/health', (req: any, res: any) => {
+    app.get('/health', (_req: any, res: any) => {
         res.send('ok');
     });
 

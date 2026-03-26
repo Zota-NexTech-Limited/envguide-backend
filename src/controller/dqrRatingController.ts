@@ -1,5 +1,4 @@
 import { withClient } from '../util/database.js';
-import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes.js';
 import { createDqrRatingService, getSupplierDqrDetailsService, updateDqrRatingService } from "../services/dqrRatingService.js";
 
@@ -47,18 +46,6 @@ const ALLOWED_TYPES = [
     "dqr_primary_data_details_rating"
 ];
 
-const QUESTION_TABLES = [
-    "supplier_general_info_questions",
-    "material_composition_questions",
-    "energy_manufacturing_questions",
-    "packaging_questions",
-    "transportation_logistics_questions",
-    "waste_by_products_questions",
-    "end_of_life_circularity_questions",
-    "emission_factors_or_lca_data_questions",
-    "certification_and_standards_questions",
-    "additional_notes_questions"
-];
 
 export async function createDqrRating(req: any, res: any) {
     try {

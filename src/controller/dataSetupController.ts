@@ -43,7 +43,7 @@ export async function addCalculationMethod(req: any, res: any) {
     })
 }
 
-export async function getCalculationMethod(req: any, res: any) {
+export async function getCalculationMethod(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM calculation_method;`;
@@ -65,7 +65,7 @@ export async function updateCalculationMethod(req: any, res: any) {
             for (let item of updatingData) {
                 const columnValuePairs = Object.entries(item)
                     .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
-                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .map(([columnName, _], index) => `${columnName} = $${index + 1}`)
                     .join(', ');
 
                 const values = Object.entries(item)
@@ -231,7 +231,7 @@ export async function addFuelCombustion(req: any, res: any) {
     })
 }
 
-export async function getFuelCombustion(req: any, res: any) {
+export async function getFuelCombustion(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM fuel_combustion;`;
@@ -420,7 +420,7 @@ export async function addProcessEmission(req: any, res: any) {
     })
 }
 
-export async function getProcessEmission(req: any, res: any) {
+export async function getProcessEmission(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM process_emission;`;
@@ -609,7 +609,7 @@ export async function addFugitiveEmission(req: any, res: any) {
     })
 }
 
-export async function getFugitiveEmission(req: any, res: any) {
+export async function getFugitiveEmission(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM fugitive_emission;`;
@@ -797,7 +797,7 @@ export async function addElectricityLocationBased(req: any, res: any) {
     })
 }
 
-export async function getElectricityLocationBased(req: any, res: any) {
+export async function getElectricityLocationBased(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM electicity_location_based;`;
@@ -985,7 +985,7 @@ export async function addElectricityMarketBased(req: any, res: any) {
     })
 }
 
-export async function getElectricityMarketBased(req: any, res: any) {
+export async function getElectricityMarketBased(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM electicity_market_based;`;
@@ -1173,7 +1173,7 @@ export async function addSteamHeatCooling(req: any, res: any) {
     })
 }
 
-export async function getSteamHeatCooling(req: any, res: any) {
+export async function getSteamHeatCooling(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM steam_heat_cooling;`;
@@ -1361,7 +1361,7 @@ export async function addProductType(req: any, res: any) {
     })
 }
 
-export async function getProductType(req: any, res: any) {
+export async function getProductType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM product_type;`;
@@ -1549,7 +1549,7 @@ export async function addProductCategory(req: any, res: any) {
     })
 }
 
-export async function getProductCategory(req: any, res: any) {
+export async function getProductCategory(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM product_category;`;
@@ -1737,7 +1737,7 @@ export async function addProductSubCategory(req: any, res: any) {
     })
 }
 
-export async function getProductSubCategory(req: any, res: any) {
+export async function getProductSubCategory(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM product_sub_category;`;
@@ -1925,7 +1925,7 @@ export async function addComponentType(req: any, res: any) {
     })
 }
 
-export async function getComponentType(req: any, res: any) {
+export async function getComponentType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM component_type;`;
@@ -2113,7 +2113,7 @@ export async function addComponentCategory(req: any, res: any) {
     })
 }
 
-export async function getComponentCategory(req: any, res: any) {
+export async function getComponentCategory(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM component_category;`;
@@ -2301,7 +2301,7 @@ export async function addIndustry(req: any, res: any) {
     })
 }
 
-export async function getIndustry(req: any, res: any) {
+export async function getIndustry(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM industry;`;
@@ -2489,7 +2489,7 @@ export async function addCategory(req: any, res: any) {
     })
 }
 
-export async function getCategory(req: any, res: any) {
+export async function getCategory(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM category;`;
@@ -2677,7 +2677,7 @@ export async function addTag(req: any, res: any) {
     })
 }
 
-export async function getTag(req: any, res: any) {
+export async function getTag(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM tag;`;
@@ -2865,7 +2865,7 @@ export async function addTranportMode(req: any, res: any) {
     })
 }
 
-export async function getTranportMode(req: any, res: any) {
+export async function getTranportMode(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM transport_mode;`;
@@ -3053,7 +3053,7 @@ export async function addMaterialType(req: any, res: any) {
     })
 }
 
-export async function getMaterialType(req: any, res: any) {
+export async function getMaterialType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM material_type;`;
@@ -3236,7 +3236,7 @@ export async function addManufacturer(req: any, res: any) {
     });
 }
 
-export async function getManufacturer(req: any, res: any) {
+export async function getManufacturer(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, address, lat, long, created_by, updated_by, created_date, update_date 
@@ -3420,7 +3420,7 @@ export async function addVehicleDetail(req: any, res: any) {
     });
 }
 
-export async function getVehicleDetail(req: any, res: any) {
+export async function getVehicleDetail(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, make, model, year, number, created_by, updated_by, created_date, update_date 
@@ -3612,7 +3612,7 @@ export async function addAluminiumType(req: any, res: any) {
     })
 }
 
-export async function getAluminiumType(req: any, res: any) {
+export async function getAluminiumType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM aluminium_type;`;
@@ -3634,7 +3634,7 @@ export async function updateAluminiumType(req: any, res: any) {
             for (let item of updatingData) {
                 const columnValuePairs = Object.entries(item)
                     .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
-                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .map(([columnName, _], index) => `${columnName} = $${index + 1}`)
                     .join(', ');
 
                 const values = Object.entries(item)
@@ -3800,7 +3800,7 @@ export async function addSiliconType(req: any, res: any) {
     })
 }
 
-export async function getSiliconType(req: any, res: any) {
+export async function getSiliconType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM silicon_type;`;
@@ -3822,7 +3822,7 @@ export async function updateSiliconType(req: any, res: any) {
             for (let item of updatingData) {
                 const columnValuePairs = Object.entries(item)
                     .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
-                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .map(([columnName, _], index) => `${columnName} = $${index + 1}`)
                     .join(', ');
 
                 const values = Object.entries(item)
@@ -3988,7 +3988,7 @@ export async function addMagnesiumType(req: any, res: any) {
     })
 }
 
-export async function getMagnesiumType(req: any, res: any) {
+export async function getMagnesiumType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM magnesium_type;`;
@@ -4010,7 +4010,7 @@ export async function updateMagnesiumType(req: any, res: any) {
             for (let item of updatingData) {
                 const columnValuePairs = Object.entries(item)
                     .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
-                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .map(([columnName, _], index) => `${columnName} = $${index + 1}`)
                     .join(', ');
 
                 const values = Object.entries(item)
@@ -4176,7 +4176,7 @@ export async function addIronType(req: any, res: any) {
     })
 }
 
-export async function getIronType(req: any, res: any) {
+export async function getIronType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM iron_type;`;
@@ -4198,7 +4198,7 @@ export async function updateIronType(req: any, res: any) {
             for (let item of updatingData) {
                 const columnValuePairs = Object.entries(item)
                     .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
-                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .map(([columnName, _], index) => `${columnName} = $${index + 1}`)
                     .join(', ');
 
                 const values = Object.entries(item)
@@ -4364,7 +4364,7 @@ export async function addMaterialCompositionMetal(req: any, res: any) {
     })
 }
 
-export async function getMaterialCompositionMetal(req: any, res: any) {
+export async function getMaterialCompositionMetal(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT mcm_id, code, name, description FROM material_composition_metal;`;
@@ -4386,7 +4386,7 @@ export async function updateMaterialCompositionMetal(req: any, res: any) {
             for (let item of updatingData) {
                 const columnValuePairs = Object.entries(item)
                     .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
-                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .map(([columnName, _], index) => `${columnName} = $${index + 1}`)
                     .join(', ');
 
                 const values = Object.entries(item)
@@ -4551,7 +4551,7 @@ export async function addMaterialCompositionMetalType(req: any, res: any) {
     })
 }
 
-export async function getMaterialCompositionMetalType(req: any, res: any) {
+export async function getMaterialCompositionMetalType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -4585,7 +4585,7 @@ export async function updateMaterialCompositionMetalType(req: any, res: any) {
             for (let item of updatingData) {
                 const columnValuePairs = Object.entries(item)
                     .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
-                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .map(([columnName, _], index) => `${columnName} = $${index + 1}`)
                     .join(', ');
 
                 const values = Object.entries(item)
@@ -4792,7 +4792,7 @@ export async function addFuelType(req: any, res: any) {
     })
 }
 
-export async function getFuelType(req: any, res: any) {
+export async function getFuelType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM fuel_type;`;
@@ -4980,7 +4980,7 @@ export async function addManufacturingProcess(req: any, res: any) {
     })
 }
 
-export async function getManufacturingProcess(req: any, res: any) {
+export async function getManufacturingProcess(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM manufacturing_process;`;
@@ -5168,7 +5168,7 @@ export async function addLifeCycleStage(req: any, res: any) {
     })
 }
 
-export async function getLifeCycleStage(req: any, res: any) {
+export async function getLifeCycleStage(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT id, code, name, description FROM life_cycle_stage;`;

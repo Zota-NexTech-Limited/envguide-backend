@@ -272,7 +272,7 @@ export async function deleteMaterialCompositionMetal(req: any, res: any) {
     });
 }
 
-export async function getMaterialCompositionMetalDropDownnList(req: any, res: any) {
+export async function getMaterialCompositionMetalDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -333,7 +333,7 @@ export async function addMaterialCompositionMetalType(req: any, res: any) {
     })
 }
 
-export async function getMaterialCompositionMetalType(req: any, res: any) {
+export async function getMaterialCompositionMetalType(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -367,7 +367,7 @@ export async function updateMaterialCompositionMetalType(req: any, res: any) {
             for (let item of updatingData) {
                 const columnValuePairs = Object.entries(item)
                     .filter(([columnName]) => columnName !== "id") // prevent overwriting PK
-                    .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                    .map(([columnName, _], index) => `${columnName} = $${index + 1}`)
                     .join(', ');
 
                 const values = Object.entries(item)
@@ -781,7 +781,7 @@ export async function deleteCountryIsoTwo(req: any, res: any) {
     });
 }
 
-export async function getCountryIsoTwoDropDownnList(req: any, res: any) {
+export async function getCountryIsoTwoDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -1044,7 +1044,7 @@ export async function deleteCountryIsoThree(req: any, res: any) {
     });
 }
 
-export async function getCountryIsoThreeDropDownnList(req: any, res: any) {
+export async function getCountryIsoThreeDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -1293,7 +1293,7 @@ export async function deleteScopeTwoMethod(req: any, res: any) {
     });
 }
 
-export async function getScopeTwoMethodDropDownList(req: any, res: any) {
+export async function getScopeTwoMethodDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -1540,7 +1540,7 @@ export async function deleteMethodType(req: any, res: any) {
     });
 }
 
-export async function getMethodTypeDropDownList(req: any, res: any) {
+export async function getMethodTypeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -1786,7 +1786,7 @@ export async function deleteTransportMode(req: any, res: any) {
     });
 }
 
-export async function getTransportModeDropDownList(req: any, res: any) {
+export async function getTransportModeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -2032,7 +2032,7 @@ export async function deleteTransportRoute(req: any, res: any) {
     });
 }
 
-export async function getTransportRouteDropDownList(req: any, res: any) {
+export async function getTransportRouteDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -2279,7 +2279,7 @@ export async function deletePackagingLevel(req: any, res: any) {
     });
 }
 
-export async function getPackagingLevelDropDownList(req: any, res: any) {
+export async function getPackagingLevelDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -2526,7 +2526,7 @@ export async function deleteWasteTreatment(req: any, res: any) {
     });
 }
 
-export async function getWasteTreatmentDropDownList(req: any, res: any) {
+export async function getWasteTreatmentDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -2773,7 +2773,7 @@ export async function deleteRefrigerentType(req: any, res: any) {
     });
 }
 
-export async function getRefrigerentTypeDropDownList(req: any, res: any) {
+export async function getRefrigerentTypeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -3020,7 +3020,7 @@ export async function deleteLiquidFuelUnit(req: any, res: any) {
     });
 }
 
-export async function getLiquidFuelUnitDropDownList(req: any, res: any) {
+export async function getLiquidFuelUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -3267,7 +3267,7 @@ export async function deleteGaseousFuelUnit(req: any, res: any) {
     });
 }
 
-export async function getGaseousFuelUnitDropDownList(req: any, res: any) {
+export async function getGaseousFuelUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -3514,7 +3514,7 @@ export async function deleteSolidFuelUnit(req: any, res: any) {
     });
 }
 
-export async function getSolidFuelUnitDropDownList(req: any, res: any) {
+export async function getSolidFuelUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -3761,7 +3761,7 @@ export async function deleteProcessSpecificEnergy(req: any, res: any) {
     });
 }
 
-export async function getProcessSpecificEnergyDropDownList(req: any, res: any) {
+export async function getProcessSpecificEnergyDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -4008,7 +4008,7 @@ export async function deleteFuelType(req: any, res: any) {
     });
 }
 
-export async function getFuelTypeDropDownList(req: any, res: any) {
+export async function getFuelTypeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -4267,7 +4267,7 @@ export async function deleteSubFuelType(req: any, res: any) {
     });
 }
 
-export async function getSubFuelTypeDropDownList(req: any, res: any) {
+export async function getSubFuelTypeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -4533,7 +4533,7 @@ export async function deleteVehicleType(req: any, res: any) {
     });
 }
 
-export async function getVehicleTypeDropDownList(req: any, res: any) {
+export async function getVehicleTypeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -4780,7 +4780,7 @@ export async function deleteEnergySource(req: any, res: any) {
     });
 }
 
-export async function getEnergySourceDropDownList(req: any, res: any) {
+export async function getEnergySourceDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -5435,7 +5435,7 @@ export async function deleteEnergyUnit(req: any, res: any) {
     });
 }
 
-export async function getEnergyUnitDropDownList(req: any, res: any) {
+export async function getEnergyUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -5682,7 +5682,7 @@ export async function deleteEFUnit(req: any, res: any) {
     });
 }
 
-export async function getEFUnitDropDownList(req: any, res: any) {
+export async function getEFUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -5929,7 +5929,7 @@ export async function deleteAllocationMethod(req: any, res: any) {
     });
 }
 
-export async function getAllocationMethodDropDownList(req: any, res: any) {
+export async function getAllocationMethodDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -6176,7 +6176,7 @@ export async function deleteCertificateType(req: any, res: any) {
     });
 }
 
-export async function getCertificateTypeDropDownList(req: any, res: any) {
+export async function getCertificateTypeDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -6366,7 +6366,7 @@ export async function deleteVerificationStatus(req: any, res: any) {
     });
 }
 
-export async function getVerificationStatusDropDownList(req: any, res: any) {
+export async function getVerificationStatusDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM verification_status ORDER BY created_date ASC`
@@ -6563,7 +6563,7 @@ export async function deleteReportingStandard(req: any, res: any) {
     });
 }
 
-export async function getReportingStandardDropDownList(req: any, res: any) {
+export async function getReportingStandardDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM reporting_standard ORDER BY created_date ASC`
@@ -6761,7 +6761,7 @@ export async function deleteLifeCycleBoundary(req: any, res: any) {
     });
 }
 
-export async function getLifeCycleBoundaryDropDownList(req: any, res: any) {
+export async function getLifeCycleBoundaryDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM life_cycle_boundary ORDER BY created_date ASC`
@@ -6941,7 +6941,7 @@ export async function deleteLifeCycleStageOfProduct(req: any, res: any) {
     });
 }
 
-export async function getLifeCycleStageOfProductDropDownList(req: any, res: any) {
+export async function getLifeCycleStageOfProductDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM life_cycle_stages_of_product ORDER BY created_date ASC`
@@ -7120,7 +7120,7 @@ export async function deleteTimeZone(req: any, res: any) {
     });
 }
 
-export async function getTimeZoneDropDownList(req: any, res: any) {
+export async function getTimeZoneDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM time_zone ORDER BY created_date ASC`
@@ -7298,7 +7298,7 @@ export async function deleteProductUnit(req: any, res: any) {
     });
 }
 
-export async function getProductUnitDropDownList(req: any, res: any) {
+export async function getProductUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM product_unit ORDER BY created_date ASC`
@@ -7477,7 +7477,7 @@ export async function deleteSupplierTier(req: any, res: any) {
     });
 }
 
-export async function getSupplierTierDropDownList(req: any, res: any) {
+export async function getSupplierTierDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM supplier_tier ORDER BY created_date ASC`
@@ -7655,7 +7655,7 @@ export async function deleteCreditMethod(req: any, res: any) {
     });
 }
 
-export async function getCreditMethodDropDownList(req: any, res: any) {
+export async function getCreditMethodDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM credit_method ORDER BY created_date ASC`
@@ -7833,7 +7833,7 @@ export async function deleteWaterSource(req: any, res: any) {
     });
 }
 
-export async function getWaterSourceDropDownList(req: any, res: any) {
+export async function getWaterSourceDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM water_source ORDER BY created_date ASC`
@@ -8012,7 +8012,7 @@ export async function deleteWaterUnit(req: any, res: any) {
     });
 }
 
-export async function getWaterUnitDropDownList(req: any, res: any) {
+export async function getWaterUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM water_unit ORDER BY created_date ASC`
@@ -8190,7 +8190,7 @@ export async function deleteWaterTreatment(req: any, res: any) {
     });
 }
 
-export async function getWaterTreatmentDropDownList(req: any, res: any) {
+export async function getWaterTreatmentDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM water_treatment ORDER BY created_date ASC`
@@ -8368,7 +8368,7 @@ export async function deleteDischargeDestination(req: any, res: any) {
     });
 }
 
-export async function getDischargeDestinationDropDownList(req: any, res: any) {
+export async function getDischargeDestinationDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         const result = await client.query(
             `SELECT * FROM discharge_destination ORDER BY created_date ASC`
@@ -8615,7 +8615,7 @@ export async function deleteQCEquipmentUnit(req: any, res: any) {
     });
 }
 
-export async function getQCEquipmentUnitDropDownnList(req: any, res: any) {
+export async function getQCEquipmentUnitDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -8872,7 +8872,7 @@ export async function deletePackgingUnit(req: any, res: any) {
     });
 }
 
-export async function getPackgingUnitDropDownnList(req: any, res: any) {
+export async function getPackgingUnitDropDownnList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
 
@@ -8892,7 +8892,7 @@ export async function getPackgingUnitDropDownnList(req: any, res: any) {
 }
 
 // Uom dropdownss
-export async function getLiquidGaseousSolidWaterUnitDropDownList(req: any, res: any) {
+export async function getLiquidGaseousSolidWaterUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -8957,7 +8957,7 @@ export async function getLiquidGaseousSolidWaterUnitDropDownList(req: any, res: 
     });
 }
 
-export async function getLiquidGaseousSolidUnitDropDownList(req: any, res: any) {
+export async function getLiquidGaseousSolidUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -9012,7 +9012,7 @@ export async function getLiquidGaseousSolidUnitDropDownList(req: any, res: any) 
     });
 }
 
-export async function getLiquidGaseousUnitDropDownList(req: any, res: any) {
+export async function getLiquidGaseousUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
@@ -9058,7 +9058,7 @@ export async function getLiquidGaseousUnitDropDownList(req: any, res: any) {
     });
 }
 
-export async function getLiquidSolidUnitDropDownList(req: any, res: any) {
+export async function getLiquidSolidUnitDropDownList(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const listQuery = `
