@@ -34,6 +34,9 @@ Routes.get('/api/dashboard/virgin-or-recyclibility-emission', authService.authen
 // Waste
 Routes.get('/api/dashboard/waste-emission', authService.authenticate, Controller.getWasteEmissionDetails);
 
+// Impact Categories
+Routes.get('/api/dashboard/impact-categories', authService.authenticate, Controller.getImpactCategories);
+
 // PCF Visualisation Trends
 Routes.get('/api/dashboard/pcf-reduction-emission', authService.authenticate, Controller.getPcfReductionGraph);
 Routes.get('/api/dashboard/pcf-actual-emission', authService.authenticate, Controller.getActualPcfEmission);

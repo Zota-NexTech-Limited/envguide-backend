@@ -1,6 +1,7 @@
 import { withClient } from '../util/database.js';
 import { generateResponse } from '../util/genRes.js';
 
+//changes mar 25, 2026
 // Below code also working for product life cycle
 // interface ProductLifeCycleRow {
 //     product_code: string;
@@ -626,25 +627,25 @@ SELECT
     /* emission factor based on location */
     CASE
         WHEN psd.location = 'india'
-            THEN AVG(eef.ef_india_region::numeric)
+            THEN COALESCE(AVG(eef.ef_india_region::numeric), 0)
         WHEN psd.location = 'europe'
-            THEN AVG(eef.ef_eu_region::numeric)
+            THEN COALESCE(AVG(eef.ef_eu_region::numeric), 0)
         ELSE
-            AVG(eef.ef_global_region::numeric)
+            COALESCE(AVG(eef.ef_global_region::numeric), 0)
     END AS emission_value,
 
     /* total emission */
-    SUM(
+    COALESCE(SUM(
         pseq.quantity_consumed *
         CASE
             WHEN psd.location = 'india'
-                THEN eef.ef_india_region::numeric
+                THEN COALESCE(eef.ef_india_region::numeric, 0)
             WHEN psd.location = 'europe'
-                THEN eef.ef_eu_region::numeric
+                THEN COALESCE(eef.ef_eu_region::numeric, 0)
             ELSE
-                eef.ef_global_region::numeric
+                COALESCE(eef.ef_global_region::numeric, 0)
         END
-    ) AS total_emission_value
+    ), 0) AS total_emission_value
 
 FROM bom_pcf_request bpr
 JOIN bom b
@@ -652,8 +653,8 @@ JOIN bom b
 JOIN process_specific_energy_usage_questions pseq
     ON pseq.bom_id = b.id
 
-/* 🔥 FIX: ensure ONE row per BOM */
-JOIN (
+/* LEFT JOIN: production site may not exist for all BOMs */
+LEFT JOIN (
     SELECT DISTINCT ON (bom_id)
         bom_id,
         LOWER(location) AS location,
@@ -663,7 +664,7 @@ JOIN (
 ) psd
     ON psd.bom_id = b.id
 
-JOIN electricity_emission_factor eef
+LEFT JOIN electricity_emission_factor eef
     ON eef.type_of_energy = pseq.energy_type
     AND eef.unit = pseq.unit
     AND eef.year = pseq.annual_reporting_period
@@ -716,30 +717,30 @@ export async function processEnergyEmission(req: any, res: any) {
 
                     CASE
                         WHEN psd.location = 'india'
-                            THEN AVG(eef.ef_india_region::numeric)
+                            THEN COALESCE(AVG(eef.ef_india_region::numeric), 0)
                         WHEN psd.location = 'europe'
-                            THEN AVG(eef.ef_eu_region::numeric)
+                            THEN COALESCE(AVG(eef.ef_eu_region::numeric), 0)
                         ELSE
-                            AVG(eef.ef_global_region::numeric)
+                            COALESCE(AVG(eef.ef_global_region::numeric), 0)
                     END AS emission_value,
 
-                    SUM(
+                    COALESCE(SUM(
                         pseq.quantity_consumed *
                         CASE
                             WHEN psd.location = 'india'
-                                THEN eef.ef_india_region::numeric
+                                THEN COALESCE(eef.ef_india_region::numeric, 0)
                             WHEN psd.location = 'europe'
-                                THEN eef.ef_eu_region::numeric
+                                THEN COALESCE(eef.ef_eu_region::numeric, 0)
                             ELSE
-                                eef.ef_global_region::numeric
+                                COALESCE(eef.ef_global_region::numeric, 0)
                         END
-                    ) AS total_emission_value
+                    ), 0) AS total_emission_value
 
                 FROM bom_pcf_request bpr
                 JOIN bom b ON b.bom_pcf_id = bpr.id
                 JOIN process_specific_energy_usage_questions pseq ON pseq.bom_id = b.id
 
-                JOIN (
+                LEFT JOIN (
                     SELECT DISTINCT ON (bom_id)
                         bom_id,
                         LOWER(location) AS location,
@@ -748,7 +749,7 @@ export async function processEnergyEmission(req: any, res: any) {
                     ORDER BY bom_id
                 ) psd ON psd.bom_id = b.id
 
-                JOIN electricity_emission_factor eef
+                LEFT JOIN electricity_emission_factor eef
                     ON eef.type_of_energy = pseq.energy_type
                     AND eef.unit = pseq.unit
                     AND eef.year = pseq.annual_reporting_period
@@ -1910,6 +1911,89 @@ export async function getForecastedEmission(req: any, res: any) {
 
         } catch (error: any) {
             console.error("Forecasted emission error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Impact Categories
+export async function getImpactCategories(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            // Aggregate emission values by lifecycle stage
+            const aggregateResult = await client.query(`
+                SELECT
+                    COALESCE(SUM(be.material_value), 0) AS raw_material,
+                    COALESCE(SUM(be.production_value), 0) AS manufacturing,
+                    COALESCE(SUM(be.packaging_value), 0) AS packaging,
+                    COALESCE(SUM(be.logistic_value), 0) AS transportation,
+                    COALESCE(SUM(be.waste_value), 0) AS waste
+                FROM bom_pcf_request bpr
+                JOIN bom b ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_calculation_engine be ON be.bom_id = b.id
+                WHERE bpr.created_by = $1
+            `, [client_id]);
+
+            const agg = aggregateResult.rows[0];
+
+            const indicators = [
+                { name: "Global Warming (GWP)", value: Number(Number(agg.raw_material || 0).toFixed(2)), unit: "kg CO₂ eq" },
+                { name: "Ozone Depletion (ODP)", value: Number(Number(agg.manufacturing || 0).toFixed(4)), unit: "kg CFC-11 eq" },
+                { name: "Acidification (AP)", value: Number(Number(agg.packaging || 0).toFixed(2)), unit: "kg SO₂ eq" },
+                { name: "Eutrophication (EP)", value: Number(Number(agg.transportation || 0).toFixed(2)), unit: "kg PO₄ eq" },
+                { name: "Photochemical Ozone (POCP)", value: Number(Number(agg.waste || 0).toFixed(2)), unit: "kg NMVOC eq" },
+            ];
+
+            // Per-product comparison
+            const productResult = await client.query(`
+                SELECT
+                    p.product_name,
+                    COALESCE(SUM(be.material_value), 0) AS gwp,
+                    COALESCE(SUM(be.production_value), 0) AS odp,
+                    COALESCE(SUM(be.packaging_value), 0) AS ap,
+                    COALESCE(SUM(be.logistic_value), 0) AS ep,
+                    COALESCE(SUM(be.waste_value), 0) AS pocp
+                FROM bom_pcf_request bpr
+                JOIN bom b ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_calculation_engine be ON be.bom_id = b.id
+                JOIN product p ON p.product_code = bpr.product_code
+                WHERE bpr.created_by = $1
+                GROUP BY p.product_name
+                ORDER BY p.product_name
+            `, [client_id]);
+
+            const productComparison = productResult.rows.map((row: any) => ({
+                name: row.product_name,
+                gwp: Number(Number(row.gwp || 0).toFixed(2)),
+                odp: Number(Number(row.odp || 0).toFixed(2)),
+                ap: Number(Number(row.ap || 0).toFixed(2)),
+                ep: Number(Number(row.ep || 0).toFixed(2)),
+                pocp: Number(Number(row.pocp || 0).toFixed(2)),
+            }));
+
+            return res.status(200).send({
+                success: true,
+                message: "Impact categories fetched successfully",
+                data: {
+                    indicators,
+                    productComparison
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Impact categories error:", error);
             return res.status(500).send({
                 success: false,
                 message: error.message
