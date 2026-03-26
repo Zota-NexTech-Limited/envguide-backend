@@ -3695,10 +3695,8 @@ ON CONFLICT (uc_id) DO NOTHING;`,
 
     return withClient(async (client: any) => {
         try {
-            var query22
             for (const query of createTableQueries) {
                 try {
-                    query22 = query
                     await client.query(query);
                 } catch (queryError: any) {
                     // Log individual query errors but continue

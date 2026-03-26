@@ -91,7 +91,7 @@ export async function addSupplierDetails(req: any, res: any) {
     });
 }
 
-export async function getSupplierDetails(req: any, res: any) {
+export async function getSupplierDetails(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const query = `SELECT * FROM supplier_details;`;

@@ -342,7 +342,7 @@ export async function updateUser(user_id: any, userData: any) {
         try {
 
             const columnValuePairs = Object.entries(userData)
-                .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                .map(([columnName, _value], index) => `${columnName} = $${index + 1}`)
                 .join(', ');
             // Extracting values from the updatedFields object
             const values = Object.values(userData);
@@ -390,7 +390,7 @@ export async function addModule(moduleData: any) {
                             module_id: result.rows[0].module_id
                         }
                         console.log(permissionobj, "permissionobj")
-                        const userPermission = await addUserPermission(permissionobj)
+                        await addUserPermission(permissionobj)
 
                     }
                 }
@@ -648,7 +648,7 @@ export async function updatePermission(PersonalData: any) {
 
             // Creating SET columnValuePairs with proper handling of reserved keywords
             const columnValuePairs = Object.entries(PersonalData)
-                .map(([columnName, value], index) => `${handleReservedKeywords(columnName)} = $${index + 1}`)
+                .map(([columnName, _value], index) => `${handleReservedKeywords(columnName)} = $${index + 1}`)
                 .join(', ');
 
             // Extracting values from the PersonalData object
@@ -779,7 +779,7 @@ export async function addUpdateUpdateModule(subModuleData: any) {
         try {
             const { module_id } = subModuleData
             const columnValuePairs = Object.entries(subModuleData)
-                .map(([columnName, value], index) => `${columnName} = $${index + 1}`)
+                .map(([columnName, _value], index) => `${columnName} = $${index + 1}`)
                 .join(', ');
             // Extracting values from the updatedFields object
             const values = Object.values(subModuleData);
@@ -803,7 +803,7 @@ export async function addUpdateUpdateModule(subModuleData: any) {
 
 
 export async function userSync(data: any) {
-    return withClient(async (client: any) => {
+    return withClient(async (_client: any) => {
         try {
             for (const user of data) {
                 const { permissions } = user
@@ -830,8 +830,8 @@ export async function userSync(data: any) {
                         extractedBatchData.push(permission);
                     });
                 }
-                const updateOrInsertUserInfo = await updateOrInsertuserSync(userObj)
-                const updateOrInsertPersmission = await updateOrInsertPersmissionSync(permissions)
+                await updateOrInsertuserSync(userObj)
+                await updateOrInsertPersmissionSync(permissions)
             }
 
         } catch (error: any) {
@@ -866,7 +866,7 @@ async function updateOrInsertuserSync(userInfo: any) {
             const values = columns.map(column => userInfo[column]);
 
 
-            const result = await client.query(query, values);
+            await client.query(query, values);
         } catch (error) {
             console.log(error)
         }
@@ -904,7 +904,7 @@ export async function updateOrInsertPersmissionSync(persmission: any) {
                 const values = columns.map(column => item[column]);
 
 
-                const result = await client.query(query, values);
+                await client.query(query, values);
                 //  console.log(result.rows[0]);
             }
 

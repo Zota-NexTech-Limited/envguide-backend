@@ -49,7 +49,7 @@ export async function createTemplete(req: any, res: any) {
 export async function updateMapping(req: any, res: any) {
   return withClient(async (client: any) => {
     try {
-      const { mapping_id, module_name, cmr_vendor_name, excel_columns, mapped_columns, excel_rows, gst_format, exp_format } = req.body;
+      const { mapping_id, cmr_vendor_name, excel_columns, mapped_columns, excel_rows, gst_format, exp_format } = req.body;
 
       const updateFields: string[] = [];
       const values: any[] = [];
@@ -117,7 +117,7 @@ export async function updateMapping(req: any, res: any) {
 export async function getMappingById(req: any, res: any) {
   return withClient(async (client: any) => {
     try {
-      const { mapping_id, module_name } = req.query;
+      const { mapping_id } = req.query;
 
 
       const query = `
@@ -162,7 +162,7 @@ export async function getMappingList(req: any, res: any) {
 }
 
 
-export async function getColumnList(req: any, res: any) {
+export async function getColumnList(_req: any, res: any) {
   return withClient(async (client: any) => {
     try {
 
@@ -264,7 +264,7 @@ export async function createRoleBasedCustomization(req: any, res: any) {
 export async function updateRoleBasedCustomization(req: any, res: any) {
   return withClient(async (client: any) => {
     try {
-      const { id, role_id, document_id, customization } = req.body;
+      const { role_id, document_id, customization } = req.body;
 
       // Validate required fields
       if (!role_id || !document_id) {
@@ -620,7 +620,7 @@ export async function getModuleSetting() {
 }
 
 
-export async function getAllModuleSetting(req: any, res: any) {
+export async function getAllModuleSetting(_req: any, res: any) {
   return withClient(async (client: any) => {
     try {
 

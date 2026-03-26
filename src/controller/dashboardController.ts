@@ -1,5 +1,4 @@
 import { withClient } from '../util/database.js';
-import { generateResponse } from '../util/genRes.js';
 
 //changes mar 25, 2026
 // Below code also working for product life cycle
@@ -111,7 +110,7 @@ import { generateResponse } from '../util/genRes.js';
 //     });
 // }
 
-export async function getClients(req: any, res: any) {
+export async function getClients(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const result = await client.query(`

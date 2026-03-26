@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { withClient } from '../util/database.js';
-import nodemailer from "nodemailer";
+
 import { ulid } from "ulid";
 import { columnConfig } from "../helper/columnConfig .js";
 import PDFDocument from 'pdfkit';
@@ -91,7 +91,7 @@ const transactionTablesMap: Record<string, string[]> = {
 async function generateInvoicePDF(rows: any[], requiredColumns: string[]): Promise<Buffer> {
 
   return new Promise((resolve, reject) => {
-    return withClient(async (client: any) => {
+    return withClient(async (_client: any) => {
       try {
         const doc = new PDFDocument();
         const buffers: Uint8Array[] = [];
@@ -131,7 +131,7 @@ async function generateInvoiceSqlPDF(
   tables: string[]
 ): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
-    return withClient(async (client: any) => {
+    return withClient(async (_client: any) => {
       try {
         function getLabelForColumn(column: string, tables: string[]): string {
           if (column.endsWith("_data")) {
@@ -685,7 +685,7 @@ export async function scheduleNotificationsToWhatsapp() {
               return;
             }
 
-            const { templet_id } = commRes.rows[0];
+            const { templet_id: _templet_id } = commRes.rows[0];
 
             // fetch recipients
             const recQuery = `
@@ -767,7 +767,7 @@ export async function scheduleNotificationsToWhatsapp() {
             // });
 
             // Send WhatsApp messages
-            for (const phone of phoneNumbersToSend) {
+            for (const _phone of phoneNumbersToSend) {
               // await whatsappMiddleware(phone, templet_id);
             }
           } catch (err) {
@@ -895,7 +895,7 @@ export async function scheduleNotificationsToSMS() {
               return;
             }
 
-            const { templet_id } = commRes.rows[0];
+            const { templet_id: _templet_id_sms } = commRes.rows[0];
 
             // fetch recipients
             const recQuery = `
@@ -977,7 +977,7 @@ export async function scheduleNotificationsToSMS() {
             //   textMessage += `\n`;
             // });
 
-            for (const phone of phoneNumbersToSend) {
+            for (const _phone of phoneNumbersToSend) {
               // await smsMiddleware('7338578203', templet_id);
             }
           } catch (err) {
@@ -996,7 +996,7 @@ function buildCronExpression(
   frequency: string,
   firstAlert: string,
   accurrence: string,
-  timeGap: string
+  _timeGap: string
 ): string {
   const [hour, minute] = firstAlert.split(":").map(Number);
   if (frequency === "Daily") {

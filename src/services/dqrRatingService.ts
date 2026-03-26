@@ -95,7 +95,7 @@ export async function createDqrRatingService(type: string, records: any[], creat
             const insertedRows = await Promise.all(insertPromises);
 
             // update PCF Request Stages of 5 and 6
-            const updatePCFRequestStages = await client.query(
+            await client.query(
                 `UPDATE pcf_request_stages 
                     SET 
                       is_dqr_completed = true, 

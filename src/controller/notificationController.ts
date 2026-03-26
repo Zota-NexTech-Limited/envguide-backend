@@ -330,7 +330,7 @@ export async function notificationUpdate(req: any, res: any) {
 }
 
 export async function getNotificationList(req: any, res: any) {
-  return withClient(async (client: any) => {
+  return withClient(async (_client: any) => {
 
     try {
 
@@ -348,7 +348,7 @@ export async function getNotificationList(req: any, res: any) {
 }
 
 export async function getNotificationListById(req: any, res: any) {
-  return withClient(async (client: any) => {
+  return withClient(async (_client: any) => {
 
     try {
 
@@ -408,7 +408,7 @@ const transactionTablesMap: Record<string, string[]> = {
 };
 
 export async function fetchTablesUsingTransactiontype(req: any, res: any) {
-  return withClient(async (client: any) => {
+  return withClient(async (_client: any) => {
     const transaction_type = req.query.transaction_type;
 
     try {
@@ -441,7 +441,7 @@ export async function fetchTablesUsingTransactiontype(req: any, res: any) {
 }
 
 export async function fetchColumnsUsingTableNames(req: any, res: any) {
-  return withClient(async (client: any) => {
+  return withClient(async (_client: any) => {
     try {
       const tablesParam = req.query.tables;
 
@@ -484,7 +484,7 @@ export async function fetchColumnsUsingTableNames(req: any, res: any) {
 }
 
 export async function getAllAlerts(req: any, res: any) {
-  return withClient(async (client: any) => {
+  return withClient(async (_client: any) => {
     try {
       const { search, page_no } = req.query;
 
@@ -554,7 +554,7 @@ export async function startOrStopAMS(req: any, res: any) {
   });
 }
 
-export async function getRoleAndUserList(req: any, res: any) {
+export async function getRoleAndUserList(_req: any, res: any) {
   return withClient(async (client: any) => {
     try {
       // Fetch users with their roles
@@ -652,7 +652,7 @@ export async function deleteNotification(req: any, res: any) {
   });
 }
 
-export async function getSMSTemplateDropDown(req: any, res: any) {
+export async function getSMSTemplateDropDown(_req: any, res: any) {
   return withClient(async (client: any) => {
     try {
 
@@ -670,7 +670,7 @@ export async function getSMSTemplateDropDown(req: any, res: any) {
   });
 }
 
-export async function getWhatsappTemplateDropDown(req: any, res: any) {
+export async function getWhatsappTemplateDropDown(_req: any, res: any) {
   return withClient(async (client: any) => {
     try {
 
@@ -732,7 +732,7 @@ export async function fetchSmsWhatsappTemplateUsingConfigId(req: any, res: any) 
 
 }
 
-export const getAllEventNames = async (req: any, res: any) => {
+export const getAllEventNames = async (_req: any, res: any) => {
   return withClient(async (client: any) => {
     try {
       // Fetch event names from both tables
