@@ -1201,12 +1201,16 @@ export async function getEnergySourceEmission(req: any, res: any) {
                 `
                 SELECT psdq.location
                 FROM supplier_general_info_questions sgiq
+                JOIN bom_pcf_request bpr
+                    ON bpr.id = sgiq.bom_pcf_id
                 JOIN supplier_product_questions spq
                     ON spq.sgiq_id = sgiq.sgiq_id
                 JOIN production_site_details_questions psdq
                     ON psdq.spq_id = spq.spq_id
+                WHERE bpr.created_by = $1
                 LIMIT 1
-                `
+                `,
+                [client_id]
             );
 
             const location =
@@ -1414,6 +1418,11 @@ recycled_percentage AS (
             AS total_recycled_material_percentage
 
     FROM recycled_materials_with_percentage_questions rmpq
+    JOIN bom b
+        ON b.id = rmpq.bom_id
+    JOIN bom_pcf_request bpr
+        ON bpr.id = b.bom_pcf_id
+    WHERE bpr.created_by = $1
     GROUP BY
         rmpq.bom_id,
         rmpq.material_name
@@ -1591,12 +1600,18 @@ export async function getWasteEmissionDetails(req: any, res: any) {
                 `
                 SELECT psdq.location
                 FROM scope_three_other_indirect_emissions_questions stoie
+                JOIN supplier_general_info_questions sgiq
+                    ON sgiq.sgiq_id = stoie.sgiq_id
+                JOIN bom_pcf_request bpr
+                    ON bpr.id = sgiq.bom_pcf_id
                 JOIN supplier_product_questions spq
                     ON spq.sgiq_id = stoie.sgiq_id
                 JOIN production_site_details_questions psdq
                     ON psdq.spq_id = spq.spq_id
+                WHERE bpr.created_by = $1
                 LIMIT 1
-                `
+                `,
+                [client_id]
             );
 
             const location =

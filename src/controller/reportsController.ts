@@ -62,7 +62,7 @@ import { generateResponse } from '../util/genRes.js';
 //             'stoie_id', rm.stoie_id,
 //             'bom_id', rm.bom_id,
 //             'material_number', rm.material_number,
-//             'material_name', rm.material_name,
+//             'material_name', COALESCE(mt_lookup.name, rm.material_name),
 //             'percentage', rm.percentage,
 //             'created_date', rm.created_date
 //         )
@@ -182,7 +182,7 @@ import { generateResponse } from '../util/genRes.js';
 //             'rmuicm_id', rm.rmuicm_id,
 //             'stoie_id', rm.stoie_id,
 //             'bom_id', rm.bom_id,
-//             'material_name', rm.material_name,
+//             'material_name', COALESCE(mt_lookup.name, rm.material_name),
 //             'material_number', rm.material_number,
 //             'percentage', rm.percentage,
 //             'year', ctx.year,
@@ -833,12 +833,13 @@ LEFT JOIN LATERAL (
             'stoie_id', rm.stoie_id,
             'bom_id', rm.bom_id,
             'material_number', rm.material_number,
-            'material_name', rm.material_name,
+            'material_name', COALESCE(mt_lookup.name, rm.material_name),
             'percentage', rm.percentage,
             'created_date', rm.created_date
         )
     ) AS q52_material_type_data
     FROM raw_materials_used_in_component_manufacturing_questions rm
+    LEFT JOIN material_type mt_lookup ON mt_lookup.id = rm.material_name
     WHERE rm.bom_id = b.id
 ) q52 ON TRUE
 
@@ -848,10 +849,10 @@ LEFT JOIN LATERAL (
         jsonb_build_object(
             'stidefpe_id', pe.stidefpe_id,
             'stide_id', pe.stide_id,
-            'energy_source', pe.energy_source,
-            'energy_type', pe.energy_type,
+            'energy_source', COALESCE(es_lookup.name, pe.energy_source),
+            'energy_type', COALESCE(et_lookup.name, pe.energy_type),
             'quantity', pe.quantity,
-            'unit', pe.unit,
+            'unit', COALESCE(eu_lookup.name, pe.unit),
             'sup_id', pe.sup_id,
             'created_date', pe.created_date,
 
@@ -859,30 +860,30 @@ LEFT JOIN LATERAL (
            'emission_factor',
 COALESCE(
     CASE
-        WHEN lower(split_part(pe.energy_source, ' ', 1)) IN
+        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) IN
              ('electricity', 'heating', 'steam', 'cooling')
         THEN
             CASE
                 WHEN lower(loc.location) = 'india' THEN
                     CASE
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_india_region::numeric
                     END
                 WHEN lower(loc.location) = 'europe' THEN
                     CASE
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_eu_region::numeric
                     END
                 ELSE
                     CASE
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_global_region::numeric
                     END
             END
         ELSE 0::numeric
@@ -897,11 +898,16 @@ COALESCE(
     JOIN scope_two_indirect_emissions_from_purchased_energy_questions pe
         ON pe.stide_id = stide.stide_id
 
+    /* ---------- LOOKUP JOINS TO RESOLVE IDs TO NAMES ---------- */
+    LEFT JOIN energy_source es_lookup ON es_lookup.es_id = pe.energy_source
+    LEFT JOIN energy_type et_lookup ON et_lookup.et_id = pe.energy_type
+    LEFT JOIN energy_unit eu_lookup ON eu_lookup.eu_id = pe.unit
+
     /* ---------- ELECTRICITY EMISSION FACTOR JOIN ---------- */
     LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy = ('Electricity - ' || pe.energy_type)
+        ON ef.type_of_energy = ('Electricity - ' || COALESCE(et_lookup.name, pe.energy_type))
         AND ef.year = arp.annual_reporting_period
-        AND ef.unit = pe.unit
+        AND ef.unit = COALESCE(eu_lookup.name, pe.unit)
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q22 ON TRUE
@@ -1214,7 +1220,7 @@ LEFT JOIN LATERAL (
             'stoie_id', rm.stoie_id,
             'bom_id', rm.bom_id,
 
-            'material_name', rm.material_name,
+            'material_name', COALESCE(mt_lookup.name, rm.material_name),
             'material_number', rm.material_number,
             'percentage', rm.percentage,
 
@@ -1268,6 +1274,7 @@ ROUND(
         ON mef.year = sgi.annual_reporting_period
         AND mef.unit = 'KgCo2e/per kg'
         AND lower(mef.element_name) = lower(rm.material_name)
+    LEFT JOIN material_type mt_lookup ON mt_lookup.id = rm.material_name
     WHERE rm.bom_id = b.id
 ) q52 ON TRUE
 
@@ -1630,12 +1637,13 @@ LEFT JOIN LATERAL (
             'stoie_id', rm.stoie_id,
             'bom_id', rm.bom_id,
             'material_number', rm.material_number,
-            'material_name', rm.material_name,
+            'material_name', COALESCE(mt_lookup.name, rm.material_name),
             'percentage', rm.percentage,
             'created_date', rm.created_date
         )
     ) AS q52_material_type_data
     FROM raw_materials_used_in_component_manufacturing_questions rm
+    LEFT JOIN material_type mt_lookup ON mt_lookup.id = rm.material_name
     WHERE rm.bom_id = b.id
 ) q52 ON TRUE
 
@@ -1645,10 +1653,10 @@ LEFT JOIN LATERAL (
         jsonb_build_object(
             'stidefpe_id', pe.stidefpe_id,
             'stide_id', pe.stide_id,
-            'energy_source', pe.energy_source,
-            'energy_type', pe.energy_type,
+            'energy_source', COALESCE(es_lookup.name, pe.energy_source),
+            'energy_type', COALESCE(et_lookup.name, pe.energy_type),
             'quantity', pe.quantity,
-            'unit', pe.unit,
+            'unit', COALESCE(eu_lookup.name, pe.unit),
             'sup_id', pe.sup_id,
             'created_date', pe.created_date,
 
@@ -1656,30 +1664,30 @@ LEFT JOIN LATERAL (
            'emission_factor',
 COALESCE(
     CASE
-        WHEN lower(split_part(pe.energy_source, ' ', 1)) IN
+        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) IN
              ('electricity', 'heating', 'steam', 'cooling')
         THEN
             CASE
                 WHEN lower(loc.location) = 'india' THEN
                     CASE
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_india_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_india_region::numeric
                     END
                 WHEN lower(loc.location) = 'europe' THEN
                     CASE
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_eu_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_eu_region::numeric
                     END
                 ELSE
                     CASE
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'electricity' THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'heating'     THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'steam'       THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(pe.energy_source, ' ', 1)) = 'cooling'     THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_global_region::numeric
+                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_global_region::numeric
                     END
             END
         ELSE 0::numeric
@@ -1693,7 +1701,7 @@ ROUND(
     *
     COALESCE(
         CASE
-            WHEN lower(split_part(pe.energy_source, ' ', 1)) IN
+            WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) IN
                  ('electricity', 'heating', 'steam', 'cooling')
             THEN
                 CASE
@@ -1715,11 +1723,16 @@ ROUND(
     JOIN scope_two_indirect_emissions_from_purchased_energy_questions pe
         ON pe.stide_id = stide.stide_id
 
+    /* ---------- LOOKUP JOINS TO RESOLVE IDs TO NAMES ---------- */
+    LEFT JOIN energy_source es_lookup ON es_lookup.es_id = pe.energy_source
+    LEFT JOIN energy_type et_lookup ON et_lookup.et_id = pe.energy_type
+    LEFT JOIN energy_unit eu_lookup ON eu_lookup.eu_id = pe.unit
+
     /* ---------- ELECTRICITY EMISSION FACTOR JOIN ---------- */
     LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy = ('Electricity - ' || pe.energy_type)
+        ON ef.type_of_energy = ('Electricity - ' || COALESCE(et_lookup.name, pe.energy_type))
         AND ef.year = arp.annual_reporting_period
-        AND ef.unit = pe.unit
+        AND ef.unit = COALESCE(eu_lookup.name, pe.unit)
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q22 ON TRUE
