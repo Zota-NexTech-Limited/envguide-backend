@@ -1554,7 +1554,7 @@ export async function getVirginOrRecycledEmission(req: any, res: any) {
 export async function getWasteEmissionDetails(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { client_id, supplier_id } = req.query;
+            const { client_id, supplier_id, waste_type } = req.query;
 
             if (!client_id) {
                 return res.status(400).send({
@@ -1563,9 +1563,25 @@ export async function getWasteEmissionDetails(req: any, res: any) {
                 });
             }
 
+            // Parse waste_type filter (comma-separated list)
+            const wasteTypeFilter: string[] = (waste_type && typeof waste_type === 'string' && waste_type.trim() !== '')
+                ? waste_type.split(',').map((w: string) => w.trim()).filter(Boolean)
+                : [];
+
             /* ---------------------------------------------------
                1️⃣ FETCH WASTE DATA (GROUPED BY TREATMENT TYPE)
             --------------------------------------------------- */
+            const queryParams: any[] = [client_id, supplier_id || null];
+            let wasteTypeClause = '';
+            if (wasteTypeFilter.length > 0) {
+                const placeholders = wasteTypeFilter.map((_, i) => `$${i + 3}`).join(', ');
+                wasteTypeClause = `AND wpwq.waste_type IN (${placeholders})`;
+                queryParams.push(...wasteTypeFilter);
+            }
+
+            // Fetch waste data from BOTH paths:
+            // 1) Supplier path: wpwq.bom_id → bom → bom_pcf_request
+            // 2) Product/Own-emission path: wpwq.product_bom_pcf_id → bom_pcf_request
             const wasteResult = await client.query(
                 `
                 SELECT
@@ -1575,14 +1591,14 @@ export async function getWasteEmissionDetails(req: any, res: any) {
                     wpwq.annual_reporting_period,
                     wpwq.stoie_id,
                     SUM(wpwq.waste_weight::numeric) AS total_waste_weight
-                FROM bom_pcf_request bpr
-                JOIN bom b
-                    ON b.bom_pcf_id = bpr.id
-                JOIN weight_of_pro_packaging_waste_questions wpwq
-                    ON wpwq.bom_id = b.id
+                FROM weight_of_pro_packaging_waste_questions wpwq
+                LEFT JOIN bom b ON wpwq.bom_id = b.id
+                LEFT JOIN bom_pcf_request bpr_bom ON b.bom_pcf_id = bpr_bom.id
+                LEFT JOIN bom_pcf_request bpr_prod ON wpwq.product_bom_pcf_id = bpr_prod.id
                 WHERE
-                    bpr.created_by = $1
+                    (bpr_bom.created_by = $1 OR bpr_prod.created_by = $1)
                     AND ($2::varchar IS NULL OR b.supplier_id = $2::varchar)
+                    ${wasteTypeClause}
                 GROUP BY
                     wpwq.treatment_type,
                     wpwq.waste_type,
@@ -1590,7 +1606,7 @@ export async function getWasteEmissionDetails(req: any, res: any) {
                     wpwq.annual_reporting_period,
                     wpwq.stoie_id
                 `,
-                [client_id, supplier_id || null]
+                queryParams
             );
 
             /* ---------------------------------------------------
@@ -1627,7 +1643,10 @@ export async function getWasteEmissionDetails(req: any, res: any) {
 
             for (const row of wasteResult.rows) {
 
-                const efResult = await client.query(
+                const treatmentTypeTrimmed = (row.treatment_type || '').replace(/\s+/g, ' ').trim();
+
+                // 1️⃣ Try packaging emission factor table (flexible: ignore unit/year mismatch)
+                let efResult = await client.query(
                     `
         SELECT
             pmttef.ef_india_region,
@@ -1637,32 +1656,66 @@ export async function getWasteEmissionDetails(req: any, res: any) {
         JOIN packaging_treatment_type ptt
             ON pmttef.ptt_id = ptt.ptt_id
         WHERE
-            pmttef.material_type = $1
-            AND pmttef.year = $2
-            AND pmttef.unit = $3
-            AND ptt.name = $4
+            LOWER(TRIM(pmttef.material_type)) = LOWER(TRIM($1))
+            AND LOWER(TRIM(REGEXP_REPLACE(ptt.name, '\\s+', ' ', 'g'))) = LOWER(TRIM($2))
+        ORDER BY
+            CASE WHEN pmttef.year = $3 THEN 0 ELSE 1 END,
+            pmttef.year DESC
         LIMIT 1
         `,
                     [
                         row.waste_type,
-                        row.annual_reporting_period,
-                        row.unit,
-                        row.treatment_type
+                        treatmentTypeTrimmed,
+                        row.annual_reporting_period || '2025'
                     ]
                 );
 
-                if (!efResult.rows.length) continue;
-
-                let emissionFactor = 0;
-                if (location === "india") {
-                    emissionFactor = Number(efResult.rows[0].ef_india_region);
-                } else if (location === "europe") {
-                    emissionFactor = Number(efResult.rows[0].ef_eu_region);
-                } else {
-                    emissionFactor = Number(efResult.rows[0].ef_global_region);
+                // 2️⃣ Fallback: try waste emission factor table
+                if (!efResult.rows.length) {
+                    efResult = await client.query(
+                        `
+        SELECT
+            wmttef.ef_india_region,
+            wmttef.ef_eu_region,
+            wmttef.ef_global_region
+        FROM waste_material_treatment_type_emission_factor wmttef
+        JOIN waste_treatment_type wtt
+            ON wmttef.wtt_id = wtt.wtt_id
+        WHERE
+            LOWER(TRIM(wmttef.waste_type)) = LOWER(TRIM($1))
+            AND LOWER(TRIM(REGEXP_REPLACE(wtt.name, '\\s+', ' ', 'g'))) = LOWER(TRIM($2))
+        ORDER BY
+            CASE WHEN wmttef.year = $3 THEN 0 ELSE 1 END,
+            wmttef.year DESC
+        LIMIT 1
+        `,
+                        [
+                            row.waste_type,
+                            treatmentTypeTrimmed,
+                            row.annual_reporting_period || '2025'
+                        ]
+                    );
                 }
 
-                const wasteWeight = Number(row.total_waste_weight);
+                let emissionFactor = 0;
+                if (efResult.rows.length) {
+                    if (location === "india") {
+                        emissionFactor = Number(efResult.rows[0].ef_india_region) || 0;
+                    } else if (location === "europe") {
+                        emissionFactor = Number(efResult.rows[0].ef_eu_region) || 0;
+                    } else {
+                        emissionFactor = Number(efResult.rows[0].ef_global_region) || 0;
+                    }
+                }
+
+                // Convert waste weight to kg if needed
+                let wasteWeight = Number(row.total_waste_weight);
+                const unitLower = (row.unit || '').toLowerCase();
+                if (unitLower.includes('metric ton') || unitLower.includes('mt') || unitLower.includes('tonne')) {
+                    wasteWeight = wasteWeight * 1000; // Convert MT to kg
+                } else if (unitLower.includes('gram') && !unitLower.includes('kilo')) {
+                    wasteWeight = wasteWeight / 1000; // Convert g to kg
+                }
                 const emission = wasteWeight * emissionFactor;
 
                 /* 🔁 GROUP BY TREATMENT TYPE */
@@ -1703,6 +1756,50 @@ export async function getWasteEmissionDetails(req: any, res: any) {
 
         } catch (error: any) {
             console.error("Waste emission details error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Waste type dropdown for dashboard filter
+export async function getWasteTypeDropdown(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { client_id } = req.query;
+
+            if (!client_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "client_id is required"
+                });
+            }
+
+            const result = await client.query(
+                `
+                SELECT DISTINCT wpwq.waste_type
+                FROM weight_of_pro_packaging_waste_questions wpwq
+                LEFT JOIN bom b ON wpwq.bom_id = b.id
+                LEFT JOIN bom_pcf_request bpr_bom ON b.bom_pcf_id = bpr_bom.id
+                LEFT JOIN bom_pcf_request bpr_prod ON wpwq.product_bom_pcf_id = bpr_prod.id
+                WHERE (bpr_bom.created_by = $1 OR bpr_prod.created_by = $1)
+                    AND wpwq.waste_type IS NOT NULL
+                    AND wpwq.waste_type != ''
+                ORDER BY wpwq.waste_type ASC
+                `,
+                [client_id]
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: "Waste type dropdown fetched successfully",
+                data: result.rows.map((r: any) => r.waste_type)
+            });
+
+        } catch (error: any) {
+            console.error("Waste type dropdown error:", error);
             return res.status(500).send({
                 success: false,
                 message: error.message

@@ -502,12 +502,23 @@ async function updateScopeThree(client: any, d: any) {
         ['energy_purchased', 'energy_type', 'quantity', 'unit']
     );
 
+    // Delete existing Q68 waste records per bom_id before inserting new set to prevent stale cross-component data.
+    if (Array.isArray(d.weight_of_pro_packaging_waste_questions) && d.weight_of_pro_packaging_waste_questions.length > 0) {
+        const distinctWasteBomIds = [...new Set(d.weight_of_pro_packaging_waste_questions.map((r: any) => r.bom_id).filter(Boolean))];
+        for (const bomId of distinctWasteBomIds) {
+            await client.query(
+                `DELETE FROM weight_of_pro_packaging_waste_questions WHERE bom_id = $1 AND stoie_id = $2`,
+                [bomId, d.stoie_id]
+            );
+        }
+    }
     await updateByArray(
         client,
         'weight_of_pro_packaging_waste_questions',
         'woppw_id',
         d.weight_of_pro_packaging_waste_questions,
-        ['waste_type', 'waste_weight', 'unit', 'treatment_type', 'bom_id']
+        ['waste_type', 'waste_weight', 'unit', 'treatment_type', 'bom_id'],
+        { stoie_id: d.stoie_id }
     );
 
     await updateByArray(
@@ -526,12 +537,23 @@ async function updateScopeThree(client: any, d: any) {
         ['raw_material_name', 'transport_mode', 'source_location', 'destination_location', 'co_two_emission', 'bom_id']
     );
 
+    // Delete existing Q74 transport records per bom_id before inserting new set to prevent stale cross-component data.
+    if (Array.isArray(d.mode_of_transport_used_for_transportation_questions) && d.mode_of_transport_used_for_transportation_questions.length > 0) {
+        const distinctTransportBomIds = [...new Set(d.mode_of_transport_used_for_transportation_questions.map((r: any) => r.bom_id).filter(Boolean))];
+        for (const bomId of distinctTransportBomIds) {
+            await client.query(
+                `DELETE FROM mode_of_transport_used_for_transportation_questions WHERE bom_id = $1 AND stoie_id = $2`,
+                [bomId, d.stoie_id]
+            );
+        }
+    }
     await updateByArray(
         client,
         'mode_of_transport_used_for_transportation_questions',
         'motuft_id',
         d.mode_of_transport_used_for_transportation_questions,
-        ['mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance', 'bom_id']
+        ['mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance', 'bom_id'],
+        { stoie_id: d.stoie_id }
     );
 
     await updateByArray(

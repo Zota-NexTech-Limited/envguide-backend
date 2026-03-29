@@ -1252,7 +1252,7 @@ LEFT JOIN LATERAL (
 ROUND(
     (
         ((b.weight_gms::numeric / 1000)
-         * COALESCE(rmp.recycled_percentage, 0) / 100)
+         * COALESCE(rm.percentage::numeric, 0) / 100)
         *
         COALESCE(
             CASE
@@ -1287,23 +1287,53 @@ LIMIT $${idx++} OFFSET $${idx++};
             values.push(offset);
             const result = await client.query(query, values);
 
-            const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            // Flatten: one row per Q52 material instead of one row per BOM
+            const flatRows: any[] = [];
+            for (const row of result.rows) {
+                const materials = Array.isArray(row.q52_material_type_data) ? row.q52_material_type_data : [];
+                if (materials.length === 0) {
+                    flatRows.push({
+                        ...row,
+                        material_name: null,
+                        material_percentage: null,
+                        recycled_percentage: null,
+                        material_weight_kg: null,
+                        emission_factor_used: null,
+                        emission_in_co2_eq: null,
+                        q52_material_type_data: undefined
+                    });
+                } else {
+                    for (const mat of materials) {
+                        const weightKg = row.weight_gms ? (row.weight_gms / 1000) : 0;
+                        const matPercentage = mat.percentage ? Number(mat.percentage) : 0;
+                        flatRows.push({
+                            ...row,
+                            material_name: mat.material_name || null,
+                            material_percentage: matPercentage,
+                            recycled_percentage: mat.recycled_percentage ?? null,
+                            material_weight_kg: matPercentage > 0 ? Number((weightKg * matPercentage / 100).toFixed(6)) : null,
+                            emission_factor_used: mat.emission_factor_used ?? null,
+                            emission_in_co2_eq: mat.emission_in_co2_eq ?? null,
+                            q52_material_type_data: undefined
+                        });
+                    }
+                }
+            }
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
-                    totalCount,
-                    data: result.rows
+                    totalCount: flatRows.length,
+                    data: flatRows
                 })
             );
 
         } catch (error: any) {
-            console.error("Error fetching Supplier Footprint:", error);
+            console.error("Error fetching Material Footprint:", error);
             return res.status(500).json({
                 success: false,
-                message: error.message || "Failed to fetch Supplier Footprint"
+                message: error.message || "Failed to fetch Material Footprint"
             });
         }
     });
@@ -1880,23 +1910,66 @@ LIMIT $${paramIndex++} OFFSET $${paramIndex++};
             values.push(offset);
             const result = await client.query(query, values);
 
-            const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            // Flatten: one row per energy record from Q22/Q51/Q67
+            const flatRows: any[] = [];
+            for (const row of result.rows) {
+                const q22 = Array.isArray(row.Q22_energy_type_and_energy_quantity) ? row.Q22_energy_type_and_energy_quantity : [];
+                const q51 = Array.isArray(row.Q51_energy_type_and_energy_quantity) ? row.Q51_energy_type_and_energy_quantity : [];
+                const q67 = Array.isArray(row.Q67_energy_type_and_energy_quantity) ? row.Q67_energy_type_and_energy_quantity : [];
+
+                const allEnergy = [
+                    ...q22.map((e: any) => ({ energy_source: e.energy_source, energy_type: e.energy_type, quantity: e.quantity, unit: e.unit, emission_factor: e.emission_factor, calculated_emission: e.calculated_emission, source_section: 'Scope 2 - Purchased Energy' })),
+                    ...q51.map((e: any) => ({ energy_source: e.energy_purchased, energy_type: e.energy_type, quantity: e.quantity, unit: e.unit, emission_factor: e.emission_factor, calculated_emission: e.calculated_emission, source_section: 'Scope 2 - Production Energy' })),
+                    ...q67.map((e: any) => ({ energy_source: e.energy_purchased, energy_type: e.energy_type, quantity: e.quantity, unit: e.unit, emission_factor: e.emission_factor, calculated_emission: e.calculated_emission, source_section: 'Scope 3 - Packaging Energy' }))
+                ];
+
+                if (allEnergy.length === 0) {
+                    flatRows.push({
+                        ...row,
+                        electricity_source: null,
+                        energy_type: null,
+                        energy_quantity: null,
+                        energy_unit: null,
+                        emission_factor: null,
+                        calculated_emission: null,
+                        source_section: null,
+                        Q22_energy_type_and_energy_quantity: undefined,
+                        Q51_energy_type_and_energy_quantity: undefined,
+                        Q67_energy_type_and_energy_quantity: undefined
+                    });
+                } else {
+                    for (const e of allEnergy) {
+                        flatRows.push({
+                            ...row,
+                            electricity_source: e.energy_source || null,
+                            energy_type: e.energy_type || null,
+                            energy_quantity: e.quantity || null,
+                            energy_unit: e.unit || null,
+                            emission_factor: e.emission_factor ?? null,
+                            calculated_emission: e.calculated_emission ?? null,
+                            source_section: e.source_section || null,
+                            Q22_energy_type_and_energy_quantity: undefined,
+                            Q51_energy_type_and_energy_quantity: undefined,
+                            Q67_energy_type_and_energy_quantity: undefined
+                        });
+                    }
+                }
+            }
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
-                    totalCount,
-                    data: result.rows
+                    totalCount: flatRows.length,
+                    data: flatRows
                 })
             );
 
         } catch (error: any) {
-            console.error("Error fetching Supplier Footprint:", error);
+            console.error("Error fetching Electricity Footprint:", error);
             return res.status(500).json({
                 success: false,
-                message: error.message || "Failed to fetch Supplier Footprint"
+                message: error.message || "Failed to fetch Electricity Footprint"
             });
         }
     });
@@ -2179,23 +2252,55 @@ LIMIT $${idx++} OFFSET $${idx++};
             values.push(offset);
             const result = await client.query(query, values);
 
-            const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            // Flatten: one row per transport record from Q74
+            const flatRows: any[] = [];
+            for (const row of result.rows) {
+                const transports = Array.isArray(row.Q74_transport) ? row.Q74_transport : [];
+                if (transports.length === 0) {
+                    flatRows.push({
+                        ...row,
+                        transport_mode: null,
+                        source_point: null,
+                        drop_point: null,
+                        weight_transported: null,
+                        weight_in_tons: null,
+                        distance_km: null,
+                        emission_factor: null,
+                        total_emission: null,
+                        Q74_transport: undefined
+                    });
+                } else {
+                    for (const t of transports) {
+                        flatRows.push({
+                            ...row,
+                            transport_mode: t.mode_of_transport || null,
+                            source_point: t.source_point || null,
+                            drop_point: t.drop_point || null,
+                            weight_transported: t.weight_transported || null,
+                            weight_in_tons: t.weight_in_tons ?? null,
+                            distance_km: t.distance || null,
+                            emission_factor: t.emission_factor_used ?? null,
+                            total_emission: t.transported_emission ?? null,
+                            Q74_transport: undefined
+                        });
+                    }
+                }
+            }
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
-                    totalCount,
-                    data: result.rows
+                    totalCount: flatRows.length,
+                    data: flatRows
                 })
             );
 
         } catch (error: any) {
-            console.error("Error fetching Supplier Footprint:", error);
+            console.error("Error fetching Transportation Footprint:", error);
             return res.status(500).json({
                 success: false,
-                message: error.message || "Failed to fetch Supplier Footprint"
+                message: error.message || "Failed to fetch Transportation Footprint"
             });
         }
     });
@@ -2443,7 +2548,7 @@ LEFT JOIN LATERAL (
             'material_number', pmu.material_number,
             'component_name', pmu.component_name,
             'packagin_type', pmu.packagin_type,
-            'treatment_type, pmu.treatment_type,
+            'treatment_type', pmu.treatment_type,
             'packaging_size', pmu.packaging_size,
             'unit', pmu.unit,
             'percentage_of_recycled_content_used_in_packaging',stoie.percentage_of_recycled_content_used_in_packaging
@@ -2575,23 +2680,61 @@ LIMIT $${idx++} OFFSET $${idx++};
 
             const result = await client.query(query, values);
 
-            const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            // Flatten: one row per packaging/energy record
+            const flatRows: any[] = [];
+            for (const row of result.rows) {
+                const q60 = Array.isArray(row.Q60_packaging_material) ? row.Q60_packaging_material : [];
+                const q67 = Array.isArray(row.Q67_energy_type_and_energy_quantity) ? row.Q67_energy_type_and_energy_quantity : [];
+
+                if (q60.length === 0 && q67.length === 0) {
+                    flatRows.push({
+                        ...row,
+                        packaging_type: null,
+                        treatment_type: null,
+                        packaging_recyclability: null,
+                        energy_type: null,
+                        emission_factor: null,
+                        emission_0_25: null,
+                        emission_0_5: null,
+                        Q60_packaging_material: undefined,
+                        Q67_energy_type_and_energy_quantity: undefined
+                    });
+                } else {
+                    // Use Q60 as primary rows, attach Q67 data where available
+                    const maxLen = Math.max(q60.length, q67.length, 1);
+                    for (let i = 0; i < maxLen; i++) {
+                        const pkg = q60[i] || {};
+                        const energy = q67[i] || {};
+                        flatRows.push({
+                            ...row,
+                            packaging_type: pkg.packagin_type || null,
+                            treatment_type: pkg.treatment_type || null,
+                            packaging_recyclability: pkg.percentage_of_recycled_content_used_in_packaging ?? energy.percentage_of_recycled_content_used_in_packaging ?? null,
+                            energy_type: energy.energy_type || null,
+                            emission_factor: energy.emission_factor ?? null,
+                            emission_0_25: energy.calculated_emission_factor_Point25 ?? null,
+                            emission_0_5: energy.calculated_emission_factor_Point5 ?? null,
+                            Q60_packaging_material: undefined,
+                            Q67_energy_type_and_energy_quantity: undefined
+                        });
+                    }
+                }
+            }
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
                     page,
                     pageSize: limit,
-                    totalCount,
-                    data: result.rows
+                    totalCount: flatRows.length,
+                    data: flatRows
                 })
             );
 
         } catch (error: any) {
-            console.error("Error fetching Supplier Footprint:", error);
+            console.error("Error fetching Packaging Footprint:", error);
             return res.status(500).json({
                 success: false,
-                message: error.message || "Failed to fetch Supplier Footprint"
+                message: error.message || "Failed to fetch Packaging Footprint"
             });
         }
     });
