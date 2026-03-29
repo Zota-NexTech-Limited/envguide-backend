@@ -458,7 +458,7 @@ async function updateScopeThree(client: any, d: any) {
         'recycled_materials_with_percentage_questions',
         'rmwp_id',
         d.recycled_materials_with_percentage_questions,
-        ['material_name', 'percentage']
+        ['material_name', 'percentage', 'bom_id', 'material_number']
     );
 
     await updateByArray(
@@ -482,7 +482,7 @@ async function updateScopeThree(client: any, d: any) {
         'type_of_pack_mat_used_for_delivering_questions',
         'topmudp_id',
         d.type_of_pack_mat_used_for_delivering_questions,
-        ['component_name', 'packagin_type','treatment_type', 'packaging_size', 'unit', 'bom_id']
+        ['component_name', 'packagin_type','treatment_type', 'packaging_size', 'unit', 'bom_id', 'material_number']
     );
 
     await updateByArray(
@@ -490,7 +490,7 @@ async function updateScopeThree(client: any, d: any) {
         'weight_of_packaging_per_unit_product_questions',
         'woppup_id',
         d.weight_of_packaging_per_unit_product_questions,
-        ['component_name', 'packagin_weight', 'unit', 'bom_id'],
+        ['component_name', 'packagin_weight', 'unit', 'bom_id', 'material_number'],
         { stoie_id: d.stoie_id }
     );
 
