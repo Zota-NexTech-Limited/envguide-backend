@@ -33,6 +33,7 @@ Routes.get('/api/dashboard/virgin-or-recyclibility-emission', authService.authen
 
 // Waste
 Routes.get('/api/dashboard/waste-emission', authService.authenticate, Controller.getWasteEmissionDetails);
+Routes.get('/api/dashboard/waste-type-dropdown', authService.authenticate, Controller.getWasteTypeDropdown);
 
 // Impact Categories
 Routes.get('/api/dashboard/impact-categories', authService.authenticate, Controller.getImpactCategories);
