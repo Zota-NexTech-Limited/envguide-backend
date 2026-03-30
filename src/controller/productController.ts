@@ -1362,12 +1362,8 @@ COALESCE(
                         'created_date', mt.created_date
                     )
                 )
-                FROM supplier_general_info_questions sgiq
-                JOIN scope_three_other_indirect_emissions_questions stoie
-                    ON stoie.sgiq_id = sgiq.sgiq_id
-                JOIN mode_of_transport_used_for_transportation_questions mt
-                    ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id AND sgiq.own_emission_id IS NOT NULL
+                FROM mode_of_transport_used_for_transportation_questions mt
+                WHERE mt.bom_id = b.id
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -1769,12 +1765,8 @@ COALESCE(
                         'created_date', mt.created_date
                     )
                 )
-                FROM supplier_general_info_questions sgiq
-                JOIN scope_three_other_indirect_emissions_questions stoie
-                    ON stoie.sgiq_id = sgiq.sgiq_id
-                JOIN mode_of_transport_used_for_transportation_questions mt
-                    ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id AND sgiq.own_emission_id IS NULL
+                FROM mode_of_transport_used_for_transportation_questions mt
+                WHERE mt.bom_id = b.id
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
