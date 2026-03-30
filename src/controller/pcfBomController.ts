@@ -2069,12 +2069,11 @@ COALESCE(
             ),
 
             /* ---------- LOGISTIC EMISSION ---------- */
-            'logistic_emission_calculation', (
-                SELECT to_jsonb(ml)
+            'logistic_emission_calculation', COALESCE((
+                SELECT jsonb_agg(to_jsonb(ml))
                 FROM bom_emission_logistic_calculation_engine ml
                 WHERE ml.bom_id = b.id AND ml.product_id IS NULL
-                LIMIT 1
-            ),
+            ), '[]'::jsonb),
 
             /* ---------- TOTAL PCF ---------- */
             'pcf_total_emission_calculation', (
@@ -2097,12 +2096,8 @@ COALESCE(
                         'created_date', mt.created_date
                     )
                 )
-                FROM supplier_general_info_questions sgiq
-                JOIN scope_three_other_indirect_emissions_questions stoie
-                    ON stoie.sgiq_id = sgiq.sgiq_id
-                JOIN mode_of_transport_used_for_transportation_questions mt
-                    ON mt.stoie_id = stoie.stoie_id
-                WHERE sgiq.sup_id = b.supplier_id AND sgiq.own_emission_id IS NULL
+                FROM mode_of_transport_used_for_transportation_questions mt
+                WHERE mt.bom_id = b.id
             ), '[]'::jsonb),
 
             /* ---------- ALLOCATION METHODOLOGY ---------- */
@@ -3387,19 +3382,20 @@ export async function pcfCalculate(req: any, res: any) {
 
                     await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
 
-                    // Get ALL factory components for this sgiq_id (not just this bom_id)
-                    // This is needed for correct factory-level allocation
+                    // Get ALL factory components across ALL supplier questionnaires for this PCF request
+                    // This is needed for correct factory-level allocation (energy must be shared across all components)
                     const someOfAllProductQues = `
                 SELECT pcm.spq_id, pcm.bom_id, pcm.material_number, pcm.weight_per_unit, pcm.unit, pcm.price, pcm.quantity
                 FROM product_component_manufactured_questions pcm
                 JOIN supplier_product_questions spq ON pcm.spq_id = spq.spq_id
-                WHERE spq.sgiq_id = $1 AND pcm.own_emission_id IS NULL;
+                JOIN supplier_general_info_questions sgiq ON spq.sgiq_id = sgiq.sgiq_id
+                WHERE sgiq.bom_pcf_id = $1 AND pcm.own_emission_id IS NULL;
             `;
 
-                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
-                    
+                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [bom_pcf_id]);
+
                     console.log("=== Q15 FACTORY COMPONENTS QUERY DEBUG ===");
-                    console.log("Querying by sgiq_id:", fetchSGIQIDSupResult.rows[0].sgiq_id);
+                    console.log("Querying by bom_pcf_id:", bom_pcf_id);
                     console.log("Number of factory components found:", someOfAllProductQuesSupResult.rows.length);
                     if (someOfAllProductQuesSupResult.rows.length > 0) {
                         console.log("Factory components:", JSON.stringify(someOfAllProductQuesSupResult.rows.map((r: any) => ({
@@ -4744,14 +4740,16 @@ export async function pcfCalculate(req: any, res: any) {
                     // Sixth Phase END
 
                     // ====> Delete old total PCF calculation data for this BOM first
-                    await client.query(
+                    const deleteFinalResult = await client.query(
                         `DELETE FROM bom_emission_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
                         [BomData.id]
                     );
+                    console.log(`=== FINAL PCF INSERT DEBUG for bom_id: ${BomData.id} ===`);
+                    console.log(`Deleted ${deleteFinalResult.rowCount} old rows from bom_emission_calculation_engine`);
 
                     // ====> Insert into bom_emission_calculation_engine table
                     const queryLastPhase = `
-                        INSERT INTO bom_emission_calculation_engine 
+                        INSERT INTO bom_emission_calculation_engine
                         (id,bom_id, material_value, production_value,
                         packaging_value,logistic_value,waste_value,total_pcf_value)
                         VALUES ($1,$2, $3, $4, $5, $6, $7, $8)
@@ -4777,7 +4775,11 @@ export async function pcfCalculate(req: any, res: any) {
                         4
                     );
 
-                    await client.query(queryLastPhase, [
+                    console.log(`Manufacturing_Emissions_kg_CO2e (raw): ${Manufacturing_Emissions_kg_CO2e}`);
+                    console.log(`out_production_value (after roundDp): ${out_production_value}`);
+                    console.log(`out_material_value: ${out_material_value}, out_packaging_value: ${out_packaging_value}, out_logistic_value: ${out_logistic_value}, out_waste_value: ${out_waste_value}, out_total_pcf_value: ${out_total_pcf_value}`);
+
+                    const insertFinalResult = await client.query(queryLastPhase, [
                         ulid(),
                         BomData.id,
                         out_material_value,
@@ -4787,6 +4789,18 @@ export async function pcfCalculate(req: any, res: any) {
                         out_waste_value,
                         out_total_pcf_value
                     ]);
+                    console.log(`INSERT RESULT:`, JSON.stringify(insertFinalResult.rows[0]));
+                    console.log(`=== END FINAL PCF INSERT DEBUG ===`);
+
+                    // Verify what's actually in the DB now
+                    const verifyResult = await client.query(
+                        `SELECT * FROM bom_emission_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
+                        [BomData.id]
+                    );
+                    console.log(`VERIFY: ${verifyResult.rowCount} rows in bom_emission_calculation_engine for bom_id ${BomData.id}`);
+                    verifyResult.rows.forEach((row: any, idx: number) => {
+                        console.log(`  Row ${idx}: production_value=${row.production_value}, material_value=${row.material_value}, total_pcf_value=${row.total_pcf_value}`);
+                    });
 
                     // ===> Insert Ends here
 
