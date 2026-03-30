@@ -4055,6 +4055,13 @@ export async function pcfCalculate(req: any, res: any) {
 
                     let Total_Transportation_emissions_per_unit_kg_CO2E = 0;
 
+                    // ====> Delete old logistic calculation data for this BOM first
+                    const deleteLogisticResult = await client.query(
+                        `DELETE FROM bom_emission_logistic_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
+                        [BomData.id]
+                    );
+                    console.log(`Deleted ${deleteLogisticResult.rowCount} old rows from bom_emission_logistic_calculation_engine for bom_id: ${BomData.id}`);
+
                     // Fetch ALL transport legs: prefer bom_pcf_id path so we get every Q74 row for this PCF (not just one).
                     // When questionnaire saves multiple rows, some may have bom_id NULL or only one row has bom_id set;
                     // querying by bom_id alone then returns only one row. Using bom_pcf_id first returns all legs.
