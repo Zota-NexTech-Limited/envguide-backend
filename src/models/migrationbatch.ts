@@ -3679,6 +3679,13 @@ ON CONFLICT (uc_id) DO NOTHING;`,
 );
 `,
 
+        `ALTER TABLE mode_of_transport_used_for_transportation_questions
+ADD COLUMN IF NOT EXISTS source_lat DECIMAL,
+ADD COLUMN IF NOT EXISTS source_lng DECIMAL,
+ADD COLUMN IF NOT EXISTS drop_lat DECIMAL,
+ADD COLUMN IF NOT EXISTS drop_lng DECIMAL;
+`,
+
     ]
 
     // try {

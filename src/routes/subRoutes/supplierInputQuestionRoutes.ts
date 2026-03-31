@@ -16,5 +16,7 @@ Routes.get('/api/supplier/material-composition-metal-dropdown', authService.auth
 Routes.get('/api/supplier/material-composition-metal-type-dropdown', authService.authenticate, Controller.getMaterialCompositionMetalType);
 Routes.get('/api/supplier/auto-populate-bom-details', Controller.getPCFBOMListToAutoPop);
 Routes.post('/api/supplier/update-data-collection-question-stage', Controller.updatePcfBomSupplierQuestionClickedStatus);
+Routes.get('/api/geocode-search', Controller.geocodeSearch);
+Routes.post('/api/calculate-distance', Controller.calculateDistance);
 
 export default Routes;
