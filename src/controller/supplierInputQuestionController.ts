@@ -3,6 +3,7 @@ import { ulid } from 'ulid';
 import { generateResponse } from '../util/genRes.js';
 import { updateSupplierSustainabilityService } from '../services/supplierInputQuetionService.js';
 import { assertScopeThreeBomRowsValid } from '../services/scopeThreeBomValidation.js';
+import axios from 'axios';
 
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -3131,7 +3132,11 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                     mode_of_transport: t.mode_of_transport,
                     weight_transported: t.weight_transported,
                     source_point: t.source_point,
+                    source_lat: t.source_lat,
+                    source_lng: t.source_lng,
                     drop_point: t.drop_point,
+                    drop_lat: t.drop_lat,
+                    drop_lng: t.drop_lng,
                     distance: t.distance
                 }
             });
@@ -3145,7 +3150,11 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 t.mode_of_transport,
                 t.weight_transported,
                 t.source_point,
+                t.source_lat || null,
+                t.source_lng || null,
                 t.drop_point,
+                t.drop_lat || null,
+                t.drop_lng || null,
                 t.distance
             ];
         });
@@ -3153,7 +3162,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
         childInserts.push(bulkInsert(
             client,
             'mode_of_transport_used_for_transportation_questions',
-            ['motuft_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance'],
+            ['motuft_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'source_lat', 'source_lng', 'drop_point', 'drop_lat', 'drop_lng', 'distance'],
             rows
         ));
 
@@ -3874,7 +3883,7 @@ export async function getQuestionnaireIdsForPatch(req: any, res: any) {
 
             if (stoie_id) {
                 const transportQuery = `
-                    SELECT motuft_id, bom_id, material_number, component_name, mode_of_transport, weight_transported, source_point, drop_point, distance
+                    SELECT motuft_id, bom_id, material_number, component_name, mode_of_transport, weight_transported, source_point, source_lat, source_lng, drop_point, drop_lat, drop_lng, distance
                     FROM mode_of_transport_used_for_transportation_questions WHERE stoie_id = $1 ORDER BY motuft_id
                 `;
                 const wasteQuery = `
@@ -4140,4 +4149,104 @@ export async function deleteQ52MaterialByName(req: any, res: any) {
             );
         }
     });
+}
+
+// ============================================================
+// Geocode Search — proxy to Nominatim (OpenStreetMap)
+// ============================================================
+export async function geocodeSearch(req: any, res: any) {
+    try {
+        const q = req.query.q;
+        if (!q || typeof q !== 'string' || q.trim().length < 2) {
+            return res.send(generateResponse(false, "Query parameter 'q' is required (min 2 chars)", 400, null));
+        }
+
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q.trim())}&format=json&addressdetails=1&limit=5`;
+
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'EnviGuide-PCF/1.0',
+                'Accept-Language': 'en'
+            }
+        });
+
+        const data: any[] = response.data as any[];
+
+        const results = data.map((item: any) => ({
+            display_name: item.display_name,
+            lat: parseFloat(item.lat),
+            lng: parseFloat(item.lon),
+            type: item.type,
+            country: item.address?.country || '',
+            state: item.address?.state || '',
+            city: item.address?.city || item.address?.town || item.address?.village || ''
+        }));
+
+        return res.send(generateResponse(true, "Geocode results fetched", 200, results));
+    } catch (error: any) {
+        console.error("Error in geocodeSearch:", error);
+        return res.send(generateResponse(false, error.message, 500, null));
+    }
+}
+
+// ============================================================
+// Calculate Distance — Haversine formula + transport mode correction
+// ============================================================
+
+// Correction factors per transport category (GLEC Framework / GHG Protocol)
+// Road: roads curve around terrain → ~20% longer than straight line
+// Rail: straighter than roads but still curves → ~15% longer
+// Sea/Air: follow great circle routes → no correction needed
+function getTransportCorrectionFactor(mode: string | undefined): number {
+    if (!mode) return 1.2; // default to road
+    const m = mode.toLowerCase();
+    if (m.includes('ship') || m.includes('sea') || m.includes('vessel') || m.includes('cargo ship') || m.includes('container ship') || m.includes('barge') || m.includes('ferry')) {
+        return 1.0;
+    }
+    if (m.includes('air') || m.includes('flight') || m.includes('aircraft') || m.includes('plane') || m.includes('cargo plane')) {
+        return 1.0;
+    }
+    if (m.includes('rail') || m.includes('train') || m.includes('freight train') || m.includes('intermodal')) {
+        return 1.15;
+    }
+    // All road-based: truck, van, bus, etc.
+    return 1.2;
+}
+
+export async function calculateDistance(req: any, res: any) {
+    try {
+        const { source_lat, source_lng, drop_lat, drop_lng, mode_of_transport } = req.body;
+
+        if (source_lat == null || source_lng == null || drop_lat == null || drop_lng == null) {
+            return res.send(generateResponse(false, "source_lat, source_lng, drop_lat, drop_lng are all required", 400, null));
+        }
+
+        const toRad = (deg: number) => (deg * Math.PI) / 180;
+        const R = 6371; // Earth's radius in KM
+
+        const dLat = toRad(drop_lat - source_lat);
+        const dLng = toRad(drop_lng - source_lng);
+
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(source_lat)) * Math.cos(toRad(drop_lat)) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const straight_line_km = R * c;
+
+        // Apply correction factor based on transport mode
+        const factor = getTransportCorrectionFactor(mode_of_transport);
+        const distance_km = Math.round(straight_line_km * factor);
+
+        return res.send(generateResponse(true, "Distance calculated", 200, {
+            distance_km,
+            straight_line_km: Math.round(straight_line_km),
+            correction_factor: factor,
+            transport_mode: mode_of_transport || 'road (default)'
+        }));
+    } catch (error: any) {
+        console.error("Error in calculateDistance:", error);
+        return res.send(generateResponse(false, error.message, 500, null));
+    }
 }

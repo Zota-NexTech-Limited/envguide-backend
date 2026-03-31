@@ -552,7 +552,7 @@ async function updateScopeThree(client: any, d: any) {
         'mode_of_transport_used_for_transportation_questions',
         'motuft_id',
         d.mode_of_transport_used_for_transportation_questions,
-        ['mode_of_transport', 'weight_transported', 'source_point', 'drop_point', 'distance', 'bom_id'],
+        ['mode_of_transport', 'weight_transported', 'source_point', 'source_lat', 'source_lng', 'drop_point', 'drop_lat', 'drop_lng', 'distance', 'bom_id'],
         { stoie_id: d.stoie_id }
     );
 
