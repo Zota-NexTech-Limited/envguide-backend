@@ -3382,20 +3382,19 @@ export async function pcfCalculate(req: any, res: any) {
 
                     await client.query(fetcSPQID, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
 
-                    // Get ALL factory components across ALL supplier questionnaires for this PCF request
-                    // This is needed for correct factory-level allocation (energy must be shared across all components)
+                    // Get factory components for the CURRENT SUPPLIER only (not all suppliers)
+                    // Each supplier has their own factory, so factory-level weight must be scoped per supplier
                     const someOfAllProductQues = `
                 SELECT pcm.spq_id, pcm.bom_id, pcm.material_number, pcm.weight_per_unit, pcm.unit, pcm.price, pcm.quantity
                 FROM product_component_manufactured_questions pcm
                 JOIN supplier_product_questions spq ON pcm.spq_id = spq.spq_id
-                JOIN supplier_general_info_questions sgiq ON spq.sgiq_id = sgiq.sgiq_id
-                WHERE sgiq.bom_pcf_id = $1 AND pcm.own_emission_id IS NULL;
+                WHERE spq.sgiq_id = $1 AND pcm.own_emission_id IS NULL;
             `;
 
-                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [bom_pcf_id]);
+                    const someOfAllProductQuesSupResult = await client.query(someOfAllProductQues, [fetchSGIQIDSupResult.rows[0].sgiq_id]);
 
                     console.log("=== Q15 FACTORY COMPONENTS QUERY DEBUG ===");
-                    console.log("Querying by bom_pcf_id:", bom_pcf_id);
+                    console.log("Querying by sgiq_id (current supplier):", fetchSGIQIDSupResult.rows[0].sgiq_id);
                     console.log("Number of factory components found:", someOfAllProductQuesSupResult.rows.length);
                     if (someOfAllProductQuesSupResult.rows.length > 0) {
                         console.log("Factory components:", JSON.stringify(someOfAllProductQuesSupResult.rows.map((r: any) => ({
