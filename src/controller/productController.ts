@@ -4772,7 +4772,7 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string, pr
                 [ER, product_id]
             );
 
-            const econ = ER > 5 ? 'Economic' : 'NA';
+            const econ = 'Economic';
 
             await client.query(
                 `
@@ -6656,7 +6656,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                 const Economic_Ratio_ER = 0;
 
-                const Allocation_Method = Economic_Ratio_ER > 5 ? "Economic Allocation Method" : "Physical Mass Balance allocation Method";
+                const Allocation_Method = "Economic Allocation Method";
                 console.log("Allocation Method:", Allocation_Method);
 
                 console.log("Economic_Ratio_ER:", Economic_Ratio_ER);
