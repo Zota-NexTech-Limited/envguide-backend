@@ -1414,15 +1414,14 @@ async function insertSupplierProduct(client: any, data: any, sgiq_id: string) {
 
             const total = coProducts.reduce((s, p) => s + (p.price_per_product || 0), 0);
 
-            // Handle case when no co-products exist
-            let ER, econ;
+            // Always calculate ER and use Economic Allocation Method
+            let ER;
+            const econ = 'Economic';
             if (coProducts.length === 0 || total === 0) {
-                ER = 0; // or 0, depending on your business logic
-                econ = 'NA';
+                ER = 0;
             } else {
                 const avg = total / coProducts.length;
                 ER = bomPrice / avg;
-                econ = ER > 5 ? 'Economic' : 'NA';
             }
 
             await client.query(
