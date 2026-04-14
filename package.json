@@ -6,8 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build-main": "tsc",
-    "build": "npm run build-main && npm run copy-uploads",
+    "build": "npm run build-main && (npm run copy-uploads || echo skipped-uploads) && npm run copy-assets",
     "copy-uploads": "xcopy src\\uploads dist\\uploads /E /I /Y",
+    "copy-assets": "xcopy src\\assets dist\\assets /E /I /Y",
     "start-main": "node --es-module-specifier-resolution=node dist/server.js",
     "install-all": "npm install",
     "start": "npm run install-all && npm run build-main && node ./postbuild.js && npm run start-main"

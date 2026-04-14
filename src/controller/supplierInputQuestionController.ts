@@ -4,6 +4,7 @@ import { generateResponse } from '../util/genRes.js';
 import { updateSupplierSustainabilityService } from '../services/supplierInputQuetionService.js';
 import { assertScopeThreeBomRowsValid } from '../services/scopeThreeBomValidation.js';
 import axios from 'axios';
+import { generateQuestionnairePdfBuffer, type PdfSection } from '../helper/questionnairePdfGenerator.js';
 
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -895,9 +896,11 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             await client.query("COMMIT");
 
+            // Return sgiq_id so frontend can reference this submission
+            // (used for PDF Report Reference, viewing, follow-up actions).
             return res.send(
                 generateResponse(true, "Supplier sustainability data added successfully", 200,
-                    "Supplier sustainability data added successfully")
+                    { sgiq_id, bom_pcf_id, sup_id })
             );
         } catch (error: any) {
             await client.query("ROLLBACK");
@@ -4247,5 +4250,62 @@ export async function calculateDistance(req: any, res: any) {
     } catch (error: any) {
         console.error("Error in calculateDistance:", error);
         return res.send(generateResponse(false, error.message, 500, null));
+    }
+}
+
+// ============================================================
+// Generate Supplier Questionnaire PDF Report
+// ============================================================
+// Accepts pre-prepared sections/meta from frontend and renders to PDF.
+// Frontend handles schema-to-data mapping; backend handles PDF rendering
+// (consistent output, logo/branding, future-proof for watermarks/signatures).
+export async function generateQuestionnairePdf(req: any, res: any) {
+    try {
+        const { sections, supplier_name, submission_date, reference_id, bom_pcf_id } = req.body || {};
+
+        if (!Array.isArray(sections)) {
+            return res.status(400).send(generateResponse(false, "sections array is required", 400, null));
+        }
+
+        // Optionally fetch client company name from bom_pcf_request
+        let clientName: string | undefined;
+        if (bom_pcf_id) {
+            try {
+                await withClient(async (client: any) => {
+                    const r = await client.query(
+                        `SELECT request_organization FROM bom_pcf_request WHERE id = $1 LIMIT 1`,
+                        [bom_pcf_id]
+                    );
+                    if (r.rows.length > 0) {
+                        clientName = r.rows[0].request_organization || undefined;
+                    }
+                });
+            } catch (err) {
+                console.warn("Could not fetch client name for PDF:", err);
+            }
+        }
+
+        const pdfBuffer = await generateQuestionnairePdfBuffer({
+            sections: sections as PdfSection[],
+            supplierName: supplier_name || "Supplier",
+            clientName,
+            submissionDate: submission_date || new Date().toISOString(),
+            referenceId: reference_id || undefined,
+        });
+
+        const sanitizedName = (supplier_name || "Supplier")
+            .replace(/[^a-zA-Z0-9]/g, "_")
+            .replace(/_+/g, "_")
+            .replace(/^_|_$/g, "");
+        const dateStr = new Date(submission_date || Date.now()).toISOString().split("T")[0];
+        const filename = `Supplier_Questionnaire_${sanitizedName}_${dateStr}.pdf`;
+
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.setHeader("Content-Length", pdfBuffer.length.toString());
+        return res.end(pdfBuffer);
+    } catch (error: any) {
+        console.error("Error in generateQuestionnairePdf:", error);
+        return res.status(500).send(generateResponse(false, error.message || "Failed to generate PDF", 500, null));
     }
 }
