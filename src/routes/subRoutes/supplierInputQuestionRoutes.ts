@@ -18,5 +18,6 @@ Routes.get('/api/supplier/auto-populate-bom-details', Controller.getPCFBOMListTo
 Routes.post('/api/supplier/update-data-collection-question-stage', Controller.updatePcfBomSupplierQuestionClickedStatus);
 Routes.get('/api/geocode-search', Controller.geocodeSearch);
 Routes.post('/api/calculate-distance', Controller.calculateDistance);
+Routes.post('/api/supplier-input-questions-pdf', Controller.generateQuestionnairePdf);
 
 export default Routes;
