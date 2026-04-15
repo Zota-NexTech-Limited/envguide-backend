@@ -35,23 +35,28 @@ export interface PdfGenerationInput {
 }
 
 // ============================================================
-// Brand colors
+// Brand colors — EnviGuide (chartreuse lime green from enviguide.com)
+// Dark text on green backgrounds for best readability
 // ============================================================
 const COLORS = {
-  header: "#115E59",
-  accent: "#10B981",
-  text: "#1F2937",
+  // Primary brand: lime green for header/section bars/accents
+  brand: "#A3E635",
+  brandDark: "#65A30D", // deeper green for borders/depth
+  // Text colors
+  text: "#1F2937", // near-black body text
+  textOnBrand: "#111827", // dark text used on lime green backgrounds
   lightText: "#6B7280",
+  // Neutrals
   border: "#E5E7EB",
-  sectionBg: "#F0FDFA",
-  tableHeaderBg: "#115E59",
+  sectionBg: "#F7FEE7", // very light lime tint for info box background
+  tableHeaderBg: "#A3E635",
   tableAltRow: "#F9FAFB",
   white: "#FFFFFF",
 };
 
 // Layout constants
 const PAGE_MARGIN = 40;
-const HEADER_HEIGHT = 50;
+const HEADER_HEIGHT = 55;
 const FOOTER_HEIGHT = 40;
 const FONT_REGULAR = "RobotoRegular";
 const FONT_BOLD = "RobotoBold";
@@ -76,6 +81,31 @@ const sanitizeText = (text: any): string => {
     .replace(/€/g, "EUR")
     .replace(/¥/g, "JPY")
     .replace(/£/g, "GBP");
+};
+
+// Enterprise alignment rule:
+// - Numbers (digits, decimals, negatives, commas) → right
+// - Short status labels (Yes/No/Acknowledged/N/A/-) → center
+// - Everything else (text, names, descriptions, emails) → left
+const getValueAlign = (value: string): "left" | "right" | "center" => {
+  const trimmed = (value ?? "").trim();
+  if (trimmed === "" || trimmed === "-") return "center";
+  // Pure numeric (including decimals, negatives, comma thousands separators)
+  if (/^-?[\d,]+(\.\d+)?$/.test(trimmed)) return "right";
+  // Short status labels
+  const lower = trimmed.toLowerCase();
+  const statusSet = new Set([
+    "yes",
+    "no",
+    "acknowledged",
+    "not acknowledged",
+    "n/a",
+    "na",
+    "true",
+    "false",
+  ]);
+  if (statusSet.has(lower)) return "center";
+  return "left";
 };
 
 // Resolve asset paths (works in both src/ and dist/ runs)
@@ -146,15 +176,18 @@ export const generateQuestionnairePdfBuffer = (
       const logoPath = resolveAssetPath("logo.png");
 
       // ============================================================
-      // COVER TITLE
+      // COVER TITLE — single line, sized to fit within page width
       // ============================================================
       fontBold();
       doc
-        .fillColor(COLORS.header)
-        .fontSize(22)
-        .text("Supplier Sustainability", PAGE_MARGIN, doc.y);
-      doc.fontSize(22).text("Questionnaire Report", PAGE_MARGIN, doc.y);
-      doc.moveDown(0.8);
+        .fillColor(COLORS.text)
+        .fontSize(18)
+        .text("Supplier Sustainability Questionnaire Report", PAGE_MARGIN, doc.y, {
+          width: contentWidth,
+          lineBreak: false,
+          ellipsis: true,
+        });
+      doc.moveDown(1);
 
       // INFO BOX
       const infoRows: Array<[string, string, boolean]> = [];
@@ -179,7 +212,7 @@ export const generateQuestionnairePdfBuffer = (
 
       doc
         .roundedRect(PAGE_MARGIN, infoBoxTop, contentWidth, infoBoxHeight, 5)
-        .fillAndStroke(COLORS.sectionBg, COLORS.accent);
+        .fillAndStroke(COLORS.sectionBg, COLORS.brandDark);
 
       let infoY = infoBoxTop + boxPadding;
       const labelX = PAGE_MARGIN + 20;
@@ -217,12 +250,12 @@ export const generateQuestionnairePdfBuffer = (
           doc.addPage();
         }
 
-        // Section header bar
+        // Section header bar — lime green with dark text
         const sHeaderTop = doc.y;
-        doc.rect(PAGE_MARGIN, sHeaderTop, contentWidth, 28).fill(COLORS.header);
+        doc.rect(PAGE_MARGIN, sHeaderTop, contentWidth, 28).fill(COLORS.brand);
         fontBold();
         doc
-          .fillColor(COLORS.white)
+          .fillColor(COLORS.textOnBrand)
           .fontSize(12)
           .text(sanitizeText(section.title), PAGE_MARGIN + 12, sHeaderTop + 9, {
             lineBreak: false,
@@ -278,48 +311,41 @@ export const generateQuestionnairePdfBuffer = (
         doc.page.margins.top = 0;
         doc.page.margins.bottom = 0;
 
-        // Header bar
-        doc.rect(0, 0, pageWidth, HEADER_HEIGHT).fill(COLORS.header);
+        // Header bar — lime green brand color
+        doc.rect(0, 0, pageWidth, HEADER_HEIGHT).fill(COLORS.brand);
 
-        // Logo (left)
+        // Logo (left) — EnviGuide wordmark (leaf icon + "enviguide" text).
+        // Since the logo is a full wordmark, no extra text label is needed.
+        const logoHeight = 35;
+        const logoY = (HEADER_HEIGHT - logoHeight) / 2;
         if (logoPath) {
           try {
-            doc.image(logoPath, PAGE_MARGIN, 10, { height: 30 });
+            doc.image(logoPath, PAGE_MARGIN, logoY, { height: logoHeight });
           } catch {
+            // Fallback only if image embedding fails
             fontBold();
             doc
-              .fillColor(COLORS.white)
-              .fontSize(13)
-              .text("EnviGuide", PAGE_MARGIN, 18, { lineBreak: false });
+              .fillColor(COLORS.textOnBrand)
+              .fontSize(14)
+              .text("enviguide", PAGE_MARGIN, logoY + 10, { lineBreak: false });
           }
         } else {
           fontBold();
           doc
-            .fillColor(COLORS.white)
-            .fontSize(13)
-            .text("EnviGuide", PAGE_MARGIN, 18, { lineBreak: false });
+            .fillColor(COLORS.textOnBrand)
+            .fontSize(14)
+            .text("enviguide", PAGE_MARGIN, logoY + 10, { lineBreak: false });
         }
 
-        // Center title
+        // Page number (right) — dark text on lime green for readability
         fontRegular();
         doc
-          .fillColor(COLORS.white)
-          .fontSize(10)
-          .text("Supplier Questionnaire Report", 0, 22, {
-            align: "center",
-            width: pageWidth,
-            lineBreak: false,
-          });
-
-        // Page number (right)
-        fontRegular();
-        doc
-          .fillColor(COLORS.white)
-          .fontSize(8)
+          .fillColor(COLORS.textOnBrand)
+          .fontSize(9)
           .text(
             `Page ${i + 1} of ${totalPages}`,
             PAGE_MARGIN,
-            30,
+            HEADER_HEIGHT / 2 - 4,
             {
               align: "right",
               width: pageWidth - PAGE_MARGIN * 2,
@@ -420,7 +446,7 @@ function renderField(
       width: labelWidth - cellPadding * 2,
     });
 
-  // Value
+  // Value — aligned based on value type (enterprise convention)
   fontRegular();
   doc
     .fillColor(COLORS.text)
@@ -429,7 +455,10 @@ function renderField(
       valueText,
       PAGE_MARGIN + labelWidth + cellPadding,
       rowTop + cellPadding,
-      { width: valueWidth - cellPadding * 2 }
+      {
+        width: valueWidth - cellPadding * 2,
+        align: getValueAlign(valueText),
+      }
     );
 
   doc.y = rowTop + rowHeight;
@@ -560,17 +589,21 @@ function drawTable(
         .stroke();
     }
 
-    // Cell text
+    // Cell text — aligned based on cell value type (enterprise convention)
     fontRegular();
     row.forEach((cell, i) => {
+      const cellText = String(cell || "-");
       doc
         .fillColor(COLORS.text)
         .fontSize(8)
         .text(
-          String(cell || "-"),
+          cellText,
           PAGE_MARGIN + i * colWidth + cellPadding,
           y + cellPadding,
-          { width: colWidth - cellPadding * 2 }
+          {
+            width: colWidth - cellPadding * 2,
+            align: getValueAlign(cellText),
+          }
         );
     });
 
