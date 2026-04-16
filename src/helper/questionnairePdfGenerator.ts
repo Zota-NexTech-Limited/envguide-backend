@@ -35,20 +35,18 @@ export interface PdfGenerationInput {
 }
 
 // ============================================================
-// Brand colors — EnviGuide (chartreuse lime green from enviguide.com)
-// Dark text on green backgrounds for best readability
+// Brand colors — EnviGuide
+// White header (logo needs white bg) + lime green accents
 // ============================================================
 const COLORS = {
-  // Primary brand: lime green for header/section bars/accents
-  brand: "#A3E635",
+  brand: "#A3E635", // lime green for section bars, table headers, accents
   brandDark: "#65A30D", // deeper green for borders/depth
-  // Text colors
   text: "#1F2937", // near-black body text
-  textOnBrand: "#111827", // dark text used on lime green backgrounds
+  textOnBrand: "#111827", // dark text on lime green backgrounds
   lightText: "#6B7280",
-  // Neutrals
-  border: "#E5E7EB",
-  sectionBg: "#F7FEE7", // very light lime tint for info box background
+  border: "#D1D5DB", // slightly darker gray for visible borders
+  borderLight: "#E5E7EB",
+  sectionBg: "#F7FEE7", // very light lime tint for info box
   tableHeaderBg: "#A3E635",
   tableAltRow: "#F9FAFB",
   white: "#FFFFFF",
@@ -70,9 +68,6 @@ const formatReferenceId = (id: string): string => {
   return id.match(/.{1,4}/g)?.join("-") || id;
 };
 
-// Sanitize text for PDF rendering.
-// Replace characters that may not render correctly in the bundled font
-// with ASCII-safe equivalents. (Roboto cmap may lack ₹ etc.)
 const sanitizeText = (text: any): string => {
   if (text === null || text === undefined) return "";
   const s = String(text);
@@ -81,31 +76,6 @@ const sanitizeText = (text: any): string => {
     .replace(/€/g, "EUR")
     .replace(/¥/g, "JPY")
     .replace(/£/g, "GBP");
-};
-
-// Enterprise alignment rule:
-// - Numbers (digits, decimals, negatives, commas) → right
-// - Short status labels (Yes/No/Acknowledged/N/A/-) → center
-// - Everything else (text, names, descriptions, emails) → left
-const getValueAlign = (value: string): "left" | "right" | "center" => {
-  const trimmed = (value ?? "").trim();
-  if (trimmed === "" || trimmed === "-") return "center";
-  // Pure numeric (including decimals, negatives, comma thousands separators)
-  if (/^-?[\d,]+(\.\d+)?$/.test(trimmed)) return "right";
-  // Short status labels
-  const lower = trimmed.toLowerCase();
-  const statusSet = new Set([
-    "yes",
-    "no",
-    "acknowledged",
-    "not acknowledged",
-    "n/a",
-    "na",
-    "true",
-    "false",
-  ]);
-  if (statusSet.has(lower)) return "center";
-  return "left";
 };
 
 // Resolve asset paths (works in both src/ and dist/ runs)
@@ -145,7 +115,7 @@ export const generateQuestionnairePdfBuffer = (
         bufferPages: true,
       });
 
-      // Register Unicode fonts (supports ₹, €, ¥, etc.)
+      // Register Unicode fonts
       const regularPath = resolveAssetPath("fonts/Roboto-Regular.ttf");
       const boldPath = resolveAssetPath("fonts/Roboto-Bold.ttf");
       const italicPath = resolveAssetPath("fonts/Roboto-Italic.ttf");
@@ -153,13 +123,8 @@ export const generateQuestionnairePdfBuffer = (
       if (boldPath) doc.registerFont(FONT_BOLD, boldPath);
       if (italicPath) doc.registerFont(FONT_ITALIC, italicPath);
 
-      // Safe font helpers — fall back to Helvetica if font registration failed
       const useFont = (name: string) => {
-        try {
-          doc.font(name);
-        } catch {
-          doc.font("Helvetica");
-        }
+        try { doc.font(name); } catch { doc.font("Helvetica"); }
       };
       const fontRegular = () => useFont(regularPath ? FONT_REGULAR : "Helvetica");
       const fontBold = () => useFont(boldPath ? FONT_BOLD : "Helvetica-Bold");
@@ -176,7 +141,7 @@ export const generateQuestionnairePdfBuffer = (
       const logoPath = resolveAssetPath("logo.png");
 
       // ============================================================
-      // COVER TITLE — single line, sized to fit within page width
+      // COVER TITLE
       // ============================================================
       fontBold();
       doc
@@ -206,9 +171,9 @@ export const generateQuestionnairePdfBuffer = (
       }
 
       const infoBoxTop = doc.y;
-      const rowHeight = 22;
+      const infoRowHeight = 22;
       const boxPadding = 18;
-      const infoBoxHeight = boxPadding * 2 + infoRows.length * rowHeight;
+      const infoBoxHeight = boxPadding * 2 + infoRows.length * infoRowHeight;
 
       doc
         .roundedRect(PAGE_MARGIN, infoBoxTop, contentWidth, infoBoxHeight, 5)
@@ -226,7 +191,7 @@ export const generateQuestionnairePdfBuffer = (
           .text(sanitizeText(label), labelX, infoY, { lineBreak: false });
 
         if (isMonospace) {
-          doc.font("Courier"); // Courier has ASCII which is fine for reference IDs
+          doc.font("Courier");
         } else {
           fontRegular();
         }
@@ -234,7 +199,7 @@ export const generateQuestionnairePdfBuffer = (
           .fillColor(COLORS.text)
           .fontSize(11)
           .text(sanitizeText(value), valueX, infoY - 1, { lineBreak: false });
-        infoY += rowHeight;
+        infoY += infoRowHeight;
       }
 
       doc.y = infoBoxTop + infoBoxHeight + 25;
@@ -245,7 +210,6 @@ export const generateQuestionnairePdfBuffer = (
       for (const section of input.sections) {
         if (section.items.length === 0) continue;
 
-        // Page break if not enough room for header + first item
         if (doc.y > pageHeight - FOOTER_HEIGHT - 120) {
           doc.addPage();
         }
@@ -264,35 +228,22 @@ export const generateQuestionnairePdfBuffer = (
           });
         doc.y = sHeaderTop + 38;
 
-        // Items
         for (let itemIdx = 0; itemIdx < section.items.length; itemIdx++) {
           const item = section.items[itemIdx];
 
-          // Page break if needed
           if (doc.y > pageHeight - FOOTER_HEIGHT - 80) {
             doc.addPage();
           }
 
           if (item.type === "field") {
             renderField(doc, item, contentWidth, fontRegular, fontBold);
-            // Small gap after a simple field
             doc.y += 4;
           } else {
-            renderTableItem(
-              doc,
-              item,
-              contentWidth,
-              pageHeight,
-              fontRegular,
-              fontBold
-            );
-            // Larger gap after a table (tables need more breathing room
-            // before the next question — especially sub-questions like 15.1)
+            renderTableItem(doc, item, contentWidth, pageHeight, fontRegular, fontBold);
             doc.y += 14;
           }
         }
 
-        // Larger gap between sections
         doc.y += 12;
       }
 
@@ -304,48 +255,47 @@ export const generateQuestionnairePdfBuffer = (
       for (let i = 0; i < totalPages; i++) {
         doc.switchToPage(range.start + i);
 
-        // CRITICAL: Drop margins to 0 so drawing in the margin area
-        // (logo at top, footer at bottom) does NOT trigger pdfkit to
-        // auto-create new pages. Without this, every text() call below
-        // the content area creates a phantom page.
+        // Drop margins to prevent phantom pages
         doc.page.margins.top = 0;
         doc.page.margins.bottom = 0;
 
-        // Header bar — lime green brand color
-        doc.rect(0, 0, pageWidth, HEADER_HEIGHT).fill(COLORS.brand);
+        // Header bar — WHITE background so logo renders perfectly
+        doc.rect(0, 0, pageWidth, HEADER_HEIGHT).fill(COLORS.white);
+        // Thin lime green accent line below header
+        doc
+          .rect(0, HEADER_HEIGHT - 3, pageWidth, 3)
+          .fill(COLORS.brand);
 
-        // Logo (left) — EnviGuide wordmark (leaf icon + "enviguide" text).
-        // Since the logo is a full wordmark, no extra text label is needed.
+        // Logo (left) — full wordmark on white background
         const logoHeight = 35;
-        const logoY = (HEADER_HEIGHT - logoHeight) / 2;
+        const logoY = (HEADER_HEIGHT - 3 - logoHeight) / 2;
         if (logoPath) {
           try {
             doc.image(logoPath, PAGE_MARGIN, logoY, { height: logoHeight });
           } catch {
-            // Fallback only if image embedding fails
             fontBold();
             doc
-              .fillColor(COLORS.textOnBrand)
+              .fillColor(COLORS.text)
               .fontSize(14)
               .text("enviguide", PAGE_MARGIN, logoY + 10, { lineBreak: false });
           }
         } else {
           fontBold();
           doc
-            .fillColor(COLORS.textOnBrand)
+            .fillColor(COLORS.text)
             .fontSize(14)
             .text("enviguide", PAGE_MARGIN, logoY + 10, { lineBreak: false });
         }
 
-        // Page number (right) — dark text on lime green for readability
+        // Page number (right)
         fontRegular();
         doc
-          .fillColor(COLORS.textOnBrand)
+          .fillColor(COLORS.lightText)
           .fontSize(9)
           .text(
             `Page ${i + 1} of ${totalPages}`,
             PAGE_MARGIN,
-            HEADER_HEIGHT / 2 - 4,
+            (HEADER_HEIGHT - 3) / 2 - 4,
             {
               align: "right",
               width: pageWidth - PAGE_MARGIN * 2,
@@ -355,14 +305,13 @@ export const generateQuestionnairePdfBuffer = (
 
         // Footer separator line
         doc
-          .strokeColor(COLORS.border)
+          .strokeColor(COLORS.borderLight)
           .lineWidth(0.5)
           .moveTo(PAGE_MARGIN, pageHeight - FOOTER_HEIGHT)
           .lineTo(pageWidth - PAGE_MARGIN, pageHeight - FOOTER_HEIGHT)
           .stroke();
 
-        // Footer: confidentiality note (left) + generation date (right)
-        // Both use lineBreak:false to prevent phantom page overflow
+        // Footer text
         fontItalic();
         doc
           .fillColor(COLORS.lightText)
@@ -371,10 +320,7 @@ export const generateQuestionnairePdfBuffer = (
             "This document is confidential and intended for internal use only.",
             PAGE_MARGIN,
             pageHeight - FOOTER_HEIGHT + 12,
-            {
-              lineBreak: false,
-              width: contentWidth * 0.7,
-            }
+            { lineBreak: false, width: contentWidth * 0.7 }
           );
         fontRegular();
         doc
@@ -384,11 +330,7 @@ export const generateQuestionnairePdfBuffer = (
             `Generated on ${dateStr}`,
             PAGE_MARGIN,
             pageHeight - FOOTER_HEIGHT + 12,
-            {
-              align: "right",
-              width: contentWidth,
-              lineBreak: false,
-            }
+            { align: "right", width: contentWidth, lineBreak: false }
           );
       }
 
@@ -401,6 +343,7 @@ export const generateQuestionnairePdfBuffer = (
 
 // ============================================================
 // FIELD RENDERER (key-value row)
+// All values left-aligned for consistency
 // ============================================================
 function renderField(
   doc: PDFKit.PDFDocument,
@@ -437,16 +380,20 @@ function renderField(
     .rect(PAGE_MARGIN + labelWidth, rowTop, valueWidth, rowHeight)
     .fillAndStroke(COLORS.white, COLORS.border);
 
-  // Label
+  // Label — vertically centered
+  const labelTextHeight = labelHeight;
+  const labelYOffset = (rowHeight - labelTextHeight) / 2;
   fontBold();
   doc
     .fillColor(COLORS.text)
     .fontSize(9)
-    .text(labelText, PAGE_MARGIN + cellPadding, rowTop + cellPadding, {
+    .text(labelText, PAGE_MARGIN + cellPadding, rowTop + labelYOffset, {
       width: labelWidth - cellPadding * 2,
     });
 
-  // Value — aligned based on value type (enterprise convention)
+  // Value — vertically centered, always left-aligned
+  const valueTextHeight = valueHeight;
+  const valueYOffset = (rowHeight - valueTextHeight) / 2;
   fontRegular();
   doc
     .fillColor(COLORS.text)
@@ -454,11 +401,8 @@ function renderField(
     .text(
       valueText,
       PAGE_MARGIN + labelWidth + cellPadding,
-      rowTop + cellPadding,
-      {
-        width: valueWidth - cellPadding * 2,
-        align: getValueAlign(valueText),
-      }
+      rowTop + valueYOffset,
+      { width: valueWidth - cellPadding * 2, align: "left" }
     );
 
   doc.y = rowTop + rowHeight;
@@ -475,13 +419,11 @@ function renderTableItem(
   fontRegular: () => void,
   fontBold: () => void
 ) {
-  // Table label (question)
   fontBold();
   doc.fillColor(COLORS.text).fontSize(10);
   const labelText = sanitizeText(item.label);
   const labelHeight = doc.heightOfString(labelText, { width: contentWidth });
 
-  // Ensure room for label + at least header + one row
   if (doc.y + labelHeight + 60 > pageHeight - FOOTER_HEIGHT - 10) {
     doc.addPage();
   }
@@ -489,7 +431,6 @@ function renderTableItem(
   doc.text(labelText, PAGE_MARGIN, doc.y, { width: contentWidth });
   doc.y += 6;
 
-  // Sanitize columns and rows before drawing
   const safeCols = item.columns.map((c) => sanitizeText(c));
   const safeRows = item.rows.map((r) => r.map((c) => sanitizeText(c)));
   drawTable(doc, safeCols, safeRows, contentWidth, pageHeight, fontRegular, fontBold);
@@ -497,6 +438,9 @@ function renderTableItem(
 
 // ============================================================
 // TABLE DRAWING
+// - White dividers on green header rows
+// - Visible gray dividers on data rows
+// - All cell text LEFT-aligned and VERTICALLY CENTERED
 // ============================================================
 function drawTable(
   doc: PDFKit.PDFDocument,
@@ -511,16 +455,13 @@ function drawTable(
   const colWidth = contentWidth / columns.length;
   const cellPadding = 5;
 
-  // Header height
+  // Measure header height
   fontBold();
   doc.fontSize(8);
-  const headerHeight =
-    Math.max(
-      ...columns.map((c) =>
-        doc.heightOfString(c, { width: colWidth - cellPadding * 2 })
-      )
-    ) +
-    cellPadding * 2;
+  const colHeights = columns.map((c) =>
+    doc.heightOfString(c, { width: colWidth - cellPadding * 2 })
+  );
+  const headerHeight = Math.max(...colHeights) + cellPadding * 2;
 
   let y = doc.y;
   if (y + headerHeight > pageHeight - FOOTER_HEIGHT - 30) {
@@ -528,21 +469,35 @@ function drawTable(
     y = doc.y;
   }
 
-  // Header row
+  // Draw header row
   const drawHeader = (startY: number) => {
+    // Green background
     doc
       .rect(PAGE_MARGIN, startY, contentWidth, headerHeight)
       .fill(COLORS.tableHeaderBg);
+
+    // WHITE vertical dividers on green header (visible on green)
+    doc.strokeColor(COLORS.white).lineWidth(0.8);
+    for (let i = 1; i < columns.length; i++) {
+      doc
+        .moveTo(PAGE_MARGIN + i * colWidth, startY)
+        .lineTo(PAGE_MARGIN + i * colWidth, startY + headerHeight)
+        .stroke();
+    }
+
+    // Column header text — vertically centered, white, left-aligned
     fontBold();
     columns.forEach((col, i) => {
+      const textH = colHeights[i];
+      const textY = startY + (headerHeight - textH) / 2;
       doc
         .fillColor(COLORS.white)
         .fontSize(8)
         .text(
           col,
           PAGE_MARGIN + i * colWidth + cellPadding,
-          startY + cellPadding,
-          { width: colWidth - cellPadding * 2 }
+          textY,
+          { width: colWidth - cellPadding * 2, align: "left" }
         );
     });
   };
@@ -555,6 +510,7 @@ function drawTable(
     fontRegular();
     doc.fontSize(8);
 
+    // Measure each cell's text height
     const cellHeights = row.map((cell) =>
       doc.heightOfString(String(cell || "-"), {
         width: colWidth - cellPadding * 2,
@@ -577,11 +533,11 @@ function drawTable(
     // Outer border
     doc
       .strokeColor(COLORS.border)
-      .lineWidth(0.3)
+      .lineWidth(0.5)
       .rect(PAGE_MARGIN, y, contentWidth, rowHeight)
       .stroke();
 
-    // Vertical column dividers
+    // Vertical column dividers — darker gray, visible
     for (let i = 1; i < columns.length; i++) {
       doc
         .moveTo(PAGE_MARGIN + i * colWidth, y)
@@ -589,21 +545,20 @@ function drawTable(
         .stroke();
     }
 
-    // Cell text — aligned based on cell value type (enterprise convention)
+    // Cell text — ALL LEFT-ALIGNED, VERTICALLY CENTERED
     fontRegular();
     row.forEach((cell, i) => {
       const cellText = String(cell || "-");
+      const textH = cellHeights[i];
+      const textY = y + (rowHeight - textH) / 2;
       doc
         .fillColor(COLORS.text)
         .fontSize(8)
         .text(
           cellText,
           PAGE_MARGIN + i * colWidth + cellPadding,
-          y + cellPadding,
-          {
-            width: colWidth - cellPadding * 2,
-            align: getValueAlign(cellText),
-          }
+          textY,
+          { width: colWidth - cellPadding * 2, align: "left" }
         );
     });
 
