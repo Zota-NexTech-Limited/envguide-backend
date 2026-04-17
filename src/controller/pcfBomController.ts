@@ -3843,7 +3843,33 @@ export async function pcfCalculate(req: any, res: any) {
                         WHERE bom_id = $1 AND own_emission_id IS NULL;
                      `;
 
-                    const fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.id]);
+                    let fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.id]);
+                    console.log("=== Q60 PACKAGING TYPE DEBUG ===");
+                    console.log("Query by bom_id:", BomData.id);
+                    console.log("Rows found:", fetchQ61PcakingTypeProductResult.rows.length);
+
+                    // If not found by bom_id, try to find through bom_pcf_id via stoie_id (similar to Q61 fallback)
+                    if (!fetchQ61PcakingTypeProductResult.rows || fetchQ61PcakingTypeProductResult.rows.length === 0) {
+                        console.log("No Q60 found by bom_id, trying through bom_pcf_id...");
+                        const fetchQ60FallbackQuery = `
+                            SELECT topmud.bom_id, topmud.stoie_id,
+                                topmud.material_number, topmud.packagin_type, topmud.unit, topmud.treatment_type
+                            FROM type_of_pack_mat_used_for_delivering_questions topmud
+                            JOIN scope_three_other_indirect_emissions_questions stoie
+                                ON topmud.stoie_id = stoie.stoie_id
+                            JOIN supplier_general_info_questions sgiq
+                                ON stoie.sgiq_id = sgiq.sgiq_id
+                            WHERE sgiq.bom_pcf_id = $1
+                                AND (topmud.bom_id = $2 OR topmud.bom_id IS NULL)
+                                AND topmud.own_emission_id IS NULL;
+                        `;
+                        fetchQ61PcakingTypeProductResult = await client.query(fetchQ60FallbackQuery, [bom_pcf_id, BomData.id]);
+                        console.log("Fallback query by bom_pcf_id:", bom_pcf_id);
+                        console.log("Rows found:", fetchQ61PcakingTypeProductResult.rows.length);
+                        if (fetchQ61PcakingTypeProductResult.rows.length > 0) {
+                            console.log("Q60 data found via fallback:", fetchQ61PcakingTypeProductResult.rows[0]);
+                        }
+                    }
 
                     // Use Q60 data directly if it exists (query already filters by bom_id)
                     if (fetchQ61PcakingTypeProductResult.rows[0]) {
@@ -3853,6 +3879,7 @@ export async function pcfCalculate(req: any, res: any) {
                     } else {
                         console.warn("WARNING: No Q60 packaging type found for bom_id:", BomData.id);
                     }
+                    console.log("=== END Q60 PACKAGING TYPE DEBUG ===");
 
 
                     // First try to find Q61 by bom_id
