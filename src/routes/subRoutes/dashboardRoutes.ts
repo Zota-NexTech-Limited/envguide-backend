@@ -5,6 +5,7 @@ const Routes = Router();
 
 Routes.get('/api/dashboard/clients-dropdown', authService.authenticate, Controller.getClients);
 Routes.get('/api/dashboard/product-life-cycle', authService.authenticate, Controller.getProductLifeCycleEmission);
+Routes.get('/api/dashboard/summary-kpis', authService.authenticate, Controller.getSummaryKpis);
 
 // Supplier  emission
 Routes.get('/api/dashboard/supplier-dropdown', authService.authenticate, Controller.getSupplierDropdown);
@@ -42,5 +43,27 @@ Routes.get('/api/dashboard/impact-categories', authService.authenticate, Control
 Routes.get('/api/dashboard/pcf-reduction-emission', authService.authenticate, Controller.getPcfReductionGraph);
 Routes.get('/api/dashboard/pcf-actual-emission', authService.authenticate, Controller.getActualPcfEmission);
 Routes.get('/api/dashboard/forecasted-emission', authService.authenticate, Controller.getForecastedEmission);
+
+// Super Admin dashboard
+Routes.get('/api/dashboard/platform-stats', authService.authenticate, Controller.getPlatformStats);
+Routes.get('/api/dashboard/client-status-distribution', authService.authenticate, Controller.getClientStatusDistribution);
+Routes.get('/api/dashboard/request-status-distribution', authService.authenticate, Controller.getRequestStatusDistribution);
+Routes.get('/api/dashboard/top-emitters', authService.authenticate, Controller.getTopEmitters);
+Routes.get('/api/dashboard/recent-activities', authService.authenticate, Controller.getRecentActivities);
+
+// Client dashboard
+Routes.get('/api/dashboard/product-emissions', authService.authenticate, Controller.getProductEmissions);
+Routes.get('/api/dashboard/monthly-emission-trend', authService.authenticate, Controller.getMonthlyEmissionTrend);
+Routes.get('/api/dashboard/scope-breakdown', authService.authenticate, Controller.getScopeBreakdown);
+Routes.get('/api/dashboard/packaging-emission-details', authService.authenticate, Controller.getPackagingEmissionDetails);
+
+// Client dashboard — Phase A (logged-in client view)
+Routes.get('/api/dashboard/client-kpis', authService.authenticate, Controller.getClientKpis);
+Routes.get('/api/dashboard/client-pending-pcf-requests', authService.authenticate, Controller.getClientPendingPcfRequests);
+Routes.get('/api/dashboard/client-recent-activity', authService.authenticate, Controller.getClientRecentActivity);
+Routes.get('/api/dashboard/client-top-suppliers', authService.authenticate, Controller.getClientTopSuppliers);
+Routes.get('/api/dashboard/client-energy-resources', authService.authenticate, Controller.getClientEnergyResources);
+Routes.get('/api/dashboard/client-emission-hotspots', authService.authenticate, Controller.getClientEmissionHotspots);
+Routes.get('/api/dashboard/client-alerts', authService.authenticate, Controller.getClientAlerts);
 
 export default Routes;
