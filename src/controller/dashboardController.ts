@@ -2112,3 +2112,1178 @@ export async function getImpactCategories(req: any, res: any) {
         }
     });
 }
+
+// Dashboard summary KPI cards (Total CO2e, Manufacturing, Recyclability, Transport)
+export async function getSummaryKpis(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const lifecycleResult = await client.query(`
+                SELECT
+                    COALESCE(SUM(be.material_value), 0)    AS raw_material,
+                    COALESCE(SUM(be.production_value), 0)  AS manufacturing,
+                    COALESCE(SUM(be.packaging_value), 0)   AS packaging,
+                    COALESCE(SUM(be.logistic_value), 0)    AS transport,
+                    COALESCE(SUM(be.waste_value), 0)       AS waste
+                FROM bom_pcf_request bpr
+                JOIN bom b
+                    ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_calculation_engine be
+                    ON be.bom_id = b.id
+                WHERE bpr.created_by = $1
+            `, [user_id]);
+
+            const row = lifecycleResult.rows[0] || {};
+            const rawMaterial    = Number(row.raw_material)   || 0;
+            const manufacturing  = Number(row.manufacturing)  || 0;
+            const packaging      = Number(row.packaging)      || 0;
+            const transport      = Number(row.transport)      || 0;
+            const waste          = Number(row.waste)          || 0;
+            const total          = rawMaterial + manufacturing + packaging + transport + waste;
+
+            const recyclabilityResult = await client.query(`
+                WITH material_usage AS (
+                    SELECT
+                        b.id AS bom_id,
+                        bemce.material_type,
+                        SUM(bemce.material_composition_weight::numeric) AS total_material_used_in_kg
+                    FROM bom_pcf_request bpr
+                    JOIN bom b ON b.bom_pcf_id = bpr.id
+                    JOIN bom_emission_material_calculation_engine bemce ON bemce.bom_id = b.id
+                    WHERE bpr.created_by = $1
+                    GROUP BY b.id, bemce.material_type
+                ),
+                recycled_percentage AS (
+                    SELECT
+                        rmpq.bom_id,
+                        rmpq.material_name AS material_type,
+                        SUM(rmpq.percentage::numeric) AS total_recycled_material_percentage
+                    FROM recycled_materials_with_percentage_questions rmpq
+                    JOIN bom b ON b.id = rmpq.bom_id
+                    JOIN bom_pcf_request bpr ON bpr.id = b.bom_pcf_id
+                    WHERE bpr.created_by = $1
+                    GROUP BY rmpq.bom_id, rmpq.material_name
+                )
+                SELECT
+                    COALESCE(SUM(mu.total_material_used_in_kg), 0) AS total_material,
+                    COALESCE(SUM(
+                        (mu.total_material_used_in_kg
+                         * COALESCE(rp.total_recycled_material_percentage, 0)) / 100
+                    ), 0) AS total_recycled
+                FROM material_usage mu
+                LEFT JOIN recycled_percentage rp
+                    ON rp.bom_id = mu.bom_id
+                    AND rp.material_type = mu.material_type
+            `, [user_id]);
+
+            const rec = recyclabilityResult.rows[0] || {};
+            const totalMaterial   = Number(rec.total_material)   || 0;
+            const totalRecycled   = Number(rec.total_recycled)   || 0;
+            const recyclabilityRate = totalMaterial > 0
+                ? Number(((totalRecycled / totalMaterial) * 100).toFixed(2))
+                : 0;
+
+            const percentOfTotal = (value: number) =>
+                total > 0 ? Number(((value / total) * 100).toFixed(2)) : 0;
+
+            return res.status(200).send({
+                success: true,
+                message: "Summary KPIs fetched successfully",
+                data: {
+                    totalFootprint:         Number(total.toFixed(2)),
+                    manufacturingEmission:  Number(manufacturing.toFixed(2)),
+                    transportEmission:      Number(transport.toFixed(2)),
+                    recyclabilityRate,
+                    manufacturingPercent:   percentOfTotal(manufacturing),
+                    transportPercent:       percentOfTotal(transport)
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Summary KPIs error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// ============================================================
+// SUPER ADMIN DASHBOARD ENDPOINTS
+// ============================================================
+
+// Platform-wide stats: client/supplier counts + PCF request status counts
+export async function getPlatformStats(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const clientsResult = await client.query(`
+                SELECT COUNT(*)::int AS total
+                FROM users_table
+                WHERE LOWER(user_role) = 'client'
+            `);
+
+            const suppliersResult = await client.query(`
+                SELECT COUNT(*)::int AS total
+                FROM supplier_details
+            `);
+
+            const requestsResult = await client.query(`
+                SELECT
+                    COUNT(*)::int AS total,
+                    COUNT(*) FILTER (WHERE is_approved = true)::int AS completed,
+                    COUNT(*) FILTER (
+                        WHERE is_approved = false
+                          AND is_rejected = false
+                          AND is_draft    = false
+                    )::int AS in_progress,
+                    COUNT(*) FILTER (WHERE is_draft = true)::int AS draft,
+                    COUNT(*) FILTER (WHERE is_rejected = true)::int AS rejected
+                FROM bom_pcf_request
+            `);
+
+            const r = requestsResult.rows[0] || {};
+
+            const activeClientsResult = await client.query(`
+                SELECT COUNT(DISTINCT u.user_id)::int AS active
+                FROM users_table u
+                JOIN bom_pcf_request bpr
+                    ON bpr.created_by = u.user_id
+                WHERE LOWER(u.user_role) = 'client'
+                  AND bpr.is_rejected = false
+            `);
+
+            return res.status(200).send({
+                success: true,
+                message: "Platform stats fetched successfully",
+                data: {
+                    totalClients:   Number(clientsResult.rows[0]?.total)   || 0,
+                    totalSuppliers: Number(suppliersResult.rows[0]?.total) || 0,
+                    activeClients:  Number(activeClientsResult.rows[0]?.active) || 0,
+                    totalRequests:     Number(r.total)       || 0,
+                    completedRequests: Number(r.completed)   || 0,
+                    inProgressRequests: Number(r.in_progress) || 0,
+                    draftRequests:     Number(r.draft)       || 0,
+                    rejectedRequests:  Number(r.rejected)    || 0,
+                    pendingApprovals:  Number(r.in_progress) || 0
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Platform stats error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Client status distribution (Active / Pending / Inactive)
+export async function getClientStatusDistribution(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const result = await client.query(`
+                WITH client_list AS (
+                    SELECT user_id
+                    FROM users_table
+                    WHERE LOWER(user_role) = 'client'
+                ),
+                client_requests AS (
+                    SELECT
+                        cl.user_id,
+                        COUNT(bpr.id)::int AS total_requests,
+                        COUNT(bpr.id) FILTER (WHERE bpr.is_rejected = false)::int AS active_requests
+                    FROM client_list cl
+                    LEFT JOIN bom_pcf_request bpr ON bpr.created_by = cl.user_id
+                    GROUP BY cl.user_id
+                )
+                SELECT
+                    COUNT(*) FILTER (WHERE active_requests > 0)::int    AS active,
+                    COUNT(*) FILTER (WHERE total_requests  = 0)::int    AS pending,
+                    COUNT(*) FILTER (
+                        WHERE total_requests > 0 AND active_requests = 0
+                    )::int AS inactive
+                FROM client_requests
+            `);
+
+            const row = result.rows[0] || {};
+            return res.status(200).send({
+                success: true,
+                message: "Client status distribution fetched successfully",
+                data: {
+                    active:   Number(row.active)   || 0,
+                    pending:  Number(row.pending)  || 0,
+                    inactive: Number(row.inactive) || 0
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Client status distribution error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Request status distribution (Completed / In Progress / Pending / Rejected)
+export async function getRequestStatusDistribution(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const result = await client.query(`
+                SELECT
+                    COUNT(*) FILTER (WHERE is_approved = true)::int AS completed,
+                    COUNT(*) FILTER (
+                        WHERE is_approved = false
+                          AND is_rejected = false
+                          AND is_draft    = false
+                    )::int AS in_progress,
+                    COUNT(*) FILTER (WHERE is_draft    = true)::int AS pending,
+                    COUNT(*) FILTER (WHERE is_rejected = true)::int AS rejected
+                FROM bom_pcf_request
+            `);
+
+            const row = result.rows[0] || {};
+            return res.status(200).send({
+                success: true,
+                message: "Request status distribution fetched successfully",
+                data: {
+                    completed:  Number(row.completed)   || 0,
+                    inProgress: Number(row.in_progress) || 0,
+                    pending:    Number(row.pending)     || 0,
+                    rejected:   Number(row.rejected)    || 0
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Request status distribution error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Top 5 emitting clients
+export async function getTopEmitters(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const result = await client.query(`
+                SELECT
+                    u.user_id,
+                    u.user_name,
+                    COALESCE(SUM(
+                        be.material_value
+                      + be.production_value
+                      + be.packaging_value
+                      + be.logistic_value
+                      + be.waste_value
+                    ), 0)::numeric AS total_emission
+                FROM users_table u
+                LEFT JOIN bom_pcf_request bpr
+                    ON bpr.created_by = u.user_id
+                LEFT JOIN bom b
+                    ON b.bom_pcf_id = bpr.id
+                LEFT JOIN bom_emission_calculation_engine be
+                    ON be.bom_id = b.id
+                WHERE LOWER(u.user_role) = 'client'
+                GROUP BY u.user_id, u.user_name
+                HAVING COALESCE(SUM(
+                    be.material_value
+                  + be.production_value
+                  + be.packaging_value
+                  + be.logistic_value
+                  + be.waste_value
+                ), 0) > 0
+                ORDER BY total_emission DESC
+                LIMIT 5
+            `);
+
+            const data = result.rows.map((row: any) => ({
+                name:     row.user_name,
+                emission: Number(Number(row.total_emission).toFixed(2))
+            }));
+
+            return res.status(200).send({
+                success: true,
+                message: "Top emitters fetched successfully",
+                data
+            });
+
+        } catch (error: any) {
+            console.error("Top emitters error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Recent platform activity feed (last 10 actions)
+export async function getRecentActivities(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const result = await client.query(`
+                SELECT
+                    bpr.id,
+                    bpr.code,
+                    bpr.request_title,
+                    bpr.status,
+                    bpr.is_approved,
+                    bpr.is_rejected,
+                    bpr.is_draft,
+                    bpr.created_date,
+                    bpr.update_date,
+                    u.user_name AS creator_name,
+                    cu.user_name AS client_name
+                FROM bom_pcf_request bpr
+                LEFT JOIN users_table u  ON u.user_id  = bpr.created_by
+                LEFT JOIN users_table cu ON cu.user_id = bpr.client_id
+                ORDER BY COALESCE(bpr.update_date, bpr.created_date) DESC
+                LIMIT 10
+            `);
+
+            const data = result.rows.map((row: any) => {
+                let action = "created PCF request";
+                if (row.is_approved)      action = "approved PCF request";
+                else if (row.is_rejected) action = "rejected PCF request";
+                else if (row.is_draft)    action = "drafted PCF request";
+                else if (row.status && String(row.status).toLowerCase().includes("progress"))
+                    action = "is working on PCF request";
+
+                return {
+                    id:        row.id,
+                    actor:     row.creator_name || "Unknown",
+                    action,
+                    target:    row.request_title || row.code || "",
+                    client:    row.client_name || "",
+                    timestamp: row.update_date || row.created_date
+                };
+            });
+
+            return res.status(200).send({
+                success: true,
+                message: "Recent activities fetched successfully",
+                data
+            });
+
+        } catch (error: any) {
+            console.error("Recent activities error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// ============================================================
+// CLIENT DASHBOARD ENDPOINTS
+// ============================================================
+
+// Per-product emission summary for the logged-in client
+export async function getProductEmissions(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const result = await client.query(`
+                SELECT
+                    bpr.id,
+                    bpr.code,
+                    COALESCE(bpr.request_title, bpr.product_code, bpr.code) AS product_name,
+                    COALESCE(SUM(
+                        be.material_value
+                      + be.production_value
+                      + be.packaging_value
+                      + be.logistic_value
+                      + be.waste_value
+                    ), 0)::numeric AS total_emission
+                FROM bom_pcf_request bpr
+                LEFT JOIN bom b
+                    ON b.bom_pcf_id = bpr.id
+                LEFT JOIN bom_emission_calculation_engine be
+                    ON be.bom_id = b.id
+                WHERE bpr.created_by = $1
+                GROUP BY bpr.id, bpr.code, bpr.request_title, bpr.product_code
+                ORDER BY total_emission DESC
+                LIMIT 10
+            `, [user_id]);
+
+            const data = result.rows.map((row: any) => ({
+                name:     row.product_name,
+                emission: Number(Number(row.total_emission).toFixed(2))
+            }));
+
+            return res.status(200).send({
+                success: true,
+                message: "Product emissions fetched successfully",
+                data
+            });
+
+        } catch (error: any) {
+            console.error("Product emissions error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Monthly emission trend for the logged-in client (last 12 months)
+export async function getMonthlyEmissionTrend(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const result = await client.query(`
+                SELECT
+                    TO_CHAR(date_trunc('month', bpr.created_date), 'Mon YYYY') AS month_label,
+                    date_trunc('month', bpr.created_date) AS month_start,
+                    COALESCE(SUM(
+                        be.material_value
+                      + be.production_value
+                      + be.packaging_value
+                      + be.logistic_value
+                      + be.waste_value
+                    ), 0)::numeric AS total_emission
+                FROM bom_pcf_request bpr
+                LEFT JOIN bom b
+                    ON b.bom_pcf_id = bpr.id
+                LEFT JOIN bom_emission_calculation_engine be
+                    ON be.bom_id = b.id
+                WHERE bpr.created_by = $1
+                  AND bpr.created_date >= (CURRENT_DATE - INTERVAL '12 months')
+                GROUP BY date_trunc('month', bpr.created_date)
+                ORDER BY month_start ASC
+            `, [user_id]);
+
+            const data = result.rows.map((row: any) => ({
+                month:    row.month_label,
+                emission: Number(Number(row.total_emission).toFixed(2))
+            }));
+
+            return res.status(200).send({
+                success: true,
+                message: "Monthly emission trend fetched successfully",
+                data
+            });
+
+        } catch (error: any) {
+            console.error("Monthly emission trend error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Scope 1 / 2 / 3 breakdown (approximated from bom_emission_calculation_engine)
+//   Scope 1 (direct):            production_value
+//   Scope 2 (indirect purchased): logistic_value
+//   Scope 3 (value chain):       material_value + packaging_value + waste_value
+export async function getScopeBreakdown(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const result = await client.query(`
+                SELECT
+                    COALESCE(SUM(be.production_value), 0)::numeric AS scope_one,
+                    COALESCE(SUM(be.logistic_value),   0)::numeric AS scope_two,
+                    COALESCE(SUM(
+                        be.material_value + be.packaging_value + be.waste_value
+                    ), 0)::numeric AS scope_three
+                FROM bom_pcf_request bpr
+                JOIN bom b                                ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_calculation_engine be   ON be.bom_id    = b.id
+                WHERE bpr.created_by = $1
+            `, [user_id]);
+
+            const row = result.rows[0] || {};
+            const scopeOne   = Number(row.scope_one)   || 0;
+            const scopeTwo   = Number(row.scope_two)   || 0;
+            const scopeThree = Number(row.scope_three) || 0;
+            const total      = scopeOne + scopeTwo + scopeThree;
+
+            const pct = (v: number) => total > 0 ? Number(((v / total) * 100).toFixed(2)) : 0;
+
+            return res.status(200).send({
+                success: true,
+                message: "Scope breakdown fetched successfully",
+                data: {
+                    scopeOne:          Number(scopeOne.toFixed(2)),
+                    scopeTwo:          Number(scopeTwo.toFixed(2)),
+                    scopeThree:        Number(scopeThree.toFixed(2)),
+                    total:             Number(total.toFixed(2)),
+                    scopeOnePercent:   pct(scopeOne),
+                    scopeTwoPercent:   pct(scopeTwo),
+                    scopeThreePercent: pct(scopeThree)
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Scope breakdown error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Packaging emission detail (sum + packaging-type breakdown)
+export async function getPackagingEmissionDetails(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const totalResult = await client.query(`
+                SELECT COALESCE(SUM(be.packaging_value), 0)::numeric AS total_packaging
+                FROM bom_pcf_request bpr
+                JOIN bom b                               ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_calculation_engine be  ON be.bom_id    = b.id
+                WHERE bpr.created_by = $1
+            `, [user_id]);
+
+            const breakdownResult = await client.query(`
+                SELECT
+                    COALESCE(pk.packaging_type, 'Other') AS packaging_type,
+                    COALESCE(SUM(
+                        COALESCE(pk.pack_weight_kg, 0)
+                        * COALESCE(pk.emission_factor_box_kg, 0)
+                    ), 0)::numeric AS emission
+                FROM bom_pcf_request bpr
+                JOIN bom b                                   ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_packaging_calculation_engine pk
+                    ON pk.bom_id = b.id
+                WHERE bpr.created_by = $1
+                GROUP BY pk.packaging_type
+                HAVING COALESCE(SUM(
+                    COALESCE(pk.pack_weight_kg, 0)
+                    * COALESCE(pk.emission_factor_box_kg, 0)
+                ), 0) > 0
+                ORDER BY emission DESC
+            `, [user_id]);
+
+            return res.status(200).send({
+                success: true,
+                message: "Packaging emission details fetched successfully",
+                data: {
+                    totalPackaging: Number(Number(totalResult.rows[0]?.total_packaging ?? 0).toFixed(2)),
+                    breakdown: breakdownResult.rows.map((row: any) => ({
+                        materialType: row.packaging_type,
+                        emission:     Number(Number(row.emission).toFixed(2))
+                    }))
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Packaging emission details error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// ============================================================
+// CLIENT DASHBOARD — PHASE A ENDPOINTS (logged-in client view)
+// ============================================================
+
+// Client dashboard KPI cards: total products, active suppliers, avg carbon footprint, recyclability rate
+export async function getClientKpis(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const productsResult = await client.query(`
+                SELECT COUNT(*)::int AS total
+                FROM product
+                WHERE created_by = $1
+            `, [user_id]);
+
+            const suppliersResult = await client.query(`
+                SELECT COUNT(DISTINCT b.supplier_id)::int AS active
+                FROM bom_pcf_request bpr
+                JOIN bom b ON b.bom_pcf_id = bpr.id
+                WHERE bpr.created_by = $1
+                  AND b.supplier_id IS NOT NULL
+                  AND b.supplier_id != ''
+            `, [user_id]);
+
+            const emissionsResult = await client.query(`
+                SELECT
+                    COALESCE(SUM(
+                        be.material_value
+                      + be.production_value
+                      + be.packaging_value
+                      + be.logistic_value
+                      + be.waste_value
+                    ), 0)::numeric AS total_emission,
+                    COUNT(DISTINCT bpr.product_code) FILTER (WHERE bpr.product_code IS NOT NULL)::int AS product_count
+                FROM bom_pcf_request bpr
+                JOIN bom b                               ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_calculation_engine be  ON be.bom_id    = b.id
+                WHERE bpr.created_by = $1
+            `, [user_id]);
+
+            const recyclabilityResult = await client.query(`
+                WITH material_usage AS (
+                    SELECT
+                        b.id AS bom_id,
+                        bemce.material_type,
+                        SUM(bemce.material_composition_weight::numeric) AS total_kg
+                    FROM bom_pcf_request bpr
+                    JOIN bom b ON b.bom_pcf_id = bpr.id
+                    JOIN bom_emission_material_calculation_engine bemce ON bemce.bom_id = b.id
+                    WHERE bpr.created_by = $1
+                    GROUP BY b.id, bemce.material_type
+                ),
+                recycled_percentage AS (
+                    SELECT
+                        rmpq.bom_id,
+                        rmpq.material_name AS material_type,
+                        SUM(rmpq.percentage::numeric) AS recycled_pct
+                    FROM recycled_materials_with_percentage_questions rmpq
+                    JOIN bom b ON b.id = rmpq.bom_id
+                    JOIN bom_pcf_request bpr ON bpr.id = b.bom_pcf_id
+                    WHERE bpr.created_by = $1
+                    GROUP BY rmpq.bom_id, rmpq.material_name
+                )
+                SELECT
+                    COALESCE(SUM(mu.total_kg), 0) AS total_material,
+                    COALESCE(SUM(
+                        (mu.total_kg * COALESCE(rp.recycled_pct, 0)) / 100
+                    ), 0) AS total_recycled
+                FROM material_usage mu
+                LEFT JOIN recycled_percentage rp
+                    ON rp.bom_id = mu.bom_id AND rp.material_type = mu.material_type
+            `, [user_id]);
+
+            const totalEmission  = Number(emissionsResult.rows[0]?.total_emission) || 0;
+            const productCount   = Number(emissionsResult.rows[0]?.product_count)  || 0;
+            const avgCarbonFootprint = productCount > 0
+                ? Number((totalEmission / productCount).toFixed(2))
+                : 0;
+
+            const totalMaterial = Number(recyclabilityResult.rows[0]?.total_material) || 0;
+            const totalRecycled = Number(recyclabilityResult.rows[0]?.total_recycled) || 0;
+            const recyclabilityRate = totalMaterial > 0
+                ? Number(((totalRecycled / totalMaterial) * 100).toFixed(2))
+                : 0;
+
+            return res.status(200).send({
+                success: true,
+                message: "Client KPIs fetched successfully",
+                data: {
+                    totalProducts:       Number(productsResult.rows[0]?.total)    || 0,
+                    activeSuppliers:     Number(suppliersResult.rows[0]?.active)  || 0,
+                    avgCarbonFootprint,
+                    recyclabilityRate,
+                    totalEmission:       Number(totalEmission.toFixed(2))
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Client KPIs error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Client's pending PCF requests (in progress, draft, awaiting)
+export async function getClientPendingPcfRequests(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const result = await client.query(`
+                SELECT
+                    bpr.id,
+                    bpr.code,
+                    bpr.request_title,
+                    bpr.product_code,
+                    bpr.status,
+                    bpr.is_draft,
+                    bpr.is_approved,
+                    bpr.is_rejected,
+                    bpr.due_date,
+                    bpr.priority,
+                    bpr.request_organization,
+                    bpr.created_date,
+                    u.user_name AS customer_name
+                FROM bom_pcf_request bpr
+                LEFT JOIN users_table u ON u.user_id = bpr.client_id
+                WHERE bpr.created_by = $1
+                  AND bpr.is_approved = false
+                  AND bpr.is_rejected = false
+                ORDER BY
+                    CASE
+                        WHEN LOWER(bpr.priority) = 'high'   THEN 1
+                        WHEN LOWER(bpr.priority) = 'medium' THEN 2
+                        WHEN LOWER(bpr.priority) = 'low'    THEN 3
+                        ELSE 4
+                    END,
+                    bpr.due_date ASC NULLS LAST,
+                    bpr.created_date DESC
+                LIMIT 4
+            `, [user_id]);
+
+            const data = result.rows.map((row: any) => {
+                let uiStatus = "In Progress";
+                if (row.is_draft) uiStatus = "Draft";
+                else if (row.status && String(row.status).toLowerCase().includes("review")) uiStatus = "In Review";
+                else if (row.status && String(row.status).toLowerCase().includes("wait")) uiStatus = "Awaiting Data";
+                else if (row.status && String(row.status).toLowerCase().includes("action")) uiStatus = "Action Required";
+
+                return {
+                    id:       row.code || row.id,
+                    product:  row.request_title || row.product_code || row.code,
+                    customer: row.customer_name || row.request_organization || "",
+                    dueDate:  row.due_date,
+                    priority: (row.priority || "medium").toLowerCase(),
+                    status:   uiStatus
+                };
+            });
+
+            return res.status(200).send({
+                success: true,
+                message: "Pending PCF requests fetched successfully",
+                data
+            });
+
+        } catch (error: any) {
+            console.error("Client pending PCF error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Client recent activity (their own PCF + task events)
+export async function getClientRecentActivity(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const result = await client.query(`
+                SELECT
+                    bpr.id,
+                    bpr.code,
+                    bpr.request_title,
+                    bpr.product_code,
+                    bpr.is_approved,
+                    bpr.is_rejected,
+                    bpr.is_draft,
+                    bpr.status,
+                    bpr.update_date,
+                    bpr.created_date
+                FROM bom_pcf_request bpr
+                WHERE bpr.created_by = $1
+                ORDER BY COALESCE(bpr.update_date, bpr.created_date) DESC
+                LIMIT 8
+            `, [user_id]);
+
+            const data = result.rows.map((row: any) => {
+                let description = "PCF request created";
+                let type: string = "info";
+                if (row.is_approved)       { description = "PCF report submitted"; type = "success"; }
+                else if (row.is_rejected)  { description = "PCF request rejected"; type = "warning"; }
+                else if (row.is_draft)     { description = "PCF request saved as draft"; type = "info"; }
+                else if (row.status && String(row.status).toLowerCase().includes("progress"))
+                    { description = "PCF request in progress"; type = "info"; }
+
+                return {
+                    id:          row.id,
+                    description,
+                    target:      row.request_title || row.product_code || row.code,
+                    timestamp:   row.update_date || row.created_date,
+                    type
+                };
+            });
+
+            return res.status(200).send({
+                success: true,
+                message: "Client recent activity fetched successfully",
+                data
+            });
+
+        } catch (error: any) {
+            console.error("Client recent activity error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Top suppliers by emission contribution for the logged-in client's PCFs
+export async function getClientTopSuppliers(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const result = await client.query(`
+                SELECT
+                    s.sup_id,
+                    COALESCE(s.supplier_company_name, s.supplier_name, 'Unknown Supplier') AS supplier_name,
+                    s.supplier_city,
+                    s.supplier_country,
+                    s.supplier_business_type AS category,
+                    COALESCE(SUM(
+                        be.material_value
+                      + be.production_value
+                      + be.packaging_value
+                      + be.logistic_value
+                      + be.waste_value
+                    ), 0)::numeric AS total_emission
+                FROM bom_pcf_request bpr
+                JOIN bom b                              ON b.bom_pcf_id = bpr.id
+                JOIN supplier_details s                 ON s.sup_id = b.supplier_id
+                LEFT JOIN bom_emission_calculation_engine be ON be.bom_id = b.id
+                WHERE bpr.created_by = $1
+                GROUP BY s.sup_id, s.supplier_company_name, s.supplier_name, s.supplier_city, s.supplier_country, s.supplier_business_type
+                HAVING COALESCE(SUM(
+                    be.material_value
+                  + be.production_value
+                  + be.packaging_value
+                  + be.logistic_value
+                  + be.waste_value
+                ), 0) > 0
+                ORDER BY total_emission DESC
+                LIMIT 5
+            `, [user_id]);
+
+            const totalAllSuppliers = result.rows.reduce(
+                (sum: number, row: any) => sum + Number(row.total_emission),
+                0
+            );
+
+            const data = result.rows.map((row: any) => {
+                const emission = Number(row.total_emission);
+                return {
+                    name:       row.supplier_name,
+                    city:       row.supplier_city,
+                    country:    row.supplier_country,
+                    category:   row.category || "",
+                    emission:   Number(emission.toFixed(2)),
+                    percentage: totalAllSuppliers > 0
+                        ? Number(((emission / totalAllSuppliers) * 100).toFixed(1))
+                        : 0
+                };
+            });
+
+            return res.status(200).send({
+                success: true,
+                message: "Top suppliers fetched successfully",
+                data
+            });
+
+        } catch (error: any) {
+            console.error("Client top suppliers error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Energy + waste resource consumption for the logged-in client (water unavailable in schema)
+export async function getClientEnergyResources(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const energyResult = await client.query(`
+                SELECT
+                    COALESCE(SUM(
+                        COALESCE(pe.total_electrical_energy_consumed_at_factory_level_kWh, 0)
+                      + COALESCE(pe.total_heating_energy_consumed_at_factory_level_kWh,   0)
+                      + COALESCE(pe.total_cooling_energy_consumed_at_factory_level_kWh,   0)
+                      + COALESCE(pe.total_steam_energy_consumed_at_factory_level_kWh,     0)
+                    ), 0)::numeric AS energy_kwh
+                FROM bom_pcf_request bpr
+                JOIN bom b                                          ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_production_calculation_engine pe  ON pe.bom_id    = b.id
+                WHERE bpr.created_by = $1
+            `, [user_id]);
+
+            const wasteResult = await client.query(`
+                SELECT
+                    COALESCE(SUM(w.waste_generated_per_box_kg), 0)::numeric AS waste_kg
+                FROM bom_pcf_request bpr
+                JOIN bom b                                      ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_waste_calculation_engine w    ON w.bom_id     = b.id
+                WHERE bpr.created_by = $1
+            `, [user_id]);
+
+            return res.status(200).send({
+                success: true,
+                message: "Energy & resources fetched successfully",
+                data: {
+                    energyKwh: Number(Number(energyResult.rows[0]?.energy_kwh ?? 0).toFixed(2)),
+                    wasteKg:   Number(Number(wasteResult.rows[0]?.waste_kg    ?? 0).toFixed(2))
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Client energy & resources error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Top emission hotspots for the logged-in client — derived from top-emitting PCFs
+export async function getClientEmissionHotspots(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const result = await client.query(`
+                SELECT
+                    bpr.id,
+                    bpr.code,
+                    COALESCE(bpr.request_title, bpr.product_code, bpr.code) AS hotspot_name,
+                    COALESCE(SUM(
+                        be.material_value
+                      + be.production_value
+                      + be.packaging_value
+                      + be.logistic_value
+                      + be.waste_value
+                    ), 0)::numeric AS emission
+                FROM bom_pcf_request bpr
+                JOIN bom b                               ON b.bom_pcf_id = bpr.id
+                JOIN bom_emission_calculation_engine be  ON be.bom_id    = b.id
+                WHERE bpr.created_by = $1
+                GROUP BY bpr.id, bpr.code, bpr.request_title, bpr.product_code
+                HAVING SUM(
+                    be.material_value
+                  + be.production_value
+                  + be.packaging_value
+                  + be.logistic_value
+                  + be.waste_value
+                ) > 0
+                ORDER BY emission DESC
+                LIMIT 5
+            `, [user_id]);
+
+            const grandTotal = result.rows.reduce(
+                (sum: number, row: any) => sum + Number(row.emission),
+                0
+            );
+
+            const data = result.rows.map((row: any) => {
+                const em = Number(row.emission);
+                return {
+                    name:       row.hotspot_name,
+                    emission:   Number(em.toFixed(2)),
+                    percentage: grandTotal > 0
+                        ? Number(((em / grandTotal) * 100).toFixed(1))
+                        : 0
+                };
+            });
+
+            return res.status(200).send({
+                success: true,
+                message: "Emission hotspots fetched successfully",
+                data
+            });
+
+        } catch (error: any) {
+            console.error("Client emission hotspots error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
+
+// Client alerts — derived from overdue tasks, rejected PCFs, long-pending drafts
+export async function getClientAlerts(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { user_id } = req.query;
+            if (!user_id) {
+                return res.status(400).send({
+                    success: false,
+                    message: "user_id is required"
+                });
+            }
+
+            const overdueTasksResult = await client.query(`
+                SELECT COUNT(*)::int AS cnt
+                FROM task_managment
+                WHERE $1 = ANY(assign_to)
+                  AND due_date < NOW()
+                  AND LOWER(COALESCE(status, '')) NOT IN ('completed', 'done', 'closed')
+            `, [user_id]);
+
+            const rejectedPcfResult = await client.query(`
+                SELECT COUNT(*)::int AS cnt
+                FROM bom_pcf_request
+                WHERE created_by = $1
+                  AND is_rejected = true
+            `, [user_id]);
+
+            const oldDraftsResult = await client.query(`
+                SELECT COUNT(*)::int AS cnt
+                FROM bom_pcf_request
+                WHERE created_by = $1
+                  AND is_draft = true
+                  AND created_date < (NOW() - INTERVAL '7 days')
+            `, [user_id]);
+
+            const approachingDueResult = await client.query(`
+                SELECT COUNT(*)::int AS cnt
+                FROM bom_pcf_request
+                WHERE created_by = $1
+                  AND is_approved = false
+                  AND is_rejected = false
+                  AND due_date IS NOT NULL
+                  AND due_date BETWEEN NOW() AND (NOW() + INTERVAL '7 days')
+            `, [user_id]);
+
+            const alerts = [];
+            const overdue = Number(overdueTasksResult.rows[0]?.cnt) || 0;
+            const rejected = Number(rejectedPcfResult.rows[0]?.cnt) || 0;
+            const oldDrafts = Number(oldDraftsResult.rows[0]?.cnt) || 0;
+            const approaching = Number(approachingDueResult.rows[0]?.cnt) || 0;
+
+            if (overdue > 0) {
+                alerts.push({
+                    type: "task_overdue",
+                    severity: "high",
+                    title: "Overdue tasks",
+                    subtitle: `${overdue} task${overdue === 1 ? "" : "s"} past due date`
+                });
+            }
+            if (approaching > 0) {
+                alerts.push({
+                    type: "pcf_due_soon",
+                    severity: "medium",
+                    title: "PCF requests due soon",
+                    subtitle: `${approaching} request${approaching === 1 ? "" : "s"} due within 7 days`
+                });
+            }
+            if (rejected > 0) {
+                alerts.push({
+                    type: "pcf_rejected",
+                    severity: "high",
+                    title: "Rejected PCF requests",
+                    subtitle: `${rejected} request${rejected === 1 ? "" : "s"} require attention`
+                });
+            }
+            if (oldDrafts > 0) {
+                alerts.push({
+                    type: "stale_draft",
+                    severity: "low",
+                    title: "Stale drafts",
+                    subtitle: `${oldDrafts} draft${oldDrafts === 1 ? "" : "s"} older than 7 days`
+                });
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "Client alerts fetched successfully",
+                data: {
+                    count: alerts.length,
+                    alerts
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Client alerts error:", error);
+            return res.status(500).send({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+}
