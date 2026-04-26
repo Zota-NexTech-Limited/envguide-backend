@@ -865,3 +865,73 @@ export async function sampleEmailTest(req: any, res: any) {
         });
     }
 }
+
+// Resend the supplier-questionnaire email to a single supplier (e.g. when a previous send was missed/bounced)
+export async function resendSupplierEmail(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id, supplier_id } = req.body || {};
+
+            if (!bom_pcf_id || !supplier_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "bom_pcf_id and supplier_id are required"
+                });
+            }
+
+            // Look up supplier email + bom_id (a supplier may appear in multiple BOM rows; one is enough for the link)
+            const lookupResult = await client.query(
+                `
+                SELECT s.supplier_email,
+                       s.supplier_name,
+                       b.id AS bom_id
+                FROM bom b
+                JOIN supplier_details s ON s.sup_id = b.supplier_id
+                WHERE b.bom_pcf_id = $1
+                  AND b.supplier_id = $2
+                LIMIT 1
+                `,
+                [bom_pcf_id, supplier_id]
+            );
+
+            if (!lookupResult.rows.length) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Supplier not found for this BOM/PCF"
+                });
+            }
+
+            const row = lookupResult.rows[0];
+            const email = row.supplier_email;
+
+            if (!email) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Supplier has no email on file"
+                });
+            }
+
+            await sendSupplierTaskEmail({
+                email,
+                bom_pcf_id,
+                bom_id: row.bom_id,
+                supplier_id,
+            });
+
+            console.log(`Resent supplier questionnaire email to ${email}`);
+
+            return res.status(200).json({
+                success: true,
+                message: `Email resent to ${row.supplier_name || email}`,
+                data: { email }
+            });
+
+        } catch (error: any) {
+            console.error("Resend supplier email error:", error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to resend email"
+            });
+        }
+    });
+}

@@ -12,5 +12,6 @@ Routes.post('/api/task-management/delete', authService.authenticate, Controller.
 Routes.get('/api/task-management/supplier-dropdown', authService.authenticate, Controller.getSupplierDropDown);
 
 Routes.post('/api/task-management/test-email', authService.authenticate, Controller.sampleEmailTest);
+Routes.post('/api/task-management/resend-supplier-email', authService.authenticate, Controller.resendSupplierEmail);
 
 export default Routes;
