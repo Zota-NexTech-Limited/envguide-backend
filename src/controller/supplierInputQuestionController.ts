@@ -3326,7 +3326,7 @@ export async function getSupplierDetailsList(req: any, res: any) {
                         'component_name', b.component_name,
                         'production_location', b.production_location
                     )
-                    ORDER BY b.created_date DESC
+                    ORDER BY b.id ASC
                 ),
                 '[]'::json
             )
@@ -3428,7 +3428,7 @@ export async function getSupplierDetailsById(req: any, res: any) {
                         'component_name', b.component_name,
                         'production_location', b.production_location
                     )
-                    ORDER BY b.created_date DESC
+                    ORDER BY b.id ASC
                 ),
                 '[]'::json
             )
@@ -3779,7 +3779,7 @@ export async function getPCFBOMListToAutoPop(req: any, res: any) {
                     b.supplier_id
                 FROM bom b
                 WHERE b.bom_pcf_id = $1 AND b.supplier_id=$2
-                ORDER BY b.created_date DESC;
+                ORDER BY b.id ASC;
             `;
 
             const result = await client.query(query, [bom_pcf_id, sup_id]);
