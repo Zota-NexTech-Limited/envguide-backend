@@ -1,6 +1,11 @@
 import { ulid } from 'ulid';
 import { withClient } from '../util/database.js';
 import { generateResponse } from '../util/genRes.js';
+import {
+    generatePcfReportPdfBuffer,
+    type PcfReportComponent,
+    type PcfReportSupplierAppendix,
+} from '../helper/pcfReportPdfGenerator.js';
 
 //  export async function getMaterialFootPrint(req: any, res: any) {
 //     const {
@@ -3589,4 +3594,293 @@ export async function getFavoriteReportsByUserId(req: any, res: any) {
             });
         }
     });
+}
+
+// ============================================================
+// Generate PCF Product Carbon Footprint Report (PDF)
+// Aggregates data from bom_pcf_request, bom, and bom_emission_*
+// calculation tables, then renders a branded PDF report.
+// Available only for PCF requests in 'Completed' status.
+// ============================================================
+export async function generatePcfReportPdf(req: any, res: any) {
+    const pcfRequestId = req.params?.pcfRequestId || req.params?.id;
+    if (!pcfRequestId) {
+        return res.status(400).send(generateResponse(false, "pcfRequestId is required", 400, null));
+    }
+
+    return withClient(async (client: any) => {
+        try {
+            // 1. PCF request header
+            const pcfRes = await client.query(
+                `SELECT pcf.id, pcf.code, pcf.request_title, pcf.request_organization,
+                        pcf.status, pcf.product_code, pcf.model_version,
+                        pcf.overall_pcf, pcf.created_date, pcf.created_by,
+                        u.user_name AS submitted_by,
+                        pcat.name AS product_category_name,
+                        ccat.name AS component_category_name
+                 FROM bom_pcf_request pcf
+                 LEFT JOIN users_table u ON u.user_id = pcf.created_by
+                 LEFT JOIN product_category pcat ON pcat.id = pcf.product_category_id
+                 LEFT JOIN component_category ccat ON ccat.id = pcf.component_category_id
+                 WHERE pcf.id = $1
+                 LIMIT 1`,
+                [pcfRequestId]
+            );
+            if (pcfRes.rows.length === 0) {
+                return res.status(404).send(generateResponse(false, "PCF request not found", 404, null));
+            }
+            const pcf = pcfRes.rows[0];
+
+            const status = String(pcf.status || "").toLowerCase().trim();
+            if (status !== "completed") {
+                return res.status(400).send(generateResponse(false,
+                    "Report is available only for completed PCF requests", 400, null));
+            }
+
+            // 2. BOM components for this PCF
+            // Suppliers live in supplier_details (sup_id PK), not users_table.
+            // Prefer organization_name from the questionnaire so the BOM name
+            // matches the appendix supplier headers.
+            const bomRes = await client.query(
+                `SELECT b.id, b.code, b.material_number, b.component_name,
+                        b.qunatity AS quantity, b.weight_gms, b.total_weight_gms,
+                        b.supplier_id,
+                        COALESCE(sgiq.organization_name,
+                                 sd.supplier_company_name,
+                                 sd.supplier_name) AS supplier_name,
+                        sd.supplier_email
+                 FROM bom b
+                 LEFT JOIN supplier_details sd ON sd.sup_id = b.supplier_id
+                 LEFT JOIN supplier_general_info_questions sgiq
+                        ON sgiq.sup_id = b.supplier_id
+                       AND sgiq.bom_pcf_id = b.bom_pcf_id
+                 WHERE b.bom_pcf_id = $1
+                 ORDER BY b.component_name`,
+                [pcfRequestId]
+            );
+
+            // 3. Per-BOM emission totals (lifecycle phase split)
+            // The calc engine tables only populate bom_id (not product_bom_pcf_id),
+            // so filter via the bom table.
+            const calcRes = await client.query(
+                `SELECT e.bom_id, e.material_value, e.production_value,
+                        e.packaging_value, e.logistic_value, e.waste_value,
+                        e.total_pcf_value
+                 FROM bom_emission_calculation_engine e
+                 INNER JOIN bom b ON b.id = e.bom_id
+                 WHERE b.bom_pcf_id = $1 AND e.product_id IS NULL`,
+                [pcfRequestId]
+            );
+            const calcByBom = new Map<string, any>();
+            for (const r of calcRes.rows) calcByBom.set(r.bom_id, r);
+
+            // 4. Production breakdown for Scope 1/2 split
+            const prodRes = await client.query(
+                `SELECT e.bom_id,
+                        e.production_electricity_energy_use_per_unit_kWh AS elec_kwh,
+                        e.production_heat_energy_use_per_unit_kWh AS heat_kwh,
+                        e.production_cooling_energy_use_per_unit_kWh AS cool_kwh,
+                        e.production_steam_energy_use_per_unit_kWh AS steam_kwh,
+                        e.emission_factor_of_electricity AS ef_elec,
+                        e.emission_factor_of_heat AS ef_heat,
+                        e.emission_factor_of_cooling AS ef_cool,
+                        e.emission_factor_of_steam AS ef_steam
+                 FROM bom_emission_production_calculation_engine e
+                 INNER JOIN bom b ON b.id = e.bom_id
+                 WHERE b.bom_pcf_id = $1`,
+                [pcfRequestId]
+            );
+            const prodByBom = new Map<string, any>();
+            for (const r of prodRes.rows) prodByBom.set(r.bom_id, r);
+
+            // 5. Build per-component emission rows
+            const components: PcfReportComponent[] = bomRes.rows.map((b: any) => {
+                const calc = calcByBom.get(b.id) || {};
+                const prod = prodByBom.get(b.id) || {};
+                const num = (v: any) => Number(v) || 0;
+
+                // Production fuel split for Scope 1 / 2
+                // Scope 1: heat + steam (assumed on-site combustion)
+                // Scope 2: electricity + cooling (assumed grid-derived)
+                const elec = num(prod.elec_kwh) * num(prod.ef_elec);
+                const heat = num(prod.heat_kwh) * num(prod.ef_heat);
+                const cool = num(prod.cool_kwh) * num(prod.ef_cool);
+                const steam = num(prod.steam_kwh) * num(prod.ef_steam);
+
+                const productionScope1 = heat + steam;
+                const productionScope2 = elec + cool;
+                const scope3 = num(calc.material_value) + num(calc.packaging_value)
+                    + num(calc.logistic_value) + num(calc.waste_value);
+
+                return {
+                    componentName: b.component_name || "Unnamed",
+                    materialNumber: b.material_number || "—",
+                    supplierName: b.supplier_name || "—",
+                    weightKg: num(b.weight_gms) / 1000,
+                    quantity: Number(b.quantity) || 0,
+                    scopeOne: productionScope1,
+                    scopeTwo: productionScope2,
+                    scopeThree: scope3,
+                    totalCo2e: num(calc.total_pcf_value),
+                    material: num(calc.material_value),
+                    production: num(calc.production_value),
+                    packaging: num(calc.packaging_value),
+                    logistic: num(calc.logistic_value),
+                    waste: num(calc.waste_value),
+                };
+            });
+
+            // 6. Aggregate phase + scope totals
+            const totalsByPhase = components.reduce(
+                (acc, c) => ({
+                    material: acc.material + c.material,
+                    production: acc.production + c.production,
+                    packaging: acc.packaging + c.packaging,
+                    logistic: acc.logistic + c.logistic,
+                    waste: acc.waste + c.waste,
+                }),
+                { material: 0, production: 0, packaging: 0, logistic: 0, waste: 0 }
+            );
+            const totalsByScope = components.reduce(
+                (acc, c) => ({
+                    scopeOne: acc.scopeOne + c.scopeOne,
+                    scopeTwo: acc.scopeTwo + c.scopeTwo,
+                    scopeThree: acc.scopeThree + c.scopeThree,
+                }),
+                { scopeOne: 0, scopeTwo: 0, scopeThree: 0 }
+            );
+
+            const totalCo2e = Number(pcf.overall_pcf)
+                || components.reduce((s, c) => s + c.totalCo2e, 0);
+
+            // 7. Supplier appendix — group BOM rows by supplier and fetch their questionnaire data
+            const supplierAppendix = await buildSupplierAppendix(client, pcfRequestId, bomRes.rows);
+
+            // 8. Render PDF
+            const reportingPeriod = (() => {
+                const d = new Date(pcf.created_date || Date.now());
+                return `FY ${d.getFullYear()}`;
+            })();
+            const productName = pcf.request_title
+                || pcf.product_category_name
+                || pcf.component_category_name
+                || "Product";
+
+            const pdfBuffer = await generatePcfReportPdfBuffer({
+                pcfRequestNumber: pcf.code || pcfRequestId,
+                productName,
+                clientName: pcf.request_organization || pcf.submitted_by || "—",
+                reportingPeriod,
+                generationDate: new Date().toISOString(),
+                totalCo2e,
+                functionalUnit: "1 unit of finished product",
+                systemBoundary: "Cradle-to-gate",
+                gwpSet: "IPCC AR6, 100-year GWP",
+                totalsByPhase,
+                totalsByScope,
+                components,
+                methodology: {
+                    standard: "ISO 14067:2018 / GHG Protocol Product Standard",
+                    allocationMethod: "Mass-based allocation across co-products and shared infrastructure",
+                    cutoffCriteria: "Inputs contributing less than 1% of total mass excluded; cumulative excluded inputs do not exceed 5% of total mass.",
+                },
+                dataSources: {
+                    primary: "Supplier-provided questionnaire responses (component composition, packaging, transport, energy, waste)",
+                    secondary: "Ecoinvent v3 emission factor database",
+                    backgroundEf: "Region- and year-matched emission factors from Ecoinvent and IPCC AR6 characterization",
+                },
+                supplierAppendix,
+            });
+
+            const sanitizedProduct = String(productName)
+                .replace(/[^a-zA-Z0-9]/g, "_")
+                .replace(/_+/g, "_")
+                .replace(/^_|_$/g, "")
+                .slice(0, 60);
+            const dateStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
+            const filename = `EnviGuide_PCF_${pcf.code || "Report"}_${sanitizedProduct}_${dateStr}.pdf`;
+
+            res.setHeader("Content-Type", "application/pdf");
+            res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+            res.setHeader("Content-Length", pdfBuffer.length.toString());
+            return res.end(pdfBuffer);
+        } catch (error: any) {
+            console.error("generatePcfReportPdf error:", error);
+            return res.status(500).send(generateResponse(false,
+                error.message || "Failed to generate PCF report", 500, null));
+        }
+    });
+}
+
+// ============================================================
+// Supplier appendix builder
+// One section per supplier, listing the components they supplied
+// and a curated set of their questionnaire answers.
+// ============================================================
+async function buildSupplierAppendix(
+    client: any,
+    pcfRequestId: string,
+    bomRows: any[]
+): Promise<PcfReportSupplierAppendix[]> {
+    // Group BOM components by supplier
+    const bySupplier = new Map<string, { name: string; email: string; components: string[] }>();
+    for (const b of bomRows) {
+        if (!b.supplier_id) continue;
+        if (!bySupplier.has(b.supplier_id)) {
+            bySupplier.set(b.supplier_id, {
+                name: b.supplier_name || "Supplier",
+                email: b.supplier_email || "",
+                components: [],
+            });
+        }
+        bySupplier.get(b.supplier_id)!.components.push(b.component_name || b.material_number || "—");
+    }
+    if (bySupplier.size === 0) return [];
+
+    const supplierIds = Array.from(bySupplier.keys());
+
+    // Fetch supplier general info questionnaire snapshot.
+    // Only the fields actually filled in the questionnaire are surfaced in the
+    // appendix — Designation / Core business activity / No. of employees are
+    // currently disabled in the form, so they're not pulled.
+    let sgiqRows: any[] = [];
+    try {
+        const r = await client.query(
+            `SELECT sgiq.sgiq_id, sgiq.sup_id, sgiq.bom_pcf_id,
+                    sgiq.organization_name, sgiq.email_address,
+                    sgiq.annual_reporting_period
+             FROM supplier_general_info_questions sgiq
+             WHERE sgiq.bom_pcf_id = $1 AND sgiq.sup_id = ANY($2::text[])`,
+            [pcfRequestId, supplierIds]
+        );
+        sgiqRows = r.rows;
+    } catch {
+        // Table or columns may differ — keep appendix lightweight on error
+        sgiqRows = [];
+    }
+    const sgiqBySupplier = new Map<string, any>();
+    for (const r of sgiqRows) sgiqBySupplier.set(r.sup_id, r);
+
+    const out: PcfReportSupplierAppendix[] = [];
+    for (const [sup_id, info] of bySupplier.entries()) {
+        const sgiq = sgiqBySupplier.get(sup_id) || {};
+        const orgName = sgiq.organization_name || info.name;
+
+        const orgItems = [
+            { label: "Organization name", value: orgName || "—" },
+            { label: "Contact email", value: sgiq.email_address || info.email || "—" },
+            { label: "Reporting period", value: sgiq.annual_reporting_period || "—" },
+        ];
+
+        out.push({
+            supplierName: orgName,
+            supplierEmail: sgiq.email || info.email,
+            componentsSupplied: info.components,
+            responses: [
+                { section: "Organization", items: orgItems },
+            ],
+        });
+    }
+
+    return out;
 }

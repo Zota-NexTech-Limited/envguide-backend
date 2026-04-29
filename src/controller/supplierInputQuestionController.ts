@@ -2558,6 +2558,65 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
     const stoie_id = ulid();
     const allDQRConfigs: any[] = [];
 
+    // Build a bom-row lookup map so that any child question payload missing
+    // bom_id / material_number can be back-filled from component_name. The
+    // frontend occasionally drops these two fields for rows beyond the first
+    // (Ant Design hidden Form.Item registration issue); this map keeps the
+    // saved data correct regardless.
+    const bomLookup: {
+        byMaterial: Map<string, { bom_id: string; material_number: string; component_name: string }>;
+        byComponent: Map<string, { bom_id: string; material_number: string; component_name: string }>;
+    } = {
+        byMaterial: new Map(),
+        byComponent: new Map(),
+    };
+    try {
+        const sgiqRes = await client.query(
+            `SELECT bom_pcf_id, sup_id FROM supplier_general_info_questions WHERE sgiq_id = $1 LIMIT 1`,
+            [sgiq_id]
+        );
+        const sgiqRow = sgiqRes.rows[0];
+        if (sgiqRow?.bom_pcf_id && sgiqRow?.sup_id) {
+            const bomRes = await client.query(
+                `SELECT id, material_number, component_name FROM bom WHERE bom_pcf_id = $1 AND supplier_id = $2`,
+                [sgiqRow.bom_pcf_id, sgiqRow.sup_id]
+            );
+            for (const r of bomRes.rows) {
+                const entry = {
+                    bom_id: r.id,
+                    material_number: r.material_number,
+                    component_name: r.component_name,
+                };
+                if (r.material_number) bomLookup.byMaterial.set(String(r.material_number).trim(), entry);
+                if (r.component_name) bomLookup.byComponent.set(String(r.component_name).trim(), entry);
+            }
+        }
+    } catch (err) {
+        console.error("bomLookup build failed:", err);
+    }
+
+    const resolveBomLink = (p: any): { bom_id: any; material_number: any; component_name: any } => {
+        let bom_id = p?.bom_id || null;
+        let material_number = p?.material_number || null;
+        let component_name = p?.component_name || null;
+
+        if (!bom_id) {
+            let match = null;
+            if (material_number) {
+                match = bomLookup.byMaterial.get(String(material_number).trim());
+            }
+            if (!match && component_name) {
+                match = bomLookup.byComponent.get(String(component_name).trim());
+            }
+            if (match) {
+                bom_id = match.bom_id;
+                if (!material_number) material_number = match.material_number;
+                if (!component_name) component_name = match.component_name;
+            }
+        }
+        return { bom_id, material_number, component_name };
+    };
+
     // Insert parent
     await client.query(
         `INSERT INTO scope_three_other_indirect_emissions_questions (
@@ -2773,7 +2832,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 }
             });
 
-            return [rmuicm_id, stoie_id, m.bom_id, m.material_number, m.material_name, m.percentage, annual_reporting_period];
+            const linked = resolveBomLink(m);
+            return [rmuicm_id, stoie_id, linked.bom_id, linked.material_number, m.material_name, m.percentage, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
@@ -2809,7 +2869,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 }
             });
 
-            return [rmwp_id, stoie_id, r.bom_id, r.material_number, r.material_name, r.percentage];
+            const linked = resolveBomLink(r);
+            return [rmwp_id, stoie_id, linked.bom_id, linked.material_number, r.material_name, r.percentage];
         });
 
         childInserts.push(bulkInsert(
@@ -2901,6 +2962,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = data.type_of_pack_mat_used_for_delivering_questions.map((p: any) => {
             const topmudp_id = ulid();
+            const linked = resolveBomLink(p);
 
             prepareDQR({
                 records: dqr60,
@@ -2908,7 +2970,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 payload: p
             });
 
-            return [topmudp_id, stoie_id, p.bom_id, p.material_number, p.component_name, p.packagin_type, p.packaging_size, p.unit, p.treatment_type];
+            return [topmudp_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name, p.packagin_type, p.packaging_size, p.unit, p.treatment_type];
         });
 
         childInserts.push(bulkInsert(
@@ -2932,6 +2994,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = data.weight_of_packaging_per_unit_product_questions.map((w: any) => {
             const woppup_id = ulid();
+            const linked = resolveBomLink(w);
 
             prepareDQR({
                 records: dqr61,
@@ -2939,7 +3002,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 payload: w
             });
 
-            return [woppup_id, stoie_id, w.bom_id, w.material_number, w.component_name, w.packagin_weight, w.unit];
+            return [woppup_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name, w.packagin_weight, w.unit];
         });
 
         childInserts.push(bulkInsert(
@@ -3010,7 +3073,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 }
             });
 
-            return [woppw_id, stoie_id, w.bom_id, w.material_number, w.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type, annual_reporting_period];
+            const linked = resolveBomLink(w);
+            return [woppw_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type, annual_reporting_period];
         });
 
         childInserts.push(bulkInsert(
@@ -3048,7 +3112,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 }
             });
 
-            return [topbp_id, stoie_id, b.bom_id, b.material_number, b.component_name, b.by_product, b.price_per_product, b.quantity];
+            const linked = resolveBomLink(b);
+            return [topbp_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name, b.by_product, b.price_per_product, b.quantity];
         });
 
         childInserts.push(bulkInsert(
