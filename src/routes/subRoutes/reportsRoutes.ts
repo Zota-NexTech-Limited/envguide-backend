@@ -12,5 +12,6 @@ Routes.get('/api/report/packaging-foot-print-list', authService.authenticate, Co
 Routes.get('/api/report/supplier-dqr-rating-report', authService.authenticate, Controller.getSupplierDqrRatingReport);
 Routes.post('/api/report/upsert-favorite-report', authService.authenticate, Controller.upsertFavoriteReports);
 Routes.get('/api/report/fetch-favorite-report', authService.authenticate, Controller.getFavoriteReportsByUserId);
+Routes.get('/api/report/pcf-pdf/:pcfRequestId', authService.authenticate, Controller.generatePcfReportPdf);
 
 export default Routes;
