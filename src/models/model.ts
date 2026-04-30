@@ -442,16 +442,21 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
 
         `CREATE TABLE IF NOT EXISTS bom_emission_packaging_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
-            bom_id VARCHAR(255),    
-            product_id VARCHAR(255),   
-            product_bom_pcf_id VARCHAR(255), 
+            bom_id VARCHAR(255),
+            product_id VARCHAR(255),
+            product_bom_pcf_id VARCHAR(255),
             pack_weight_kg DOUBLE PRECISION,
             emission_factor_box_kg  DOUBLE PRECISION,
             pack_size_l_w_h_m VARCHAR(255),
             packaging_type VARCHAR(255),
+            treatment_type VARCHAR(255),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
+        // treatment_type added so per-row packaging emissions retain full
+        // traceability (which EF was looked up against which treatment).
+        `ALTER TABLE bom_emission_packaging_calculation_engine
+            ADD COLUMN IF NOT EXISTS treatment_type VARCHAR(255);`,
 
         `CREATE TABLE IF NOT EXISTS bom_emission_logistic_calculation_engine (
             id VARCHAR(255) PRIMARY KEY,
@@ -1176,7 +1181,7 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
         `CREATE TABLE IF NOT EXISTS type_of_pack_mat_used_for_delivering_questions (
             topmudp_id VARCHAR(255) PRIMARY KEY,
             stoie_id VARCHAR(255),
-            bom_id VARCHAR(255),  
+            bom_id VARCHAR(255),
             product_id VARCHAR(255),
             product_bom_pcf_id VARCHAR(255),
             material_number VARCHAR(255),
@@ -1184,11 +1189,18 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             packagin_type VARCHAR(255),
             treatment_type VARCHAR(255),
             packaging_size VARCHAR(255),
+            packagin_weight VARCHAR(255),
             unit VARCHAR(50),
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(stoie_id) REFERENCES scope_three_other_indirect_emissions_questions (stoie_id)
   );`,
+        // Merge Q9 (packaging weight) into Q8 (packaging type) — packagin_weight
+        // is now stored on the same row as packagin_type so each packaging
+        // material is self-contained and the calculator can compute Σ(weight × EF)
+        // across N packaging types per BOM without cross-table pairing.
+        `ALTER TABLE type_of_pack_mat_used_for_delivering_questions
+            ADD COLUMN IF NOT EXISTS packagin_weight VARCHAR(255);`,
 
         // Q61
         `CREATE TABLE IF NOT EXISTS weight_of_packaging_per_unit_product_questions (

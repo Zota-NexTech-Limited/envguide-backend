@@ -2970,13 +2970,23 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 payload: p
             });
 
-            return [topmudp_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name, p.packagin_type, p.packaging_size, p.unit, p.treatment_type];
+            // Q61 (packagin_weight + unit) merged into Q60 — each packaging row
+            // is self-contained so the calculator can compute Σ(weight × EF)
+            // across N packaging types per BOM.
+            return [
+                topmudp_id, stoie_id,
+                linked.bom_id, linked.material_number, linked.component_name,
+                p.packagin_type, p.packaging_size, p.unit, p.treatment_type,
+                p.packagin_weight ?? null,
+            ];
         });
 
         childInserts.push(bulkInsert(
             client,
             'type_of_pack_mat_used_for_delivering_questions',
-            ['topmudp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_type', 'packaging_size', 'unit', 'treatment_type'],
+            ['topmudp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name',
+             'packagin_type', 'packaging_size', 'unit', 'treatment_type',
+             'packagin_weight'],
             rows
         ));
 
@@ -2988,37 +2998,35 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
         });
     }
 
-    if (Array.isArray(data.weight_of_packaging_per_unit_product_questions)) {
-
-        const dqr61: any[] = [];
-
-        const rows = data.weight_of_packaging_per_unit_product_questions.map((w: any) => {
-            const woppup_id = ulid();
-            const linked = resolveBomLink(w);
-
-            prepareDQR({
-                records: dqr61,
-                childId: woppup_id,
-                payload: w
-            });
-
-            return [woppup_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name, w.packagin_weight, w.unit];
-        });
-
-        childInserts.push(bulkInsert(
-            client,
-            'weight_of_packaging_per_unit_product_questions',
-            ['woppup_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_weight', 'unit'],
-            rows
-        ));
-
-        allDQRConfigs.push({
-            tableName: 'dqr_weight_of_packaging_per_unit_product_qsixtyone',
-            columns: ['woppupqso_id', 'sgiq_id', 'woppup_id', 'data'],
-            parentId: sgiq_id,
-            records: dqr61
-        });
-    }
+    // Q61 (weight_of_packaging_per_unit_product_questions) insert disabled —
+    // weight + unit now live on the same row as Q60. Old data preserved
+    // in DB; this code path stops being reached because the frontend no
+    // longer sends `weight_of_packaging_per_unit_product_questions`.
+    // if (Array.isArray(data.weight_of_packaging_per_unit_product_questions)) {
+    //     const dqr61: any[] = [];
+    //     const rows = data.weight_of_packaging_per_unit_product_questions.map((w: any) => {
+    //         const woppup_id = ulid();
+    //         const linked = resolveBomLink(w);
+    //         prepareDQR({
+    //             records: dqr61,
+    //             childId: woppup_id,
+    //             payload: w
+    //         });
+    //         return [woppup_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name, w.packagin_weight, w.unit];
+    //     });
+    //     childInserts.push(bulkInsert(
+    //         client,
+    //         'weight_of_packaging_per_unit_product_questions',
+    //         ['woppup_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'packagin_weight', 'unit'],
+    //         rows
+    //     ));
+    //     allDQRConfigs.push({
+    //         tableName: 'dqr_weight_of_packaging_per_unit_product_qsixtyone',
+    //         columns: ['woppupqso_id', 'sgiq_id', 'woppup_id', 'data'],
+    //         parentId: sgiq_id,
+    //         records: dqr61
+    //     });
+    // }
 
     if (Array.isArray(data.energy_consumption_for_qsixtyseven_questions)) {
 
