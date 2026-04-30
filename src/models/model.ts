@@ -3656,21 +3656,38 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
     //     console.error("Error creating tables:", error);
     // }
     return withClient(async (client: any) => {
-        try {
+        // Run each migration independently. Previously a single try/catch
+        // wrapped the whole loop, so one failing query (e.g. a malformed
+        // statement or a permission issue) silently skipped every migration
+        // after it. That's how the packagin_weight / treatment_type ALTER
+        // TABLEs failed to apply on prod even though the file was correct.
+        // Now each query runs in its own try/catch — one failure logs and
+        // continues so all subsequent migrations still apply.
+        let successCount = 0;
+        let failCount = 0;
+        const failures: Array<{ snippet: string; error: string }> = [];
 
-            var query1
-            for (const query of createTableQueries) {
-                query1 = query
-                //   console.log("Executing query:", query);
+        for (const query of createTableQueries) {
+            try {
                 await client.query(query);
-                //   console.log(tables.rows,query)
+                successCount++;
+            } catch (error: any) {
+                failCount++;
+                const snippet = String(query).trim().slice(0, 160).replace(/\s+/g, " ");
+                const message = error?.message || String(error);
+                failures.push({ snippet, error: message });
+                console.error(`Migration failed (continuing): ${message}`);
+                console.error(`Failed query: ${snippet}`);
             }
+        }
 
-            console.log("Tables created successfully");
-
-        } catch (error) {
-            console.log("Executing query:", query1);
-            console.error("Error creating tables:", error);
+        console.log(`Migrations complete: ${successCount} succeeded, ${failCount} failed`);
+        if (failures.length > 0) {
+            console.warn("Failed migrations summary:");
+            failures.forEach((f, i) => {
+                console.warn(`  [${i + 1}] ${f.error}`);
+                console.warn(`      query: ${f.snippet}`);
+            });
         }
     })
 }
