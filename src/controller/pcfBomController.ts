@@ -3828,32 +3828,49 @@ export async function pcfCalculate(req: any, res: any) {
 
 
                     // Fourth Phase Start
+                    // -----------------------------------------------------------
+                    // Multi-row packaging support: a BOM can have N packaging
+                    // types (e.g. outer Paperboard box + inner LDPE wrap). Each
+                    // Q60 row carries its own packagin_type, treatment_type,
+                    // packagin_weight, and unit (Q61 was merged into Q60).
+                    //
+                    // Total packaging emission = Σ (weight_i × EF_i) across all
+                    // packaging rows for this BOM. Each row gets its own entry
+                    // in bom_emission_packaging_calculation_engine for full
+                    // traceability in the PCF report.
+                    // -----------------------------------------------------------
 
-                    let packaginType = "";
-                    let treatmentType = "";
-                    // let packaginSize = ""; // unused
-                    let packaginWeight = 0;
-                    let Emission_Factor_Box_kg_CO2E_kg = 0.01;
-                    let Packaging_Carbon_Emissions_kg_CO2e_or_box = 0;
+                    // Variables kept at this scope so downstream code (logging,
+                    // bom_emission_calculation_engine insert) sees the totals.
+                    let packaginType = "";              // last row, for legacy logging
+                    let treatmentType = "";             // last row, for legacy logging
+                    let packaginWeight = 0;             // last row, for legacy logging
+                    let packaginWeightInKg = 0;         // last row, for legacy logging
+                    let Emission_Factor_Box_kg_CO2E_kg = 0.01; // last row, legacy
+                    let Packaging_Carbon_Emissions_kg_CO2e_or_box = 0; // SUM across all rows
 
-                    const fetchQ61PcakingTypeProduct = `
-                        SELECT bom_id,
-                        material_number,packagin_type,unit,treatment_type
+                    // Fetch ALL Q60 packaging rows for this BOM
+                    const fetchQ60PackagingQuery = `
+                        SELECT bom_id, material_number, packagin_type,
+                               treatment_type, packaging_size,
+                               packagin_weight, unit
                         FROM type_of_pack_mat_used_for_delivering_questions
                         WHERE bom_id = $1 AND own_emission_id IS NULL;
-                     `;
+                    `;
 
-                    let fetchQ61PcakingTypeProductResult = await client.query(fetchQ61PcakingTypeProduct, [BomData.id]);
-                    console.log("=== Q60 PACKAGING TYPE DEBUG ===");
+                    let q60Result = await client.query(fetchQ60PackagingQuery, [BomData.id]);
+                    console.log("=== Q60 MULTI-PACKAGING DEBUG ===");
                     console.log("Query by bom_id:", BomData.id);
-                    console.log("Rows found:", fetchQ61PcakingTypeProductResult.rows.length);
+                    console.log("Packaging rows found:", q60Result.rows.length);
 
-                    // If not found by bom_id, try to find through bom_pcf_id via stoie_id (similar to Q61 fallback)
-                    if (!fetchQ61PcakingTypeProductResult.rows || fetchQ61PcakingTypeProductResult.rows.length === 0) {
+                    // Fallback by bom_pcf_id when nothing found by bom_id
+                    if (!q60Result.rows || q60Result.rows.length === 0) {
                         console.log("No Q60 found by bom_id, trying through bom_pcf_id...");
-                        const fetchQ60FallbackQuery = `
-                            SELECT topmud.bom_id, topmud.stoie_id,
-                                topmud.material_number, topmud.packagin_type, topmud.unit, topmud.treatment_type
+                        const fetchQ60Fallback = `
+                            SELECT topmud.bom_id, topmud.material_number,
+                                   topmud.packagin_type, topmud.treatment_type,
+                                   topmud.packaging_size, topmud.packagin_weight,
+                                   topmud.unit
                             FROM type_of_pack_mat_used_for_delivering_questions topmud
                             JOIN scope_three_other_indirect_emissions_questions stoie
                                 ON topmud.stoie_id = stoie.stoie_id
@@ -3863,207 +3880,130 @@ export async function pcfCalculate(req: any, res: any) {
                                 AND (topmud.bom_id = $2 OR topmud.bom_id IS NULL)
                                 AND topmud.own_emission_id IS NULL;
                         `;
-                        fetchQ61PcakingTypeProductResult = await client.query(fetchQ60FallbackQuery, [bom_pcf_id, BomData.id]);
-                        console.log("Fallback query by bom_pcf_id:", bom_pcf_id);
-                        console.log("Rows found:", fetchQ61PcakingTypeProductResult.rows.length);
-                        if (fetchQ61PcakingTypeProductResult.rows.length > 0) {
-                            console.log("Q60 data found via fallback:", fetchQ61PcakingTypeProductResult.rows[0]);
-                        }
+                        q60Result = await client.query(fetchQ60Fallback, [bom_pcf_id, BomData.id]);
+                        console.log("Fallback rows found:", q60Result.rows.length);
                     }
 
-                    // Use Q60 data directly if it exists (query already filters by bom_id)
-                    if (fetchQ61PcakingTypeProductResult.rows[0]) {
-                        packaginType = fetchQ61PcakingTypeProductResult.rows[0].packagin_type;
-                        treatmentType = fetchQ61PcakingTypeProductResult.rows[0].treatment_type;
-                        console.log("Q60 Packaging type found:", packaginType, "Treatment type:", treatmentType, "for bom_id:", BomData.id);
-                    } else {
-                        console.warn("WARNING: No Q60 packaging type found for bom_id:", BomData.id);
-                    }
-                    console.log("=== END Q60 PACKAGING TYPE DEBUG ===");
-
-
-                    // First try to find Q61 by bom_id
-                    let fetchQ61PcakingWeight = `
-                        SELECT bom_id, stoie_id,
-                        material_number, packagin_weight, unit
-                        FROM weight_of_packaging_per_unit_product_questions
-                        WHERE bom_id = $1 AND own_emission_id IS NULL;
-                     `;
-
-                    let fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [BomData.id]);
-                    console.log("=== Q61 PACKAGING WEIGHT DEBUG ===");
-                    console.log("Query by bom_id:", BomData.id);
-                    console.log("Rows found:", fetchQ61PcakingWeightResult.rows.length);
-                    if (fetchQ61PcakingWeightResult.rows.length > 0) {
-                        console.log("Q61 data found:", fetchQ61PcakingWeightResult.rows[0]);
-                    }
-
-                    // If not found by bom_id, try to find through bom_pcf_id via stoie_id (similar to Q52 fallback)
-                    if (!fetchQ61PcakingWeightResult.rows || fetchQ61PcakingWeightResult.rows.length === 0) {
-                        console.log("No Q61 found by bom_id, trying through bom_pcf_id...");
-                        fetchQ61PcakingWeight = `
-                            SELECT wopp.bom_id, wopp.stoie_id,
-                                wopp.material_number, wopp.packagin_weight, wopp.unit
-                            FROM weight_of_packaging_per_unit_product_questions wopp
-                            JOIN scope_three_other_indirect_emissions_questions stoie
-                                ON wopp.stoie_id = stoie.stoie_id
-                            JOIN supplier_general_info_questions sgiq
-                                ON stoie.sgiq_id = sgiq.sgiq_id
-                            WHERE sgiq.bom_pcf_id = $1
-                                AND (wopp.bom_id = $2 OR wopp.bom_id IS NULL)
-                                AND wopp.own_emission_id IS NULL;
-                        `;
-                        fetchQ61PcakingWeightResult = await client.query(fetchQ61PcakingWeight, [bom_pcf_id, BomData.id]);
-                        console.log("Fallback query by bom_pcf_id:", bom_pcf_id);
-                        console.log("Rows found:", fetchQ61PcakingWeightResult.rows.length);
-                        if (fetchQ61PcakingWeightResult.rows.length > 0) {
-                            console.log("Q61 data found via fallback:", fetchQ61PcakingWeightResult.rows[0]);
-                        }
-                    }
-
-                    // Use Q61 data directly if it exists
-                    if (fetchQ61PcakingWeightResult.rows[0]) {
-                        packaginWeight = fetchQ61PcakingWeightResult.rows[0].packagin_weight;
-                        console.log("✅ Q61 Packaging weight found:", packaginWeight, "for bom_id:", BomData.id);
-                    } else {
-                        console.warn("❌ WARNING: No Q61 packaging weight found for bom_id:", BomData.id);
-                    }
-                    console.log("=== END Q61 PACKAGING WEIGHT DEBUG ===");
-
-                    let fetchQ61PcakingWeightResultUnit = null
-                    if (fetchQ61PcakingWeightResult.rows[0]) {
-                        fetchQ61PcakingWeightResultUnit = fetchQ61PcakingWeightResult.rows[0].unit;
-
-                    }
-
-                    // Convert packaging weight to kg using helper function
-                    let packaginWeightInKg = packaginWeight;
-                    if (fetchQ61PcakingWeightResultUnit) {
-                        packaginWeightInKg = await convertToBaseUnit(
-                            client,
-                            packaginWeight,
-                            fetchQ61PcakingWeightResultUnit,
-                            'material'
-                        );
-                    }
-
-                    const fetchPTTId = `SELECT ptt_id ,name 
-                                        FROM packaging_treatment_type
-                                        WHERE LOWER(name)=LOWER($1);`
-
-                    const fetchPTTIdFromTreatmentType = await client.query(fetchPTTId, [treatmentType]);
-
-                    let ptt_id = null;
-                    if (fetchPTTIdFromTreatmentType && fetchPTTIdFromTreatmentType.rows[0]) {
-                        ptt_id = fetchPTTIdFromTreatmentType.rows[0].ptt_id
-                        console.log("Packaging treatment type found - ptt_id:", ptt_id, "name:", fetchPTTIdFromTreatmentType.rows[0].name);
-                    } else {
-                        console.warn("WARNING: Packaging treatment type not found for:", treatmentType);
-                        console.warn("Available treatment types in database:");
-                        const allTreatmentTypes = await client.query(`SELECT ptt_id, name FROM packaging_treatment_type;`);
-                        allTreatmentTypes.rows.forEach((row: any) => {
-                            console.warn(`  - ${row.name} (ptt_id: ${row.ptt_id})`);
-                        });
-                    }
-
-                    const fetchPAckaginEmissionFactor = `
-                                SELECT material_type,ef_eu_region,ef_india_region,
-                                ef_global_region,year,unit,iso_country_code
-                                FROM packaging_material_treatment_type_emission_factor
-                                WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3 AND ptt_id=$4;
-                             `;
-
-                    // Use "KgCo2e/per kg" for emission factor query (not the user's input unit)
-                    const packagingEmissionFactorUnit = "KgCo2e/per kg";
-                    
-                    console.log("Packaging emission factor query parameters:", {
-                        packaginType,
-                        year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
-                        unit: packagingEmissionFactorUnit,
-                        ptt_id
-                    });
-                    
-                    const fetchPackagingEmisResult = await client.query(fetchPAckaginEmissionFactor, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, packagingEmissionFactorUnit, ptt_id]);
-                    
-                    if (!fetchPackagingEmisResult.rows[0] && ptt_id) {
-                        console.warn("Packaging emission factor not found with ptt_id. Trying without ptt_id...");
-                        // Try without ptt_id as fallback
-                        const fetchPAckaginEmissionFactorNoPTT = `
-                            SELECT material_type,ef_eu_region,ef_india_region,
-                            ef_global_region,year,unit,iso_country_code
-                            FROM packaging_material_treatment_type_emission_factor
-                            WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3
-                            LIMIT 1;
-                        `;
-                        const fetchPackagingEmisResultNoPTT = await client.query(fetchPAckaginEmissionFactorNoPTT, [packaginType, fetchSGIQIDSupResult.rows[0].annual_reporting_period, packagingEmissionFactorUnit]);
-                        if (fetchPackagingEmisResultNoPTT.rows[0]) {
-                            console.log("Found packaging emission factor without ptt_id");
-                            fetchPackagingEmisResult.rows[0] = fetchPackagingEmisResultNoPTT.rows[0];
-                        }
-                    }
-
-                    if (fetchPackagingEmisResult.rows[0]) {
-                        if (fetchQ13LocationSupResult.rows[0]) {
-                            const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
-
-                            if (locationLower === "india") {
-                                Emission_Factor_Box_kg_CO2E_kg = parseFloat(fetchPackagingEmisResult.rows[0].ef_india_region) || 0.01;
-                            } else if (locationLower === "europe") {
-                                Emission_Factor_Box_kg_CO2E_kg = parseFloat(fetchPackagingEmisResult.rows[0].ef_eu_region) || 0.01;
-                            } else {
-                                // Default to global if location doesn't match or is not specified
-                                Emission_Factor_Box_kg_CO2E_kg = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region) || 0.01;
-                            }
-                        } else {
-                            // If Q13 not found, use global as fallback
-                            Emission_Factor_Box_kg_CO2E_kg = parseFloat(fetchPackagingEmisResult.rows[0].ef_global_region) || 0.01;
-                        }
-                    } else {
-                        console.warn("WARNING: Packaging emission factor not found for:", {
-                            packaginType,
-                            year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
-                            unit: packagingEmissionFactorUnit,
-                            ptt_id
-                        });
-                        console.warn("Using default emission factor 0.01. Please check:");
-                        console.warn("  1. Packaging type matches setup data exactly");
-                        console.warn("  2. Treatment type (ptt_id) is correct");
-                        console.warn("  3. Year matches annual_reporting_period");
-                    }
-
-                    Packaging_Carbon_Emissions_kg_CO2e_or_box = (packaginWeightInKg * Emission_Factor_Box_kg_CO2E_kg);
-                    console.log("packaginType:", packaginType);
-                    console.log("packaginWeight:", packaginWeight);
-                    console.log("Emission_Factor_Box_kg_CO2E_kg:", Emission_Factor_Box_kg_CO2E_kg);
-                    console.log("Packaging_Carbon_Emissions_kg_CO2e_or_box:", Packaging_Carbon_Emissions_kg_CO2e_or_box);
-
-                    Total_Housing_Component_Emissions += Packaging_Carbon_Emissions_kg_CO2e_or_box;
-
-
-                    // ====> Delete old packaging calculation data for this BOM first
+                    // Clear any previous packaging calc rows for this BOM before
+                    // inserting fresh per-type rows below.
                     await client.query(
                         `DELETE FROM bom_emission_packaging_calculation_engine WHERE bom_id = $1 AND product_id IS NULL`,
                         [BomData.id]
                     );
 
-                    // ====> Insert into bom_emission_packaging_calculation_engine table
-                    const queryPacking = `
-                        INSERT INTO bom_emission_packaging_calculation_engine 
-                        (id,bom_id, pack_weight_kg, emission_factor_box_kg,
-                        packaging_type)
-                        VALUES ($1,$2, $3, $4, $5)
-                        RETURNING *;
-                    `;
+                    const reportingYear = fetchSGIQIDSupResult.rows[0]?.annual_reporting_period;
+                    const supplierLocation = (fetchQ13LocationSupResult.rows[0]?.location || "").trim().toLowerCase();
 
-                    await client.query(queryPacking, [
-                        ulid(),
-                        BomData.id,
-                        packaginWeightInKg,
-                        Emission_Factor_Box_kg_CO2E_kg,
-                        packaginType
-                    ]);
+                    // Loop every packaging row and accumulate total emission
+                    for (const pkgRow of q60Result.rows) {
+                        const rowType = pkgRow.packagin_type;
+                        const rowTreatment = pkgRow.treatment_type;
+                        const rowWeightRaw = parseFloat(pkgRow.packagin_weight) || 0;
+                        const rowUnit = pkgRow.unit;
 
-                    // ===> Insert Ends here
+                        if (!rowType || rowWeightRaw <= 0) {
+                            console.warn(`Skipping packaging row — type='${rowType}' weight='${pkgRow.packagin_weight}'`);
+                            continue;
+                        }
+
+                        // Convert weight to kg
+                        let rowWeightKg = rowWeightRaw;
+                        if (rowUnit) {
+                            rowWeightKg = await convertToBaseUnit(
+                                client,
+                                rowWeightRaw,
+                                rowUnit,
+                                'material'
+                            );
+                        }
+
+                        // Resolve treatment type → ptt_id
+                        const fetchPTTId = `SELECT ptt_id, name FROM packaging_treatment_type WHERE LOWER(name)=LOWER($1);`;
+                        const pttResult = await client.query(fetchPTTId, [rowTreatment]);
+                        const ptt_id = pttResult.rows[0]?.ptt_id || null;
+
+                        // Look up emission factor (with ptt_id, then fallback without)
+                        const efUnit = "KgCo2e/per kg";
+                        const fetchEF = `
+                            SELECT material_type, ef_eu_region, ef_india_region,
+                                   ef_global_region, year, unit, iso_country_code
+                            FROM packaging_material_treatment_type_emission_factor
+                            WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3 AND ptt_id=$4;
+                        `;
+                        let efResult = await client.query(fetchEF, [rowType, reportingYear, efUnit, ptt_id]);
+
+                        if (!efResult.rows[0] && ptt_id) {
+                            const fetchEFNoPTT = `
+                                SELECT material_type, ef_eu_region, ef_india_region,
+                                       ef_global_region, year, unit, iso_country_code
+                                FROM packaging_material_treatment_type_emission_factor
+                                WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3
+                                LIMIT 1;
+                            `;
+                            efResult = await client.query(fetchEFNoPTT, [rowType, reportingYear, efUnit]);
+                        }
+
+                        let rowEF = 0.01;
+                        if (efResult.rows[0]) {
+                            if (supplierLocation === "india") {
+                                rowEF = parseFloat(efResult.rows[0].ef_india_region) || 0.01;
+                            } else if (supplierLocation === "europe") {
+                                rowEF = parseFloat(efResult.rows[0].ef_eu_region) || 0.01;
+                            } else {
+                                rowEF = parseFloat(efResult.rows[0].ef_global_region) || 0.01;
+                            }
+                        } else {
+                            console.warn(`WARNING: No EF for type='${rowType}' treatment='${rowTreatment}' year=${reportingYear} — using 0.01`);
+                        }
+
+                        const rowEmission = rowWeightKg * rowEF;
+                        Packaging_Carbon_Emissions_kg_CO2e_or_box += rowEmission;
+
+                        console.log(
+                            `Packaging row → type='${rowType}' treatment='${rowTreatment}' ` +
+                            `weight=${rowWeightKg}kg EF=${rowEF} emission=${rowEmission}`
+                        );
+
+                        // Insert per-type traceability row
+                        await client.query(
+                            `INSERT INTO bom_emission_packaging_calculation_engine
+                             (id, bom_id, pack_weight_kg, emission_factor_box_kg,
+                              packaging_type, treatment_type)
+                             VALUES ($1, $2, $3, $4, $5, $6);`,
+                            [
+                                ulid(),
+                                BomData.id,
+                                rowWeightKg,
+                                rowEF,
+                                rowType,
+                                rowTreatment ?? null,
+                            ]
+                        );
+
+                        // Hold last-row values for legacy logging compat below
+                        packaginType = rowType;
+                        treatmentType = rowTreatment;
+                        packaginWeight = rowWeightRaw;
+                        packaginWeightInKg = rowWeightKg;
+                        Emission_Factor_Box_kg_CO2E_kg = rowEF;
+                    }
+
+                    if (q60Result.rows.length === 0) {
+                        console.warn("WARNING: No Q60 packaging rows found for bom_id:", BomData.id);
+                    }
+                    console.log(
+                        "Total Packaging emissions across all types:",
+                        Packaging_Carbon_Emissions_kg_CO2e_or_box
+                    );
+                    console.log("=== END Q60 MULTI-PACKAGING DEBUG ===");
+
+                    Total_Housing_Component_Emissions += Packaging_Carbon_Emissions_kg_CO2e_or_box;
+
+                    // Reference legacy single-value vars to satisfy lint when the
+                    // loop runs but no other code reads them this iteration.
+                    void packaginType; void treatmentType;
+                    void packaginWeight; void packaginWeightInKg;
+                    void Emission_Factor_Box_kg_CO2E_kg;
 
                     // Fourth Phase END
 
