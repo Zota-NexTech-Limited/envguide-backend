@@ -3848,6 +3848,9 @@ export async function pcfCalculate(req: any, res: any) {
                     let packaginWeightInKg = 0;         // last row, for legacy logging
                     let Emission_Factor_Box_kg_CO2E_kg = 0.01; // last row, legacy
                     let Packaging_Carbon_Emissions_kg_CO2e_or_box = 0; // SUM across all rows
+                    // Σ of all packaging row weights in kg — used by the
+                    // transport phase for mass_transported (component + all packaging).
+                    let totalPackagingWeightInKg = 0;
 
                     // Fetch ALL Q60 packaging rows for this BOM
                     const fetchQ60PackagingQuery = `
@@ -3980,6 +3983,9 @@ export async function pcfCalculate(req: any, res: any) {
                             ]
                         );
 
+                        // Accumulate total packaging weight for transport mass calc
+                        totalPackagingWeightInKg += rowWeightKg;
+
                         // Hold last-row values for legacy logging compat below
                         packaginType = rowType;
                         treatmentType = rowTreatment;
@@ -4110,15 +4116,18 @@ export async function pcfCalculate(req: any, res: any) {
                     }
 
 
-                    const packaginWeightNum =
-                        typeof packaginWeight === 'string'
-                            ? parseFloat(packaginWeight)
-                            : packaginWeight || 0;
+                    // Use the SUM of all packaging row weights (in kg) so the
+                    // mass transported reflects component + every packaging
+                    // material wrapping it. Earlier this was the last row only,
+                    // which under-counted when multiple packaging types existed.
                     const bomWeightKg = (parseFloat(BomData.weight_gms) || 0) / 1000;
 
-                    console.log("packaginWeightNum:", packaginWeightNum, "packaginWeight:", bomWeightKg);
+                    console.log(
+                        "totalPackagingWeightInKg:", totalPackagingWeightInKg,
+                        "bomWeightKg:", bomWeightKg
+                    );
 
-                    const mass_transported_Kg = packaginWeightNum + bomWeightKg;
+                    const mass_transported_Kg = totalPackagingWeightInKg + bomWeightKg;
 
                     console.log("mass_transported_Kg:", mass_transported_Kg);
 
