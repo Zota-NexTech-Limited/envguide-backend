@@ -4907,6 +4907,48 @@ export async function supplierQuestionnaireStatus(req: any, res: any) {
     });
 }
 
+// Returns the BOM components assigned to a specific supplier on a specific PCF
+// request. Used by the supplier questionnaire UI to populate every MPN dropdown
+// from the immutable client-uploaded BOM (instead of from supplier-typed input).
+// Public endpoint (mirrors supplierQuestionnaireStatus): the supplier reaches it
+// via the emailed link without logging in.
+export async function getBomComponentsForSupplier(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { bom_pcf_id, sup_id } = req.query;
+
+            if (!bom_pcf_id || !sup_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "bom_pcf_id and sup_id are required"
+                });
+            }
+
+            const query = `
+                SELECT id AS bom_id,
+                       material_number,
+                       component_name
+                FROM bom
+                WHERE bom_pcf_id = $1
+                  AND supplier_id = $2
+                ORDER BY id ASC
+            `;
+
+            const result = await client.query(query, [bom_pcf_id, sup_id]);
+
+            return res.status(200).json(
+                generateResponse(true, "Success!", 200, result.rows || [])
+            );
+        } catch (error: any) {
+            console.error("Error fetching BOM components for supplier:", error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to fetch BOM components for supplier"
+            });
+        }
+    });
+}
+
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
