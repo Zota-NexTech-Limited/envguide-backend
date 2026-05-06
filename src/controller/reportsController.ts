@@ -3655,7 +3655,7 @@ export async function generatePcfReportPdf(req: any, res: any) {
                         ON sgiq.sup_id = b.supplier_id
                        AND sgiq.bom_pcf_id = b.bom_pcf_id
                  WHERE b.bom_pcf_id = $1
-                 ORDER BY b.component_name`,
+                 ORDER BY b.id ASC`,
                 [pcfRequestId]
             );
 
