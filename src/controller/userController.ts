@@ -17,6 +17,10 @@ import { sendMail } from "../util/mailTransporter.js";
 
 export async function signup(req: any, res: any) {
     try {
+        const userRoleNormalized = String(req.body.user_role || "").trim().toLowerCase();
+        const isExternalUser =
+            userRoleNormalized === "client" || userRoleNormalized === "supplier";
+
         const adminObj = {
             user_id: ulid(),
             user_name: req.body.user_name,
@@ -29,42 +33,119 @@ export async function signup(req: any, res: any) {
             change_password_next_login: req.body.change_password_next_login,
             password_never_expires: req.body.password_never_expires
         }
+
         const findUser = await userService.finduser(adminObj.user_email)
-        if (findUser.rows.length === 0) {
-            console.log(findUser.rows.length)
-            const saltRounds = 10;
-            console.log(saltRounds,)
-            bcrypt.genSalt(saltRounds, function (_err, salt) {
-                bcrypt.hash(adminObj.user_password, salt, async function (err, hash) {
-                    // Store hash in your password DB.
-                    if (err) {
-                        console.log('Unable to create new user')
-                        console.log(err)
-                        res.json({ message: 'Unable to create new user' })
-                    }
-                    if (hash) {
-                        adminObj.user_password = hash
-                        console.log(adminObj)
-
-                        const adduser = await userService.addUser(adminObj)
-                        if (adduser.rows.length > 0) {
-                            return res.status(200).send(
-                                generateResponse(true, "user created successfully", 200, null)
-                            );
-                        } else {
-                            return res.status(400).send(
-                                generateResponse(false, "user create unsuccessful", 400, null)
-                            );
-                        }
-                    }
-                });
-            });
-
-        } else {
+        if (findUser.rows.length > 0) {
             return res.status(400).send(
                 generateResponse(false, `user already exists with ${adminObj.user_email} `, 400, null)
             );
         }
+
+        // For external users (client / supplier), the admin does not set a password.
+        // We store a random placeholder hash that the user will replace by clicking
+        // the setup link emailed to them.
+        const passwordToHash = isExternalUser
+            ? `setup-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+            : adminObj.user_password;
+
+        const saltRounds = 10;
+        bcrypt.genSalt(saltRounds, function (_err, salt) {
+            bcrypt.hash(passwordToHash, salt, async function (err, hash) {
+                if (err) {
+                    console.log('Unable to create new user', err);
+                    return res.json({ message: 'Unable to create new user' });
+                }
+                if (!hash) return;
+
+                adminObj.user_password = hash;
+
+                const adduser = await userService.addUser(adminObj);
+                if (adduser.rows.length === 0) {
+                    return res.status(400).send(
+                        generateResponse(false, "user create unsuccessful", 400, null)
+                    );
+                }
+
+                if (!isExternalUser) {
+                    return res.status(200).send(
+                        generateResponse(true, "user created successfully", 200, null)
+                    );
+                }
+
+                // External user — send setup-password email with a 24h JWT link.
+                try {
+                    const TOKEN_SECRET: string = process.env.TOKEN_SECRET ?? 'defaultSecret';
+                    const token = jwt.sign(
+                        { user_email: adminObj.user_email },
+                        TOKEN_SECRET,
+                        { expiresIn: "24h" }
+                    );
+                    const setupLink = `https://enviguide.nextechltd.in/reset-password?token=${token}&setup=1`;
+                    const subject = "Welcome to EnviGuide — Set up your account";
+                    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${subject}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px;">
+        <p>Hello ${adminObj.user_name || "there"},</p>
+
+        <p>An EnviGuide account has been created for you. To get started, please set your password using the link below.</p>
+
+        <p style="margin: 20px 0;">
+            <a href="${setupLink}"
+               style="display: inline-block; background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+                Set My Password
+            </a>
+        </p>
+
+        <p>Or copy and paste this link into your browser:<br>
+           <a href="${setupLink}">${setupLink}</a>
+        </p>
+
+        <p><strong>Note:</strong> This link will expire in 24 hours for security reasons. After setting your password, sign in with your email and the password you choose.</p>
+
+        <p>If you were not expecting this email, please ignore it.</p>
+
+        <p>Best regards,<br>
+           <strong>Team EnviGuide</strong></p>
+    </div>
+
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <p>This is an automated message from EnviGuide. Please do not reply to this email.</p>
+        <p>If you have any questions, please contact our support team at support@enviguide.info</p>
+    </div>
+</body>
+</html>
+                    `;
+
+                    await sendMail({
+                        to: [adminObj.user_email],
+                        subject,
+                        html
+                    });
+
+                    return res.status(200).send(
+                        generateResponse(true, "Account created. Setup link emailed to user.", 200, null)
+                    );
+                } catch (emailError: any) {
+                    console.error("Setup email failed:", emailError);
+                    // The account exists; admin can trigger password reset manually as a fallback.
+                    return res.status(200).send(
+                        generateResponse(
+                            true,
+                            "Account created, but the setup email could not be sent. Please trigger a password reset for this user.",
+                            200,
+                            null
+                        )
+                    );
+                }
+            });
+        });
     } catch (error: any) {
         console.log(error, "error");
         return res.status(400).send(generateResponse(false, error.message, 400, null));
