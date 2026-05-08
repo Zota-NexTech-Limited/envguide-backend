@@ -466,112 +466,58 @@ export async function getProductFootPrint(req: any, res: any) {
             const query = `
 SELECT
     b.id,
-    b.code,
-    b.material_number,
     b.component_name,
-    b.qunatity,
-    b.production_location,
-    b.manufacturer,
-    b.detail_description,
     b.weight_gms,
     b.total_weight_gms,
-    b.component_category,
-    b.price,
-    b.total_price,
     b.economic_ratio,
-    b.supplier_id,
-    b.is_weight_gms,
-    b.created_date,
 
-      /* ---------- SUPPLIER DETAILS ---------- */
     jsonb_build_object(
-        'sup_id', sd.sup_id,
         'code', sd.code,
-        'supplier_name', sd.supplier_name,
-        'supplier_email', sd.supplier_email
+        'supplier_name', sd.supplier_name
     ) AS supplier_details,
 
-    /* ---------- MATERIAL EMISSION ---------- */
     (
-        SELECT jsonb_agg(to_jsonb(mem))
-        FROM bom_emission_material_calculation_engine mem
-        WHERE mem.bom_id = b.id AND mem.product_id IS NULL
-    ) AS material_emission,
-
-    /* ---------- PRODUCTION EMISSION ---------- */
-    (
-        SELECT to_jsonb(mep)
+        SELECT jsonb_build_object(
+            'allocation_methodology', mep.allocation_methodology
+        )
         FROM bom_emission_production_calculation_engine mep
         WHERE mep.bom_id = b.id AND mep.product_id IS NULL
         LIMIT 1
     ) AS production_emission_calculation,
 
-    /* ---------- PACKAGING EMISSION ---------- */
     (
-        SELECT to_jsonb(mpk)
-        FROM bom_emission_packaging_calculation_engine mpk
-        WHERE mpk.bom_id = b.id AND mpk.product_id IS NULL
-        LIMIT 1
-    ) AS packaging_emission_calculation,
-
-    /* ---------- WASTE EMISSION ---------- */
-    (
-        SELECT to_jsonb(mw)
-        FROM bom_emission_waste_calculation_engine mw
-        WHERE mw.bom_id = b.id AND mw.product_id IS NULL
-        LIMIT 1
-    ) AS waste_emission_calculation,
-
-    /* ---------- LOGISTIC EMISSION ---------- */
-    (
-        SELECT to_jsonb(ml)
-        FROM bom_emission_logistic_calculation_engine ml
-        WHERE ml.bom_id = b.id AND ml.product_id IS NULL
-        LIMIT 1
-    ) AS logistic_emission_calculation,
-
-    /* ---------- TOTAL PCF ---------- */
-    (
-        SELECT to_jsonb(pcfe)
+        SELECT jsonb_build_object(
+            'material_value',   pcfe.material_value,
+            'production_value', pcfe.production_value,
+            'packaging_value',  pcfe.packaging_value,
+            'waste_value',      pcfe.waste_value,
+            'logistic_value',   pcfe.logistic_value,
+            'total_pcf_value',  pcfe.total_pcf_value
+        )
         FROM bom_emission_calculation_engine pcfe
         WHERE pcfe.bom_id = b.id AND pcfe.product_id IS NULL
         LIMIT 1
     ) AS pcf_total_emission_calculation,
 
-    /* ---------- TRANSPORTATION DETAILS ---------- */
-    COALESCE(transport.transportation_details, '[]'::jsonb) AS transportation_details,
-
-    /* ---------- ALLOCATION METHODOLOGY ---------- */
-    (
-        SELECT to_jsonb(am)
-        FROM allocation_methodology am
-        WHERE am.bom_id = b.id
-        LIMIT 1
-    ) AS allocation_methodology
+    COALESCE(transport.transportation_details, '[]'::jsonb) AS transportation_details
 
 FROM bom b
 LEFT JOIN supplier_details sd
     ON sd.sup_id = b.supplier_id
 
-/* ---------- TRANSPORTATION (LATERAL) ---------- */
 LEFT JOIN LATERAL (
-    SELECT jsonb_agg(
-        jsonb_build_object(
-            'motuft_id', mt.motuft_id,
-            'mode_of_transport', mt.mode_of_transport,
-            'weight_transported', mt.weight_transported,
-            'source_point', mt.source_point,
-            'drop_point', mt.drop_point,
-            'distance', mt.distance,
-            'created_date', mt.created_date
-        )
-    ) AS transportation_details
-    FROM supplier_general_info_questions sgiq
-    JOIN scope_three_other_indirect_emissions_questions stoie
-        ON stoie.sgiq_id = sgiq.sgiq_id
-    JOIN mode_of_transport_used_for_transportation_questions mt
-        ON mt.stoie_id = stoie.stoie_id
-    WHERE sgiq.sup_id = b.supplier_id AND sgiq.own_emission_id IS NULL
+    SELECT jsonb_agg(jsonb_build_object('mode_of_transport', mode)) AS transportation_details
+    FROM (
+        SELECT DISTINCT mt.mode_of_transport AS mode
+        FROM supplier_general_info_questions sgiq
+        JOIN scope_three_other_indirect_emissions_questions stoie
+            ON stoie.sgiq_id = sgiq.sgiq_id
+        JOIN mode_of_transport_used_for_transportation_questions mt
+            ON mt.stoie_id = stoie.stoie_id
+        WHERE sgiq.sup_id = b.supplier_id
+          AND sgiq.own_emission_id IS NULL
+          AND mt.mode_of_transport IS NOT NULL
+    ) modes
 ) transport ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
