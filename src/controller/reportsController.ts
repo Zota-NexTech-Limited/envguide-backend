@@ -340,9 +340,6 @@ import {
 
 export async function getProductFootPrint(req: any, res: any) {
     const {
-        pageNumber = 1,
-        pageSize = 20,
-
         code,
         material_number,
         component_name,
@@ -361,10 +358,6 @@ export async function getProductFootPrint(req: any, res: any) {
         from_date,
         to_date
     } = req.query;
-
-    const limit = Number(pageSize);
-    const page = Number(pageNumber) > 0 ? Number(pageNumber) : 1;
-    const offset = (page - 1) * limit;
 
     const conditions: string[] = [];
     const values: any[] = [];
@@ -583,21 +576,15 @@ LEFT JOIN LATERAL (
 
 WHERE b.is_bom_calculated = TRUE
 ${conditions.length ? `AND ${conditions.join(' AND ')}` : ''}
-ORDER BY b.created_date DESC
-LIMIT $${paramIndex++} OFFSET $${paramIndex++};
+ORDER BY b.created_date DESC;
 `;
-
-            values.push(limit, offset);
 
             const result = await client.query(query, values);
 
-            const rows = result.rows;
-            const totalCount = rows.length > 0 ? rows.length : 0;
+            const totalCount = result.rows.length;
 
             return res.status(200).send(
                 generateResponse(true, "Success!", 200, {
-                    page,
-                    pageSize: limit,
                     totalCount,
                     data: result.rows
                 })
@@ -3883,4 +3870,74 @@ async function buildSupplierAppendix(
     }
 
     return out;
+}
+
+export async function getProductFootPrintDiagnostic(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const pcfStatusCounts = await client.query(`
+                SELECT status, COUNT(*)::int AS count
+                FROM bom_pcf_request
+                GROUP BY status
+                ORDER BY status;
+            `);
+
+            const bomCalcCounts = await client.query(`
+                SELECT
+                    COUNT(*) FILTER (WHERE is_bom_calculated = TRUE)::int  AS calculated,
+                    COUNT(*) FILTER (WHERE is_bom_calculated = FALSE)::int AS not_calculated,
+                    COUNT(*)::int AS total
+                FROM bom;
+            `);
+
+            const reportRowCount = await client.query(`
+                SELECT COUNT(*)::int AS count
+                FROM bom b
+                WHERE b.is_bom_calculated = TRUE;
+            `);
+
+            // Completed PCFs whose BOMs are not all flagged calculated.
+            const mismatchedPcfs = await client.query(`
+                SELECT
+                    pcf.id,
+                    pcf.code,
+                    pcf.request_title,
+                    pcf.status,
+                    COUNT(b.id)::int                                                AS bom_total,
+                    COUNT(b.id) FILTER (WHERE b.is_bom_calculated = TRUE)::int      AS bom_calculated,
+                    COUNT(b.id) FILTER (WHERE b.is_bom_calculated = FALSE)::int     AS bom_not_calculated
+                FROM bom_pcf_request pcf
+                LEFT JOIN bom b ON b.bom_pcf_id = pcf.id
+                WHERE pcf.status = 'Completed'
+                GROUP BY pcf.id, pcf.code, pcf.request_title, pcf.status
+                HAVING COUNT(b.id) FILTER (WHERE b.is_bom_calculated = FALSE) > 0
+                    OR COUNT(b.id) = 0
+                ORDER BY pcf.created_date DESC;
+            `);
+
+            // Completed PCFs whose BOMs ARE all flagged calculated -> visible in report.
+            const visiblePcfCount = await client.query(`
+                SELECT COUNT(*)::int AS count
+                FROM bom_pcf_request pcf
+                WHERE pcf.status = 'Completed'
+                  AND EXISTS (SELECT 1 FROM bom b WHERE b.bom_pcf_id = pcf.id AND b.is_bom_calculated = TRUE);
+            `);
+
+            return res.status(200).send(
+                generateResponse(true, "Success!", 200, {
+                    pcf_request_status_breakdown: pcfStatusCounts.rows,
+                    bom_calculation_breakdown: bomCalcCounts.rows[0],
+                    product_footprint_visible_rows: reportRowCount.rows[0].count,
+                    completed_pcfs_visible_in_report: visiblePcfCount.rows[0].count,
+                    completed_pcfs_with_missing_bom_calculations: mismatchedPcfs.rows
+                })
+            );
+        } catch (error: any) {
+            console.error("Error running product footprint diagnostic:", error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to run diagnostic"
+            });
+        }
+    });
 }
