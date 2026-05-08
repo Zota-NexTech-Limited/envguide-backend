@@ -513,6 +513,7 @@ LEFT JOIN LATERAL (
     JOIN mode_of_transport_used_for_transportation_questions mt
         ON mt.stoie_id = stoie.stoie_id
     WHERE sgiq.sup_id = b.supplier_id
+      AND sgiq.bom_pcf_id = b.bom_pcf_id
       AND sgiq.own_emission_id IS NULL
       AND mt.mode_of_transport IS NOT NULL
 ) transport ON TRUE
