@@ -506,18 +506,15 @@ LEFT JOIN supplier_details sd
     ON sd.sup_id = b.supplier_id
 
 LEFT JOIN LATERAL (
-    SELECT jsonb_agg(jsonb_build_object('mode_of_transport', mode)) AS transportation_details
-    FROM (
-        SELECT DISTINCT mt.mode_of_transport AS mode
-        FROM supplier_general_info_questions sgiq
-        JOIN scope_three_other_indirect_emissions_questions stoie
-            ON stoie.sgiq_id = sgiq.sgiq_id
-        JOIN mode_of_transport_used_for_transportation_questions mt
-            ON mt.stoie_id = stoie.stoie_id
-        WHERE sgiq.sup_id = b.supplier_id
-          AND sgiq.own_emission_id IS NULL
-          AND mt.mode_of_transport IS NOT NULL
-    ) modes
+    SELECT jsonb_agg(jsonb_build_object('mode_of_transport', mt.mode_of_transport)) AS transportation_details
+    FROM supplier_general_info_questions sgiq
+    JOIN scope_three_other_indirect_emissions_questions stoie
+        ON stoie.sgiq_id = sgiq.sgiq_id
+    JOIN mode_of_transport_used_for_transportation_questions mt
+        ON mt.stoie_id = stoie.stoie_id
+    WHERE sgiq.sup_id = b.supplier_id
+      AND sgiq.own_emission_id IS NULL
+      AND mt.mode_of_transport IS NOT NULL
 ) transport ON TRUE
 
 WHERE b.is_bom_calculated = TRUE
