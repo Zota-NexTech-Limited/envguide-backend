@@ -6,6 +6,40 @@ import { getProductByCode } from './productController.js';
 import { convertToBaseUnit } from '../util/unitConversion.js';
 import { D, add, roundDp, truncDp } from '../util/decimalMath.js';
 
+// Look up an emission factor by ef_code. Each EF table has the same shape
+// (ef_code, ef_value, unit, region, year, layer1..4). The questionnaire saves
+// ef_code per row at submit time (resolved from layer1..4 + region + year),
+// so calculation just reads ef_value back by that code. Returns null when
+// ef_code is missing or the row no longer exists; callers fall back to 0.01.
+type EfGroup = 'materials' | 'electricity' | 'fuel' | 'packaging' | 'vehicle' | 'waste';
+const EF_TABLE_BY_GROUP: Record<EfGroup, string> = {
+    materials:   'materials_emission_factor',
+    electricity: 'electricity_emission_factor',
+    fuel:        'fuel_emission_factor',
+    packaging:   'packaging_material_treatment_type_emission_factor',
+    vehicle:     'vehicle_type_emission_factor',
+    waste:       'waste_material_treatment_type_emission_factor',
+};
+async function fetchEfValueByCode(
+    client: any,
+    ef_group: EfGroup,
+    ef_code: string | null | undefined,
+): Promise<{ ef_value: number; unit: string } | null> {
+    if (!ef_code) return null;
+    const table = EF_TABLE_BY_GROUP[ef_group];
+    if (!table) return null;
+    const result = await client.query(
+        `SELECT ef_value, unit FROM ${table} WHERE ef_code = $1 LIMIT 1;`,
+        [ef_code]
+    );
+    if (!result.rows[0]) return null;
+    const ef_value = parseFloat(result.rows[0].ef_value);
+    return {
+        ef_value: Number.isFinite(ef_value) ? ef_value : 0,
+        unit: result.rows[0].unit || '',
+    };
+}
+
 // below code also working but no need all the details remainng should create after dqr so 
 // created  createBOMWithDetailsFinal API
 // export async function createBOMWithDetails(req: any, res: any) {
@@ -3060,20 +3094,22 @@ export async function pcfCalculate(req: any, res: any) {
                 // First, try to find materials with bom_id matching this BOM
                 let fetchQ52 = `
                 SELECT rmuicm_id,stoie_id,bom_id,
-                material_number,material_name,percentage
+                material_number,material_name,percentage,ef_code,
+                layer1,layer2,layer3,layer4
                 FROM raw_materials_used_in_component_manufacturing_questions
                 WHERE bom_id = $1 AND own_emission_id IS NULL;
             `;
 
                 let fetchQ52SupResult = await client.query(fetchQ52, [BomData.id]);
-                
+
                 // If no materials found by bom_id, try to find through bom_pcf_id via supplier questionnaire.
                 // IMPORTANT: Do NOT mix NULL bom_id rows with bom_id-specific rows; it causes cross-component contamination.
                 if (!fetchQ52SupResult.rows || fetchQ52SupResult.rows.length === 0) {
                     console.log("No materials found by bom_id, trying through bom_pcf_id...");
                     fetchQ52 = `
                         SELECT rm.rmuicm_id, rm.stoie_id, rm.bom_id,
-                            rm.material_number, rm.material_name, rm.percentage
+                            rm.material_number, rm.material_name, rm.percentage, rm.ef_code,
+                            rm.layer1, rm.layer2, rm.layer3, rm.layer4
                         FROM raw_materials_used_in_component_manufacturing_questions rm
                         JOIN scope_three_other_indirect_emissions_questions stoie
                             ON rm.stoie_id = stoie.stoie_id
@@ -3101,82 +3137,34 @@ export async function pcfCalculate(req: any, res: any) {
                 // can be valid distinct rows; collapsing them skewed composition % / emissions).
 
                 for (let ProductData of fetchQ52SupResult.rows) {
-                    const fetchQ13 = `
-                SELECT bom_id,
-                material_number,product_name,location
-                FROM production_site_details_questions
-                WHERE bom_id = $1 AND own_emission_id IS NULL;
-            `;
+                    // Resolve EF by the questionnaire row's ef_code. Region/year were
+                    // baked in at save time when the row's layers were matched against
+                    // materials_emission_factor, so no region branching is needed here.
+                    const materialEf = await fetchEfValueByCode(client, 'materials', ProductData.ef_code);
 
-                    const fetchQ13SupResult = await client.query(fetchQ13, [BomData.id]);
-
-
-                    const fetchEmissionMaterialFactor = `
-                SELECT element_name,year,unit,
-                ef_eu_region,ef_india_region,ef_global_region
-                FROM materials_emission_factor WHERE LOWER(element_name)=LOWER($1) AND year=$2 AND unit=$3;
-            `;
-
-                    console.log("Querying material emission factor for:", {
-                        material_name: ProductData.material_name,
-                        year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
-                        unit: "KgCo2e/per kg"
+                    console.log("Querying material emission factor by ef_code:", {
+                        ef_code: ProductData.ef_code,
+                        layers: [ProductData.layer1, ProductData.layer2, ProductData.layer3, ProductData.layer4],
                     });
+                    console.log("Material emission factor query result:", materialEf ?? "NO MATCH FOUND");
 
-                    const fetchEmissionMaterialFactorSupResult = await client.query(fetchEmissionMaterialFactor, [ProductData.material_name, fetchSGIQIDSupResult.rows[0].annual_reporting_period, "KgCo2e/per kg"]);
-
-                    console.log("Material emission factor query result:", fetchEmissionMaterialFactorSupResult.rows.length > 0 ? fetchEmissionMaterialFactorSupResult.rows[0] : "NO MATCH FOUND");
-                    
-                    if (fetchEmissionMaterialFactorSupResult.rows.length === 0) {
-                        console.warn("WARNING: Material emission factor not found!");
-                        console.warn("Query parameters:", {
-                            material_name: ProductData.material_name,
-                            year: fetchSGIQIDSupResult.rows[0].annual_reporting_period,
-                            unit: "KgCo2e/per kg"
-                        });
-                        console.warn("Please check:");
-                        console.warn("  1. Material name matches setup data exactly (case-insensitive)");
-                        console.warn("  2. Year matches annual_reporting_period");
-                        console.warn("  3. Unit format is 'KgCo2e/per kg'");
+                    if (!materialEf) {
+                        console.warn("WARNING: Material emission factor not found by ef_code!");
+                        console.warn("ef_code on questionnaire row:", ProductData.ef_code);
+                        console.warn("Check that supplierInputQuestionController saved an ef_code, and that materials_emission_factor still has that row.");
                     }
 
-                    let Material_Emission_Factor_kg_CO2E_kg = 0.01; // Default fallback value
-                    if (fetchEmissionMaterialFactorSupResult.rows[0]) {
-
-                        if (fetchQ13SupResult.rows[0]) {
-                            const locationRaw = fetchQ13SupResult.rows[0].location || "";
-                            const locationLower = locationRaw.trim().toLowerCase();
-                            
-                            console.log("Location from Q13:", locationRaw, "-> normalized (trimmed):", locationLower);
-
-                            if (locationLower === "india") {
-                                Material_Emission_Factor_kg_CO2E_kg = parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_india_region) || 0.01;
-                                console.log("Using India emission factor:", Material_Emission_Factor_kg_CO2E_kg);
-                            } else if (locationLower === "europe") {
-                                Material_Emission_Factor_kg_CO2E_kg = parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_eu_region) || 0.01;
-                                console.log("Using EU emission factor:", Material_Emission_Factor_kg_CO2E_kg);
-                            } else {
-                                // Default to global if location doesn't match india/europe or is "global" or not specified
-                                Material_Emission_Factor_kg_CO2E_kg = parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_global_region) || 0.01;
-                                if (locationLower === "global") {
-                                    console.log("Location is 'Global'. Using Global emission factor:", Material_Emission_Factor_kg_CO2E_kg);
-                                } else {
-                                    console.log("Location '", locationRaw, "' not recognized (expected: india/europe/global). Using Global emission factor:", Material_Emission_Factor_kg_CO2E_kg);
-                                }
-                            }
-                        } else {
-                            // If Q13 not found, use global as fallback
-                            Material_Emission_Factor_kg_CO2E_kg = parseFloat(fetchEmissionMaterialFactorSupResult.rows[0].ef_global_region) || 0.01;
-                            console.log("Q13 not found. Using Global emission factor:", Material_Emission_Factor_kg_CO2E_kg);
-                        }
-
-                    }
+                    const Material_Emission_Factor_kg_CO2E_kg = materialEf?.ef_value ?? 0.01; // 0.01 fallback when ef_code is missing
+                    // Display label for the calc engine row — prefer layer2 (the
+                    // material itself e.g. "Acoustic Foam") since material_name is
+                    // no longer populated under the new schema.
+                    const materialDisplayName = ProductData.material_name || ProductData.layer2 || null;
 
                     console.log("=== MATERIAL CALCULATION DEBUG ===");
                     console.log("BOM ID:", BomData.id);
                     console.log("Component Name:", BomData.component_name);
                     console.log("Raw Weight (gms):", BomData.weight_gms);
-                    console.log("Material Name:", ProductData.material_name);
+                    console.log("Material:", materialDisplayName);
                     console.log("Material Percentage (raw):", ProductData.percentage);
 
                     const weightInKg = parseFloat(BomData.weight_gms) / 1000;
@@ -3185,26 +3173,26 @@ export async function pcfCalculate(req: any, res: any) {
                     // Parse percentage to ensure it's a number (handle string "30" -> 30)
                     const material_composition_percentage = parseFloat(ProductData.percentage) || 0;
                     const material_composition = material_composition_percentage;
-                    
+
                     // Calculate material weight: component_weight * (percentage / 100)
                     const material_composition_weight = weightInKg * (material_composition_percentage / 100);
 
                     console.log("Material composition (%):", material_composition_percentage);
                     console.log("Material composition Weight (Kg):", material_composition_weight);
                     console.log("Material Emission Factor (kg CO₂e/kg):", Material_Emission_Factor_kg_CO2E_kg);
-                    console.log("Emission Factor Source:", fetchEmissionMaterialFactorSupResult.rows.length > 0 ? "Database" : "DEFAULT (0.01)");
-                    
+                    console.log("Emission Factor Source:", materialEf ? `Database (ef_code=${ProductData.ef_code})` : "DEFAULT (0.01)");
+
                     // Calculate emissions: material_weight * emission_factor
                     const Material_emissions_kg_CO_e = material_composition_weight * Material_Emission_Factor_kg_CO2E_kg;
                     console.log("Material emissions (kg CO₂e):", Material_emissions_kg_CO_e);
                     console.log("Formula: ", material_composition_weight, " * ", Material_Emission_Factor_kg_CO2E_kg, " = ", Material_emissions_kg_CO_e);
                     console.log("=== END MATERIAL CALCULATION DEBUG ===");
-                    
+
                     Raw_Material_emissions += Material_emissions_kg_CO_e;
 
                     // ====> Insert into bom_emission_material_calculation_engine table
                     const queryMaterial = `
-                        INSERT INTO bom_emission_material_calculation_engine 
+                        INSERT INTO bom_emission_material_calculation_engine
                         (id,bom_id, material_type, material_composition,
                          material_composition_weight, material_emission_factor,material_emission)
                         VALUES ($1,$2, $3, $4, $5, $6, $7)
@@ -3214,7 +3202,7 @@ export async function pcfCalculate(req: any, res: any) {
                     await client.query(queryMaterial, [
                         ulid(),
                         BomData.id,
-                        ProductData.material_name,
+                        materialDisplayName,
                         material_composition,
                         material_composition_weight,
                         Material_Emission_Factor_kg_CO2E_kg,
@@ -3279,13 +3267,26 @@ export async function pcfCalculate(req: any, res: any) {
                 for (let fetchStideId of fetchSTIDEIDSupResult.rows) {
                     const fetchQ22 = `
                 SELECT stidefpe_id,stide_id,sup_id,
-                energy_source,energy_type,quantity,unit
+                energy_source,energy_type,quantity,unit,
+                ef_code,layer1,layer2,layer3,layer4
                 FROM scope_two_indirect_emissions_from_purchased_energy_questions
                 WHERE stide_id = $1 AND own_emission_id IS NULL;
             `;
 
 
                     const fetchEnegryResult = await client.query(fetchQ22, [fetchStideId.stide_id]);
+
+                    // Categorize an energy row into electricity/heating/cooling/steam.
+                    // Prefer layer1 (set by the new schema, e.g. "Purchased Electricity").
+                    // Fall back to legacy energy_source so older rows still classify.
+                    const classifyEnergyRow = (row: any): "electricity" | "heating" | "cooling" | "steam" | null => {
+                        const haystack = `${row.layer1 || ""} ${row.energy_source || ""}`.toLowerCase();
+                        if (haystack.includes("electricity")) return "electricity";
+                        if (haystack.includes("heat")) return "heating";
+                        if (haystack.includes("cool")) return "cooling";
+                        if (haystack.includes("steam")) return "steam";
+                        return null;
+                    };
 
                     let Total_Electrical_Energy_consumed_at_Factory_level_kWh = 0;
                     let Total_Heating_Energy_consumed_at_Factory_level_kWh = 0;
@@ -3351,17 +3352,20 @@ export async function pcfCalculate(req: any, res: any) {
 
                         console.log("After conversion - Quantity in kWh:", quantityInKWh);
 
-                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
+                        const category = classifyEnergyRow(Energy);
+                        if (category === "electricity") {
                             Total_Electrical_Energy_consumed_at_Factory_level_kWh += quantityInKWh;
-                        }
-                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "heating") {
+                        } else if (category === "heating") {
                             Total_Heating_Energy_consumed_at_Factory_level_kWh += quantityInKWh;
-                        }
-                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "cooling") {
+                        } else if (category === "cooling") {
                             Total_Cooling_Energy_consumed_at_Factory_level_kWh += quantityInKWh;
-                        }
-                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "steam") {
+                        } else if (category === "steam") {
                             Total_Steam_Energy_consumed_at_Factory_level_kWh += quantityInKWh;
+                        } else {
+                            console.warn("Could not classify energy row by layer1/energy_source:", {
+                                layer1: Energy.layer1,
+                                energy_source: Energy.energy_source,
+                            });
                         }
                     }
                     console.log(Total_Electrical_Energy_consumed_at_Factory_level_kWh, "Total_Electrical_Energy_consumed_at_Factory_level_kWh");
@@ -3557,170 +3561,47 @@ export async function pcfCalculate(req: any, res: any) {
                     let FetchHeatingTypeEmiassionValue = 0.01;
                     let FetchSteamTypeEmiassionValue = 0.01;
                     let FetchCoolingTypeEmiassionValue = 0.01;
-                    
-                    // For electricity, calculate weighted average EF based on energy mix
+
+                    // For electricity, calculate weighted average EF based on energy mix.
+                    // Heating/Cooling/Steam: take the EF from the matching row (last one wins
+                    // if multiple rows share a category — matches legacy behavior).
                     let electricityEFs: Array<{quantity: number, ef: number}> = [];
                     let totalElectricityQuantity = 0;
-                    
+
                     for (let Energy of fetchEnegryResult.rows) {
+                        const category = classifyEnergyRow(Energy);
+                        if (!category) continue;
 
-                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "electricity") {
-                            let EnergySource = "Electricity";
-                            let EnergyType = Energy.energy_type;
-                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
-                            console.log(EnergyResponse, "EnergyResponseEnergyResponse", fetchSGIQIDSupResult.rows[0].annual_reporting_period, Energy.unit);
+                        // Look up EF by the row's ef_code (region+year already baked in
+                        // at save time). 0.01 is the same fallback the old code used.
+                        const energyEf = await fetchEfValueByCode(client, 'electricity', Energy.ef_code);
+                        if (!energyEf) {
+                            console.warn(`Q22 ${category} row missing ef_code or EF row not found:`, {
+                                ef_code: Energy.ef_code,
+                                layers: [Energy.layer1, Energy.layer2, Energy.layer3, Energy.layer4],
+                            });
+                        }
+                        const ef = energyEf?.ef_value ?? 0.01;
 
-                            const fetchQ22 = `
-                                SELECT type_of_energy,ef_eu_region,ef_india_region,
-                                ef_global_region,year,unit
-                                FROM electricity_emission_factor
-                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
-                             `;
-
-                            // Use "KgCo2e/per kWh" for emission factor query (not the user's input unit)
-                            const emissionFactorUnit = "KgCo2e/per kWh";
-                            const fetchEnegryEFResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, emissionFactorUnit]);
-
-                            // Convert energy quantity to kWh for weighted average calculation
+                        if (category === "electricity") {
                             const quantityInKWh = await convertToBaseUnit(
                                 client,
                                 Energy.quantity,
                                 Energy.unit,
                                 'energy'
                             );
-
-                            if (fetchEnegryEFResult.rows[0]) {
-                                let ef = 0.01;
-                                if (fetchQ13LocationSupResult.rows[0]) {
-                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
-
-                                    if (locationLower === "india") {
-                                        ef = parseFloat(fetchEnegryEFResult.rows[0].ef_india_region) || 0.01;
-                                    } else if (locationLower === "europe") {
-                                        ef = parseFloat(fetchEnegryEFResult.rows[0].ef_eu_region) || 0.01;
-                                    } else {
-                                        ef = parseFloat(fetchEnegryEFResult.rows[0].ef_global_region) || 0.01;
-                                    }
-                                } else {
-                                    ef = parseFloat(fetchEnegryEFResult.rows[0].ef_global_region) || 0.01;
-                                }
-                                
-                                // Store EF and quantity for weighted average calculation
-                                electricityEFs.push({quantity: quantityInKWh, ef: ef});
-                                totalElectricityQuantity += quantityInKWh;
-                                console.log(`Electricity type: ${EnergyType}, Quantity: ${quantityInKWh} kWh, EF: ${ef}`);
-                            }
-                        }
-
-                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "heating") {
-                            let EnergySource = "Heating";
-                            let EnergyType = Energy.energy_type;
-                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
-                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
-
-                            const fetchQ22 = `
-                                SELECT type_of_energy,ef_eu_region,ef_india_region,
-                                ef_global_region,year,unit
-                                FROM electricity_emission_factor
-                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
-                             `;
-
-                            // Use "KgCo2e/per kWh" for emission factor query (not the user's input unit)
-                            const emissionFactorUnit = "KgCo2e/per kWh";
-                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, emissionFactorUnit]);
-
-
-                            if (fetchEnegryResult.rows[0]) {
-                                if (fetchQ13LocationSupResult.rows[0]) {
-                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
-
-                                    if (locationLower === "india") {
-                                        FetchHeatingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_india_region) || 0.01;
-                                    } else if (locationLower === "europe") {
-                                        FetchHeatingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_eu_region) || 0.01;
-                                    } else {
-                                        FetchHeatingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
-                                    }
-                                } else {
-                                    FetchHeatingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
-                                }
-                            }
+                            electricityEFs.push({ quantity: quantityInKWh, ef });
+                            totalElectricityQuantity += quantityInKWh;
+                            console.log(`Electricity row: ef_code=${Energy.ef_code} Quantity=${quantityInKWh} kWh EF=${ef}`);
+                        } else if (category === "heating") {
+                            FetchHeatingTypeEmiassionValue = ef;
                             console.log(FetchHeatingTypeEmiassionValue, "FetchHeatingTypeEmiassionValue");
-
-                        }
-
-                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "steam") {
-                            let EnergySource = "Steam";
-                            let EnergyType = Energy.energy_type;
-                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
-                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
-
-                            const fetchQ22 = `
-                                SELECT type_of_energy,ef_eu_region,ef_india_region,
-                                ef_global_region,year,unit
-                                FROM electricity_emission_factor
-                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
-                             `;
-
-                            // Use "KgCo2e/per kWh" for emission factor query (not the user's input unit)
-                            const emissionFactorUnit = "KgCo2e/per kWh";
-                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, emissionFactorUnit]);
-
-
-                            if (fetchEnegryResult.rows[0]) {
-                                if (fetchQ13LocationSupResult.rows[0]) {
-                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
-
-                                    if (locationLower === "india") {
-                                        FetchSteamTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_india_region) || 0.01;
-                                    } else if (locationLower === "europe") {
-                                        FetchSteamTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_eu_region) || 0.01;
-                                    } else {
-                                        FetchSteamTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
-                                    }
-                                } else {
-                                    FetchSteamTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
-                                }
-                            }
+                        } else if (category === "steam") {
+                            FetchSteamTypeEmiassionValue = ef;
                             console.log(FetchSteamTypeEmiassionValue, "FetchSteamTypeEmiassionValue");
-
-                        }
-
-                        if (Energy.energy_source.split(" ")[0].toLowerCase() === "cooling") {
-                            let EnergySource = "Cooling";
-                            let EnergyType = Energy.energy_type;
-                            const EnergyResponse = `${EnergySource} - ${EnergyType}`;
-                            console.log(EnergyResponse, "EnergyResponseEnergyResponse");
-
-                            const fetchQ22 = `
-                                SELECT type_of_energy,ef_eu_region,ef_india_region,
-                                ef_global_region,year,unit
-                                FROM electricity_emission_factor
-                                WHERE LOWER(type_of_energy)=LOWER($1) AND year=$2 AND unit=$3;
-                             `;
-
-                            // Use "KgCo2e/per kWh" for emission factor query (not the user's input unit)
-                            const emissionFactorUnit = "KgCo2e/per kWh";
-                            const fetchEnegryResult = await client.query(fetchQ22, [EnergyResponse, fetchSGIQIDSupResult.rows[0].annual_reporting_period, emissionFactorUnit]);
-
-
-                            if (fetchEnegryResult.rows[0]) {
-                                if (fetchQ13LocationSupResult.rows[0]) {
-                                    const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
-
-                                    if (locationLower === "india") {
-                                        FetchCoolingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_india_region) || 0.01;
-                                    } else if (locationLower === "europe") {
-                                        FetchCoolingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_eu_region) || 0.01;
-                                    } else {
-                                        FetchCoolingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
-                                    }
-                                } else {
-                                    FetchCoolingTypeEmiassionValue = parseFloat(fetchEnegryResult.rows[0].ef_global_region) || 0.01;
-                                }
-                            }
+                        } else if (category === "cooling") {
+                            FetchCoolingTypeEmiassionValue = ef;
                             console.log(FetchCoolingTypeEmiassionValue, "FetchCoolingTypeEmiassionValue");
-
                         }
                     }
 
@@ -3856,7 +3737,8 @@ export async function pcfCalculate(req: any, res: any) {
                     const fetchQ60PackagingQuery = `
                         SELECT bom_id, material_number, packagin_type,
                                treatment_type, packaging_size,
-                               packagin_weight, unit
+                               packagin_weight, unit,
+                               ef_code, layer1, layer2, layer3, layer4
                         FROM type_of_pack_mat_used_for_delivering_questions
                         WHERE bom_id = $1 AND own_emission_id IS NULL;
                     `;
@@ -3873,7 +3755,9 @@ export async function pcfCalculate(req: any, res: any) {
                             SELECT topmud.bom_id, topmud.material_number,
                                    topmud.packagin_type, topmud.treatment_type,
                                    topmud.packaging_size, topmud.packagin_weight,
-                                   topmud.unit
+                                   topmud.unit,
+                                   topmud.ef_code, topmud.layer1, topmud.layer2,
+                                   topmud.layer3, topmud.layer4
                             FROM type_of_pack_mat_used_for_delivering_questions topmud
                             JOIN scope_three_other_indirect_emissions_questions stoie
                                 ON topmud.stoie_id = stoie.stoie_id
@@ -3894,18 +3778,21 @@ export async function pcfCalculate(req: any, res: any) {
                         [BomData.id]
                     );
 
-                    const reportingYear = fetchSGIQIDSupResult.rows[0]?.annual_reporting_period;
-                    const supplierLocation = (fetchQ13LocationSupResult.rows[0]?.location || "").trim().toLowerCase();
-
-                    // Loop every packaging row and accumulate total emission
+                    // Loop every packaging row and accumulate total emission.
+                    // EF resolution: look up ef_value by the row's ef_code (saved at
+                    // questionnaire submit time, already region+year-resolved). Region
+                    // branching and the old packaging_treatment_type → ptt_id join are
+                    // no longer needed.
                     for (const pkgRow of q60Result.rows) {
-                        const rowType = pkgRow.packagin_type;
+                        // Prefer layer2 (e.g. "Acetal Resin") when packagin_type is NULL —
+                        // new payloads only send layers, not the legacy free-text type.
+                        const rowType = pkgRow.packagin_type || pkgRow.layer2 || null;
                         const rowTreatment = pkgRow.treatment_type;
                         const rowWeightRaw = parseFloat(pkgRow.packagin_weight) || 0;
                         const rowUnit = pkgRow.unit;
 
-                        if (!rowType || rowWeightRaw <= 0) {
-                            console.warn(`Skipping packaging row — type='${rowType}' weight='${pkgRow.packagin_weight}'`);
+                        if (rowWeightRaw <= 0) {
+                            console.warn(`Skipping packaging row — weight='${pkgRow.packagin_weight}' (ef_code=${pkgRow.ef_code})`);
                             continue;
                         }
 
@@ -3920,43 +3807,10 @@ export async function pcfCalculate(req: any, res: any) {
                             );
                         }
 
-                        // Resolve treatment type → ptt_id
-                        const fetchPTTId = `SELECT ptt_id, name FROM packaging_treatment_type WHERE LOWER(name)=LOWER($1);`;
-                        const pttResult = await client.query(fetchPTTId, [rowTreatment]);
-                        const ptt_id = pttResult.rows[0]?.ptt_id || null;
-
-                        // Look up emission factor (with ptt_id, then fallback without)
-                        const efUnit = "KgCo2e/per kg";
-                        const fetchEF = `
-                            SELECT material_type, ef_eu_region, ef_india_region,
-                                   ef_global_region, year, unit, iso_country_code
-                            FROM packaging_material_treatment_type_emission_factor
-                            WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3 AND ptt_id=$4;
-                        `;
-                        let efResult = await client.query(fetchEF, [rowType, reportingYear, efUnit, ptt_id]);
-
-                        if (!efResult.rows[0] && ptt_id) {
-                            const fetchEFNoPTT = `
-                                SELECT material_type, ef_eu_region, ef_india_region,
-                                       ef_global_region, year, unit, iso_country_code
-                                FROM packaging_material_treatment_type_emission_factor
-                                WHERE LOWER(material_type)=LOWER($1) AND year=$2 AND unit=$3
-                                LIMIT 1;
-                            `;
-                            efResult = await client.query(fetchEFNoPTT, [rowType, reportingYear, efUnit]);
-                        }
-
-                        let rowEF = 0.01;
-                        if (efResult.rows[0]) {
-                            if (supplierLocation === "india") {
-                                rowEF = parseFloat(efResult.rows[0].ef_india_region) || 0.01;
-                            } else if (supplierLocation === "europe") {
-                                rowEF = parseFloat(efResult.rows[0].ef_eu_region) || 0.01;
-                            } else {
-                                rowEF = parseFloat(efResult.rows[0].ef_global_region) || 0.01;
-                            }
-                        } else {
-                            console.warn(`WARNING: No EF for type='${rowType}' treatment='${rowTreatment}' year=${reportingYear} — using 0.01`);
+                        const packagingEf = await fetchEfValueByCode(client, 'packaging', pkgRow.ef_code);
+                        const rowEF = packagingEf?.ef_value ?? 0.01;
+                        if (!packagingEf) {
+                            console.warn(`WARNING: No packaging EF for ef_code='${pkgRow.ef_code}' (layers: ${pkgRow.layer1}/${pkgRow.layer2}/${pkgRow.layer3}/${pkgRow.layer4}) — using 0.01`);
                         }
 
                         const rowEmission = rowWeightKg * rowEF;
@@ -3964,7 +3818,7 @@ export async function pcfCalculate(req: any, res: any) {
 
                         console.log(
                             `Packaging row → type='${rowType}' treatment='${rowTreatment}' ` +
-                            `weight=${rowWeightKg}kg EF=${rowEF} emission=${rowEmission}`
+                            `ef_code='${pkgRow.ef_code}' weight=${rowWeightKg}kg EF=${rowEF} emission=${rowEmission}`
                         );
 
                         // Insert per-type traceability row
@@ -4040,7 +3894,8 @@ export async function pcfCalculate(req: any, res: any) {
                     // First, try to find records with bom_id matching this component (via JOIN)
                     let fetchQ74ModeOFTransportControl = `
                             SELECT mt.bom_id, mt.material_number, mt.mode_of_transport,
-                                mt.weight_transported, mt.distance
+                                mt.weight_transported, mt.distance,
+                                mt.ef_code, mt.layer1, mt.layer2, mt.layer3, mt.layer4
                             FROM mode_of_transport_used_for_transportation_questions mt
                             JOIN scope_three_other_indirect_emissions_questions stoie
                                 ON mt.stoie_id = stoie.stoie_id
@@ -4057,7 +3912,8 @@ export async function pcfCalculate(req: any, res: any) {
                         console.log("No transport records found with bom_id via JOIN, trying direct bom_id lookup...");
                         fetchQ74ModeOFTransportControl = `
                                 SELECT bom_id, material_number, mode_of_transport,
-                                    weight_transported, distance
+                                    weight_transported, distance,
+                                    ef_code, layer1, layer2, layer3, layer4
                                 FROM mode_of_transport_used_for_transportation_questions
                                 WHERE bom_id = $1
                                 ORDER BY motuft_id;
@@ -4135,7 +3991,10 @@ export async function pcfCalculate(req: any, res: any) {
 
 
 
-                        let modeOfTransport = fetchQ74TransportData.mode_of_transport;
+                        // Use the legacy free-text mode if it's set; otherwise fall back to
+                        // layer3 (e.g. "Average passenger") which is the closest equivalent
+                        // under the new layer-based schema for traceability/inserts below.
+                        let modeOfTransport = fetchQ74TransportData.mode_of_transport || fetchQ74TransportData.layer3 || null;
                         let weightTransportedRaw = fetchQ74TransportData.weight_transported;
                         let distanceRaw = fetchQ74TransportData.distance;
                         
@@ -4189,45 +4048,18 @@ export async function pcfCalculate(req: any, res: any) {
                         let Distance_Km = distance;
                         console.log("Distance_Km:", Distance_Km);
 
-                        let transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = 0.01;
+                        // Look up vehicle EF by the row's ef_code. Region+year were baked
+                        // in at save time when layer1..4 were matched against
+                        // vehicle_type_emission_factor; no region branching needed.
+                        const vehicleEf = await fetchEfValueByCode(client, 'vehicle', fetchQ74TransportData.ef_code);
+                        const transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = vehicleEf?.ef_value ?? 0.01;
 
-
-                        const fetchVehicleTypeEmissionFactor = `
-                                SELECT vehicle_type,ef_eu_region,ef_india_region,
-                                ef_global_region,year,unit,iso_country_code
-                                FROM vehicle_type_emission_factor
-                                WHERE LOWER(vehicle_type)=LOWER($1) AND year=$2 AND unit=$3;
-                             `;
-
-
-                        const fetchVehicleTypeEmisResult = await client.query(fetchVehicleTypeEmissionFactor, [modeOfTransport, fetchSGIQIDSupResult.rows[0].annual_reporting_period, 'Kms']);
-                        
                         console.log("Vehicle emission factor query:");
-                        console.log("  - modeOfTransport:", modeOfTransport);
-                        console.log("  - year:", fetchSGIQIDSupResult.rows[0].annual_reporting_period);
-                        console.log("  - unit: Kms");
-                        console.log("  - Rows found:", fetchVehicleTypeEmisResult.rows.length);
-                        if (fetchVehicleTypeEmisResult.rows.length === 0) {
-                            console.log("WARNING: No vehicle emission factor found! Using default 0.01");
-                            console.log("Please check if vehicle type matches exactly with setup data (case-insensitive)");
-                        }
-
-                        if (fetchVehicleTypeEmisResult.rows[0]) {
-                            if (fetchQ13LocationSupResult.rows[0]) {
-                                const locationLower = (fetchQ13LocationSupResult.rows[0].location || "").trim().toLowerCase();
-
-                                if (locationLower === "india") {
-                                    transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_india_region) || 0.01;
-                                } else if (locationLower === "europe") {
-                                    transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_eu_region) || 0.01;
-                                } else {
-                                    // Default to global if location doesn't match or is not specified
-                                    transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_global_region) || 0.01;
-                                }
-                            } else {
-                                // If Q13 not found, use global as fallback
-                                transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = parseFloat(fetchVehicleTypeEmisResult.rows[0].ef_global_region) || 0.01;
-                            }
+                        console.log("  - ef_code:", fetchQ74TransportData.ef_code);
+                        console.log("  - layers:", [fetchQ74TransportData.layer1, fetchQ74TransportData.layer2, fetchQ74TransportData.layer3, fetchQ74TransportData.layer4]);
+                        console.log("  - resolved EF:", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km, vehicleEf?.unit || "");
+                        if (!vehicleEf) {
+                            console.log("WARNING: No vehicle emission factor found by ef_code! Using default 0.01");
                         }
 
                         console.log("transport_Mode_Emission_Factor_Value_kg_CO2e_t_km:", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km);
@@ -4439,19 +4271,22 @@ export async function pcfCalculate(req: any, res: any) {
                     // Try to find Q68 waste data by bom_id first
                     let fetchQ68PackagingWasteControl = `
                                 SELECT bom_id,material_number,waste_type,
-                                waste_weight,unit,treatment_type
+                                waste_weight,unit,treatment_type,
+                                ef_code,layer1,layer2,layer3,layer4
                                 FROM weight_of_pro_packaging_waste_questions
                                 WHERE bom_id = $1 AND own_emission_id IS NULL;
                              `;
 
                     let fetchQ68PackagingWasteControlResult = await client.query(fetchQ68PackagingWasteControl, [BomData.id]);
-                    
+
                     // If no records found by bom_id, try through bom_pcf_id via supplier questionnaire (like transport)
                     if (!fetchQ68PackagingWasteControlResult.rows || fetchQ68PackagingWasteControlResult.rows.length === 0) {
                         console.log("No Q68 waste records found by bom_id, trying through bom_pcf_id (matching bom_id only, excluding NULL)...");
                         fetchQ68PackagingWasteControl = `
                             SELECT woppw.bom_id, woppw.material_number, woppw.waste_type,
-                                woppw.waste_weight, woppw.unit, woppw.treatment_type
+                                woppw.waste_weight, woppw.unit, woppw.treatment_type,
+                                woppw.ef_code, woppw.layer1, woppw.layer2,
+                                woppw.layer3, woppw.layer4
                             FROM weight_of_pro_packaging_waste_questions woppw
                             JOIN scope_three_other_indirect_emissions_questions stoie
                                 ON woppw.stoie_id = stoie.stoie_id
@@ -4474,13 +4309,8 @@ export async function pcfCalculate(req: any, res: any) {
                     console.log("=== END WASTE DATA DEBUG ===");
 
                     // === WASTE CALCULATION: Loop through all Q68 rows, sum (waste_weight × EF) ===
-                    const getRegionalEf = (row: any): number => {
-                        const loc = (fetchQ13LocationSupResult.rows[0]?.location || "").trim().toLowerCase();
-                        if (loc === "india") return parseFloat(row?.ef_india_region) || 0.01;
-                        if (loc === "europe") return parseFloat(row?.ef_eu_region) || 0.01;
-                        return parseFloat(row?.ef_global_region) || 0.01;
-                    };
-
+                    // EF is resolved by each row's ef_code (saved at submit time, already
+                    // region+year-resolved against waste_material_treatment_type_emission_factor).
                     let waste_disposal_emissions_kg_CO2e = 0;
 
                     if (fetchQ68PackagingWasteControlResult.rows.length > 0) {
@@ -4496,41 +4326,18 @@ export async function pcfCalculate(req: any, res: any) {
                             );
                             actualWasteWeightKg += wasteWeightInKg;
 
-                            // Look up emission factor by waste_type + treatment_type
-                            const fetchWasteTreatmentEmissionFactor = `
-                                SELECT wmttef.waste_type, wmttef.wtt_id,
-                                    wmttef.ef_eu_region, wmttef.ef_india_region,
-                                    wmttef.ef_global_region, wmttef.year, wmttef.unit,
-                                    wmttef.iso_country_code
-                                FROM waste_material_treatment_type_emission_factor AS wmttef
-                                JOIN waste_treatment_type AS wtt ON wmttef.wtt_id = wtt.wtt_id
-                                WHERE LOWER(wmttef.waste_type)=LOWER($1)
-                                    AND wmttef.year = $2
-                                    AND wmttef.unit = $3
-                                    AND LOWER(wtt.name)=LOWER($4);
-                            `;
-                            const wasteEmissionFactorUnit = "KgCo2e/per kg";
-
                             console.log("Q68 row:", {
-                                waste_type: fetchQ68Data.waste_type,
+                                ef_code: fetchQ68Data.ef_code,
+                                layers: [fetchQ68Data.layer1, fetchQ68Data.layer2, fetchQ68Data.layer3, fetchQ68Data.layer4],
                                 waste_weight: fetchQ68Data.waste_weight,
                                 unit: fetchQ68Data.unit,
-                                treatment_type: fetchQ68Data.treatment_type,
-                                weight_in_kg: wasteWeightInKg
+                                weight_in_kg: wasteWeightInKg,
                             });
 
-                            const fetchPackagingEmisResult = await client.query(fetchWasteTreatmentEmissionFactor, [
-                                fetchQ68Data.waste_type,
-                                fetchSGIQIDSupResult.rows[0].annual_reporting_period,
-                                wasteEmissionFactorUnit,
-                                fetchQ68Data.treatment_type
-                            ]);
-
-                            let rowEF = 0.01; // default fallback
-                            if (fetchPackagingEmisResult.rows[0]) {
-                                rowEF = getRegionalEf(fetchPackagingEmisResult.rows[0]);
-                            } else {
-                                console.warn("WARNING: Q68 Waste emission factor not found for:", fetchQ68Data.waste_type, "+", fetchQ68Data.treatment_type);
+                            const wasteEf = await fetchEfValueByCode(client, 'waste', fetchQ68Data.ef_code);
+                            const rowEF = wasteEf?.ef_value ?? 0.01;
+                            if (!wasteEf) {
+                                console.warn("WARNING: Q68 Waste emission factor not found for ef_code:", fetchQ68Data.ef_code);
                             }
 
                             const rowEmission = D(wasteWeightInKg).mul(D(rowEF)).toNumber();

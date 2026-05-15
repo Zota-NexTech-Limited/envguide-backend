@@ -35,54 +35,55 @@ export function formatCode(prefix: string, number: number, length = 5): string {
 export async function addMaterialsEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const {
+                ef_code,
+                scope,
+                layer1,
+                layer2,
+                layer3,
+                layer4,
+                region,
+                year,
+                ef_value,
+                unit,
+                data_source
+            } = req.body;
 
-
-            const { element_name, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
-
-            console.log(req.user_id, "user_id");
-
-            if (!element_name) {
-                throw new Error("Element name is required");
+            if (!ef_code) throw new Error("EF code (Excel ID) is required");
+            if (!region) throw new Error("Region is required");
+            if (ef_value === undefined || ef_value === null || ef_value === '') {
+                throw new Error("EF Value is required");
             }
 
-            if (!ef_eu_region) {
-                throw new Error("Ef Eu region is required");
-            }
-
-            if (!ef_india_region) {
-                throw new Error("Ef India region is required");
-            }
-
-            if (!ef_global_region) {
-                throw new Error("Ef global region is required");
-            }
-
-
-            const checkName = await client.query(
-                `SELECT 1 FROM materials_emission_factor WHERE element_name ILIKE $1`,
-                [element_name]
+            const dupCheck = await client.query(
+                `SELECT 1 FROM materials_emission_factor WHERE ef_code = $1`,
+                [ef_code]
             );
-
-            if (checkName.rowCount > 0) {
+            if (dupCheck.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Element name already exists", 400, null));
+                    .send(generateResponse(false, `EF code '${ef_code}' already exists`, 400, null));
             }
 
             const id = ulid();
 
-
-            const nextNumber = await generateDynamicCode(client, 'MEF', 'materials_emission_factor');
-
-            const code = formatCode('MEF', nextNumber);
-
             const query = `
-                INSERT INTO materials_emission_factor (mef_id,element_name,ef_eu_region,ef_india_region,ef_global_region, code, created_by,year,iso_country_code,unit)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8 ,$9, $10)
+                INSERT INTO materials_emission_factor (
+                    mef_id, ef_code, scope,
+                    layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source,
+                    created_by
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, element_name, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, iso_country_code, unit]);
+            const result = await client.query(query, [
+                id, ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source,
+                req.user_id
+            ]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -94,62 +95,54 @@ export async function addMaterialsEmissionFactor(req: any, res: any) {
 export async function updateMaterialsEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-
-            console.log(req.user_id, "user_id");
-
             const updatingData = req.body;
             const updatedRows: any[] = [];
 
             for (const item of updatingData) {
-
-                if (!item.element_name) {
-                    throw new Error("Element name is required");
+                if (!item.mef_id) throw new Error("mef_id is required");
+                if (!item.ef_code) throw new Error("EF code (Excel ID) is required");
+                if (!item.region) throw new Error("Region is required");
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    throw new Error("EF Value is required");
                 }
 
-
-                if (!item.ef_eu_region) {
-                    throw new Error("Ef Eu region is required");
-                }
-
-                if (!item.ef_india_region) {
-                    throw new Error("Ef India region is required");
-                }
-
-                if (!item.ef_global_region) {
-                    throw new Error("Ef global region is required");
-                }
-
-
-                const checkName = await client.query(
-                    `SELECT 1 
-                     FROM materials_emission_factor 
-                     WHERE element_name ILIKE $1 AND mef_id <> $2`,
-                    [item.element_name, item.mef_id]
+                const dupCheck = await client.query(
+                    `SELECT 1
+                     FROM materials_emission_factor
+                     WHERE ef_code = $1 AND mef_id <> $2`,
+                    [item.ef_code, item.mef_id]
                 );
 
-                if (checkName.rowCount > 0) {
+                if (dupCheck.rowCount > 0) {
                     return res
                         .status(400)
-                        .send(generateResponse(false, `Element Name '${item.element_name}' already exists`, 400, null));
+                        .send(generateResponse(false, `EF code '${item.ef_code}' already exists`, 400, null));
                 }
 
                 const query = `
-                    UPDATE materials_emission_factor
-                    SET
-                    element_name        = $2,
-                    ef_eu_region        = $3,
-                    ef_india_region     = $4,
-                    ef_global_region    = $5,
-                     updated_by          = $6,
-                     year= $7,
-                     iso_country_code= $8,
-                     unit = $9
-                     WHERE mef_id = $1
-                     RETURNING *;
-
+                    UPDATE materials_emission_factor SET
+                        ef_code     = $2,
+                        scope       = $3,
+                        layer1      = $4,
+                        layer2      = $5,
+                        layer3      = $6,
+                        layer4      = $7,
+                        region      = $8,
+                        year        = $9,
+                        ef_value    = $10,
+                        unit        = $11,
+                        data_source = $12,
+                        updated_by  = $13
+                    WHERE mef_id = $1
+                    RETURNING *;
                 `;
 
-                const result = await client.query(query, [item.mef_id, item.element_name, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.iso_country_code, item.unit]);
+                const result = await client.query(query, [
+                    item.mef_id, item.ef_code, item.scope,
+                    item.layer1, item.layer2, item.layer3, item.layer4,
+                    item.region, item.year, item.ef_value, item.unit, item.data_source,
+                    req.user_id
+                ]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -166,26 +159,59 @@ export async function updateMaterialsEmissionFactor(req: any, res: any) {
 export async function getMaterialsEmissionFactorListSearch(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { searchValue } = req.query;
-            let whereClause = '';
+            const { searchValue, region, year, layer1, layer2, layer3, layer4 } = req.query;
+            const filters: string[] = [];
             const values: any[] = [];
 
             if (searchValue) {
-                whereClause = `AND (i.code ILIKE $1 OR i.element_name ILIKE $1)`;
                 values.push(`%${searchValue}%`);
+                const p = `$${values.length}`;
+                filters.push(`(
+                    i.ef_code ILIKE ${p}
+                    OR i.layer1 ILIKE ${p}
+                    OR i.layer2 ILIKE ${p}
+                    OR i.layer3 ILIKE ${p}
+                    OR i.layer4 ILIKE ${p}
+                )`);
             }
+            if (region) {
+                values.push(region);
+                filters.push(`i.region = $${values.length}`);
+            }
+            if (year) {
+                values.push(year);
+                filters.push(`i.year = $${values.length}`);
+            }
+            if (layer1) {
+                values.push(layer1);
+                filters.push(`i.layer1 = $${values.length}`);
+            }
+            if (layer2) {
+                values.push(layer2);
+                filters.push(`i.layer2 = $${values.length}`);
+            }
+            if (layer3) {
+                values.push(layer3);
+                filters.push(`i.layer3 = $${values.length}`);
+            }
+            if (layer4) {
+                values.push(layer4);
+                filters.push(`i.layer4 = $${values.length}`);
+            }
+
+            const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
             const listQuery = `
                 SELECT i.*
                 FROM materials_emission_factor i
-                WHERE 1=1 ${whereClause}
-                ORDER BY i.created_date ASC;
+                ${whereClause}
+                ORDER BY i.ef_code ASC NULLS LAST, i.created_date ASC;
             `;
 
             const countQuery = `
                 SELECT COUNT(*)
                 FROM materials_emission_factor i
-                WHERE 1=1 ${whereClause};
+                ${whereClause};
             `;
 
             const totalCount = await client.query(countQuery, values);
@@ -302,121 +328,65 @@ export async function materialsEmissionFactorDataSetup(req: any, res: any) {
                     .send(generateResponse(false, "Invalid input array", 400, null));
             }
 
-            // ------------------------------------
-            // Build combined names
-            // ------------------------------------
-            const combinedNames = data.map(d =>
-                `${d.element_name} - ${d.element_type}`.toLowerCase()
-            );
-
-            // ------------------------------------
-            // Check duplicate combined names in payload
-            // ------------------------------------
-            const duplicatePayloadNames = combinedNames.filter(
-                (n, i) => combinedNames.indexOf(n) !== i
-            );
-
-            if (duplicatePayloadNames.length > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Duplicate element_name + element_type in payload", 400, null));
+            // Per-row required-field validation (Layer4, Region, EF Value, ef_code/ID)
+            for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+                const rowLabel = item.ef_code ? `row ${item.ef_code}` : `row index ${i}`;
+                if (!item.ef_code) {
+                    return res.status(400).send(
+                        generateResponse(false, `Missing ID (ef_code) in ${rowLabel}`, 400, null)
+                    );
+                }
+                if (!item.region) {
+                    return res.status(400).send(
+                        generateResponse(false, `Missing Region in ${rowLabel}`, 400, null)
+                    );
+                }
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    return res.status(400).send(
+                        generateResponse(false, `Missing EF Value in ${rowLabel}`, 400, null)
+                    );
+                }
             }
 
-            // ------------------------------------
-            // Validate element_name from material_composition_metals
-            // ------------------------------------
-            const elementNames = [...new Set(data.map(d => d.element_name))];
-
-            const metalsCheck = await client.query(
-                `SELECT name FROM material_composition_metals WHERE name = ANY($1)`,
-                [elementNames]
-            );
-
-            if (metalsCheck.rowCount !== elementNames.length) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid element_name (not found in material_composition_metals)", 400, null));
-            }
-
-            // ------------------------------------
-            // Validate element_type from material_composition_metal_type
-            // ------------------------------------
-            const elementTypes = [...new Set(data.map(d => d.element_type))];
-
-            const metalTypeCheck = await client.query(
-                `SELECT name FROM material_composition_metal_type WHERE name = ANY($1)`,
-                [elementTypes]
-            );
-
-            // Get existing names from DB
-            const existingTypes = metalTypeCheck.rows.map((r: any) => r.name);
-
-            // Find missing ones
-            const missingTypes = elementTypes.filter(
-                type => !existingTypes.includes(type)
-            );
-
-            if (missingTypes.length > 0) {
+            // Duplicate ef_code in payload
+            const efCodes = data.map((d: any) => d.ef_code);
+            const dupCodes = efCodes.filter((c: string, i: number) => efCodes.indexOf(c) !== i);
+            if (dupCodes.length > 0) {
                 return res.status(400).send(
-                    generateResponse(
-                        false,
-                        `Invalid element_type(s): ${missingTypes.join(", ")}`,
-                        400,
-                        null
-                    )
+                    generateResponse(false, `Duplicate ef_code in payload: ${[...new Set(dupCodes)].join(', ')}`, 400, null)
                 );
             }
 
-            // const elementTypes = [...new Set(data.map(d => d.element_type))];
-
-            // const metalTypeCheck = await client.query(
-            //     `SELECT name FROM material_composition_metal_type WHERE name = ANY($1)`,
-            //     [elementTypes]
-            // );
-
-            // if (metalTypeCheck.rowCount !== elementTypes.length) {
-            //     return res
-            //         .status(400)
-            //         .send(generateResponse(false, "Invalid element_type (not found in material_composition_metal_type)", 400, null));
-            // }
-
-            // ------------------------------------
-            // Check existing combined names in materials_emission_factor
-            // ------------------------------------
+            // Existing ef_codes in DB
             const existing = await client.query(
-                `SELECT element_name FROM materials_emission_factor WHERE LOWER(element_name) = ANY($1)`,
-                [combinedNames]
+                `SELECT ef_code FROM materials_emission_factor WHERE ef_code = ANY($1)`,
+                [efCodes]
             );
 
             if (existing.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Element already exists in materials_emission_factor", 400, null));
+                const existingCodes = existing.rows.map((r: any) => r.ef_code);
+                return res.status(400).send(
+                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
+                );
             }
 
-            // ------------------------------------
-            // Insert data
-            // ------------------------------------
-            const rows: any[] = [];
-            let nextNumber = await generateDynamicCode(client, 'MEF', 'materials_emission_factor');
-
-            for (const item of data) {
-                const code = formatCode('MEF', nextNumber++);
-                const combinedName = `${item.element_name} - ${item.element_type}`;
-
-                rows.push({
-                    mef_id: ulid(),
-                    code,
-                    element_name: combinedName,
-                    ef_eu_region: item.ef_eu_region,
-                    ef_india_region: item.ef_india_region,
-                    ef_global_region: item.ef_global_region,
-                    year: item.year,
-                    iso_country_code: item.iso_country_code,
-                    unit: item.unit,
-                    created_by: req.user_id
-                });
-            }
+            // Build rows
+            const rows = data.map((item: any) => ({
+                mef_id: ulid(),
+                ef_code: item.ef_code,
+                scope: item.scope || null,
+                layer1: item.layer1 || null,
+                layer2: item.layer2 || null,
+                layer3: item.layer3 || null,
+                layer4: item.layer4,
+                region: item.region,
+                year: item.year || null,
+                ef_value: item.ef_value,
+                unit: item.unit || null,
+                data_source: item.data_source || null,
+                created_by: req.user_id
+            }));
 
             const columns = Object.keys(rows[0]);
             const values: any[] = [];
@@ -515,55 +485,47 @@ export async function getMaterialsPlusMaterialTypeDropDownnList(_req: any, res: 
 export async function addElectricityEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const {
+                ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source
+            } = req.body;
 
-
-            const { type_of_energy, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
-
-            console.log(req.user_id, "user_id");
-
-            if (!type_of_energy) {
-                throw new Error("Type of energy is required");
+            if (!ef_code) throw new Error("EF code (Excel ID) is required");
+            if (!region) throw new Error("Region is required");
+            if (ef_value === undefined || ef_value === null || ef_value === '') {
+                throw new Error("EF Value is required");
             }
 
-            if (!ef_eu_region) {
-                throw new Error("Ef Eu region is required");
-            }
-
-            if (!ef_india_region) {
-                throw new Error("Ef India region is required");
-            }
-
-            if (!ef_global_region) {
-                throw new Error("Ef global region is required");
-            }
-
-
-
-            const checkName = await client.query(
-                `SELECT 1 FROM electricity_emission_factor WHERE type_of_energy ILIKE $1`,
-                [type_of_energy]
+            const dupCheck = await client.query(
+                `SELECT 1 FROM electricity_emission_factor WHERE ef_code = $1`,
+                [ef_code]
             );
-
-            if (checkName.rowCount > 0) {
+            if (dupCheck.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Type of energy already exists", 400, null));
+                    .send(generateResponse(false, `EF code '${ef_code}' already exists`, 400, null));
             }
 
             const id = ulid();
 
-
-            const nextNumber = await generateDynamicCode(client, 'FEF', 'electricity_emission_factor');
-
-            const code = formatCode('FEF', nextNumber);
-
             const query = `
-                INSERT INTO electricity_emission_factor (eef_id,type_of_energy,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year,unit,iso_country_code)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
+                INSERT INTO electricity_emission_factor (
+                    eef_id, ef_code, scope,
+                    layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source,
+                    created_by
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, type_of_energy, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
+            const result = await client.query(query, [
+                id, ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source,
+                req.user_id
+            ]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -575,61 +537,54 @@ export async function addElectricityEmissionFactor(req: any, res: any) {
 export async function updateElectricityEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-
-            console.log(req.user_id, "user_id");
-
             const updatingData = req.body;
             const updatedRows: any[] = [];
 
             for (const item of updatingData) {
-
-                if (!item.type_of_energy) {
-                    throw new Error("Type of energy is required");
+                if (!item.eef_id) throw new Error("eef_id is required");
+                if (!item.ef_code) throw new Error("EF code (Excel ID) is required");
+                if (!item.region) throw new Error("Region is required");
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    throw new Error("EF Value is required");
                 }
 
-
-                if (!item.ef_eu_region) {
-                    throw new Error("Ef Eu region is required");
-                }
-
-                if (!item.ef_india_region) {
-                    throw new Error("Ef India region is required");
-                }
-
-                if (!item.ef_global_region) {
-                    throw new Error("Ef global region is required");
-                }
-
-                const checkName = await client.query(
-                    `SELECT 1 
-                     FROM electricity_emission_factor 
-                     WHERE type_of_energy ILIKE $1 AND eef_id <> $2`,
-                    [item.type_of_energy, item.eef_id]
+                const dupCheck = await client.query(
+                    `SELECT 1
+                     FROM electricity_emission_factor
+                     WHERE ef_code = $1 AND eef_id <> $2`,
+                    [item.ef_code, item.eef_id]
                 );
 
-                if (checkName.rowCount > 0) {
+                if (dupCheck.rowCount > 0) {
                     return res
                         .status(400)
-                        .send(generateResponse(false, `Type of energy '${item.type_of_energy}' already exists`, 400, null));
+                        .send(generateResponse(false, `EF code '${item.ef_code}' already exists`, 400, null));
                 }
 
                 const query = `
-                    UPDATE electricity_emission_factor
-                    SET
-                    type_of_energy        = $2,
-                    ef_eu_region        = $3,
-                    ef_india_region     = $4,
-                    ef_global_region    = $5,
-                     updated_by          = $6,
-                     year =$7,
-                     unit=$8,
-                     iso_country_code=$9
-                     WHERE eef_id = $1
-                     RETURNING *;
-
+                    UPDATE electricity_emission_factor SET
+                        ef_code     = $2,
+                        scope       = $3,
+                        layer1      = $4,
+                        layer2      = $5,
+                        layer3      = $6,
+                        layer4      = $7,
+                        region      = $8,
+                        year        = $9,
+                        ef_value    = $10,
+                        unit        = $11,
+                        data_source = $12,
+                        updated_by  = $13
+                    WHERE eef_id = $1
+                    RETURNING *;
                 `;
 
-                const result = await client.query(query, [item.eef_id, item.type_of_energy, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
+                const result = await client.query(query, [
+                    item.eef_id, item.ef_code, item.scope,
+                    item.layer1, item.layer2, item.layer3, item.layer4,
+                    item.region, item.year, item.ef_value, item.unit, item.data_source,
+                    req.user_id
+                ]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -646,26 +601,41 @@ export async function updateElectricityEmissionFactor(req: any, res: any) {
 export async function getElectricityEmissionFactorListSearch(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { searchValue } = req.query;
-            let whereClause = '';
+            const { searchValue, region, year, layer1, layer2, layer3, layer4 } = req.query;
+            const filters: string[] = [];
             const values: any[] = [];
 
             if (searchValue) {
-                whereClause = `AND (i.code ILIKE $1 OR i.type_of_energy ILIKE $1)`;
                 values.push(`%${searchValue}%`);
+                const p = `$${values.length}`;
+                filters.push(`(
+                    i.ef_code ILIKE ${p}
+                    OR i.layer1 ILIKE ${p}
+                    OR i.layer2 ILIKE ${p}
+                    OR i.layer3 ILIKE ${p}
+                    OR i.layer4 ILIKE ${p}
+                )`);
             }
+            if (region) { values.push(region); filters.push(`i.region = $${values.length}`); }
+            if (year) { values.push(year); filters.push(`i.year = $${values.length}`); }
+            if (layer1) { values.push(layer1); filters.push(`i.layer1 = $${values.length}`); }
+            if (layer2) { values.push(layer2); filters.push(`i.layer2 = $${values.length}`); }
+            if (layer3) { values.push(layer3); filters.push(`i.layer3 = $${values.length}`); }
+            if (layer4) { values.push(layer4); filters.push(`i.layer4 = $${values.length}`); }
+
+            const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
             const listQuery = `
                 SELECT i.*
                 FROM electricity_emission_factor i
-                WHERE 1=1 ${whereClause}
-                ORDER BY i.created_date ASC;
+                ${whereClause}
+                ORDER BY i.ef_code ASC NULLS LAST, i.created_date ASC;
             `;
 
             const countQuery = `
                 SELECT COUNT(*)
                 FROM electricity_emission_factor i
-                WHERE 1=1 ${whereClause};
+                ${whereClause};
             `;
 
             const totalCount = await client.query(countQuery, values);
@@ -782,101 +752,55 @@ export async function electricityEmissionFactorDataSetup(req: any, res: any) {
                     .send(generateResponse(false, "Invalid input array", 400, null));
             }
 
-            // ------------------------------------
-            // Build combined names
-            // ------------------------------------
-            const combinedNames = data.map(d =>
-                `${d.type_of_energy} - ${d.treatment_type}`.toLowerCase()
-            );
-
-            // ------------------------------------
-            // Check duplicate combined names in payload
-            // ------------------------------------
-            const duplicatePayloadNames = combinedNames.filter(
-                (n, i) => combinedNames.indexOf(n) !== i
-            );
-
-            if (duplicatePayloadNames.length > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Duplicate type_of_energy + treatment_type in payload", 400, null));
+            for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+                const rowLabel = item.ef_code ? `row ${item.ef_code}` : `row index ${i}`;
+                if (!item.ef_code) {
+                    return res.status(400).send(generateResponse(false, `Missing ID (ef_code) in ${rowLabel}`, 400, null));
+                }
+                if (!item.region) {
+                    return res.status(400).send(generateResponse(false, `Missing Region in ${rowLabel}`, 400, null));
+                }
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    return res.status(400).send(generateResponse(false, `Missing EF Value in ${rowLabel}`, 400, null));
+                }
             }
 
-            // ------------------------------------
-            // Validate type_of_energy from energy_source
-            // ------------------------------------
-            const energySources = [...new Set(data.map(d => d.type_of_energy))];
-
-            const energySourceCheck = await client.query(
-                `SELECT name FROM energy_source WHERE name = ANY($1)`,
-                [energySources]
-            );
-
-            if (energySourceCheck.rowCount !== energySources.length) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid type_of_energy (not found in energy_source)", 400, null));
+            const efCodes = data.map((d: any) => d.ef_code);
+            const dupCodes = efCodes.filter((c: string, i: number) => efCodes.indexOf(c) !== i);
+            if (dupCodes.length > 0) {
+                return res.status(400).send(
+                    generateResponse(false, `Duplicate ef_code in payload: ${[...new Set(dupCodes)].join(', ')}`, 400, null)
+                );
             }
 
-            // ------------------------------------
-            // Validate treatment_type from energy_type
-            // ------------------------------------
-            const treatmentTypes = [...new Set(data.map(d => d.treatment_type))];
-
-            const treatmentTypeCheck = await client.query(
-                `SELECT name FROM energy_type WHERE name = ANY($1)`,
-                [treatmentTypes]
-            );
-
-            if (treatmentTypeCheck.rowCount !== treatmentTypes.length) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid treatment_type (not found in energy_type)", 400, null));
-            }
-
-            // ------------------------------------
-            // Check existing combined names in electricity_emission_factor
-            // ------------------------------------
             const existing = await client.query(
-                `SELECT type_of_energy 
-                 FROM electricity_emission_factor 
-                 WHERE LOWER(type_of_energy) = ANY($1)`,
-                [combinedNames]
+                `SELECT ef_code FROM electricity_emission_factor WHERE ef_code = ANY($1)`,
+                [efCodes]
             );
 
             if (existing.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Energy type already exists in electricity_emission_factor", 400, null));
+                const existingCodes = existing.rows.map((r: any) => r.ef_code);
+                return res.status(400).send(
+                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
+                );
             }
 
-            // ------------------------------------
-            // Insert records
-            // ------------------------------------
-            const rows: any[] = [];
-            let nextNumber = await generateDynamicCode(client, 'EEF', 'electricity_emission_factor');
-
-            for (const item of data) {
-                if (!item.type_of_energy || !item.treatment_type) {
-                    throw new Error("type_of_energy and treatment_type are required");
-                }
-
-                const code = formatCode('EEF', nextNumber++);
-                const combinedName = `${item.type_of_energy} - ${item.treatment_type}`;
-
-                rows.push({
-                    eef_id: ulid(),
-                    code,
-                    type_of_energy: combinedName,
-                    ef_eu_region: item.ef_eu_region,
-                    ef_india_region: item.ef_india_region,
-                    ef_global_region: item.ef_global_region,
-                    year: item.year,
-                    iso_country_code: item.iso_country_code,
-                    unit: item.unit,
-                    created_by: req.user_id
-                });
-            }
+            const rows = data.map((item: any) => ({
+                eef_id: ulid(),
+                ef_code: item.ef_code,
+                scope: item.scope || null,
+                layer1: item.layer1 || null,
+                layer2: item.layer2 || null,
+                layer3: item.layer3 || null,
+                layer4: item.layer4,
+                region: item.region,
+                year: item.year || null,
+                ef_value: item.ef_value,
+                unit: item.unit || null,
+                data_source: item.data_source || null,
+                created_by: req.user_id
+            }));
 
             const columns = Object.keys(rows[0]);
             const values: any[] = [];
@@ -971,59 +895,51 @@ export async function getEnergySourceEnergyTypeDropDownnList(_req: any, res: any
 }
 
 
-///Fuel Emission Factor  
+///Fuel Emission Factor
 export async function addFuelEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const {
+                ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source
+            } = req.body;
 
-
-            const { fuel_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
-
-            console.log(req.user_id, "user_id");
-
-            if (!fuel_type) {
-                throw new Error("Type of energy is required");
+            if (!ef_code) throw new Error("EF code (Excel ID) is required");
+            if (!region) throw new Error("Region is required");
+            if (ef_value === undefined || ef_value === null || ef_value === '') {
+                throw new Error("EF Value is required");
             }
 
-            if (!ef_eu_region) {
-                throw new Error("Ef Eu region is required");
-            }
-
-            if (!ef_india_region) {
-                throw new Error("Ef India region is required");
-            }
-
-            if (!ef_global_region) {
-                throw new Error("Ef global region is required");
-            }
-
-
-
-            const checkName = await client.query(
-                `SELECT 1 FROM fuel_emission_factor WHERE fuel_type ILIKE $1`,
-                [fuel_type]
+            const dupCheck = await client.query(
+                `SELECT 1 FROM fuel_emission_factor WHERE ef_code = $1`,
+                [ef_code]
             );
-
-            if (checkName.rowCount > 0) {
+            if (dupCheck.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Type of energy already exists", 400, null));
+                    .send(generateResponse(false, `EF code '${ef_code}' already exists`, 400, null));
             }
 
             const id = ulid();
 
-
-            const nextNumber = await generateDynamicCode(client, 'FEF', 'fuel_emission_factor');
-
-            const code = formatCode('FEF', nextNumber);
-
             const query = `
-                INSERT INTO fuel_emission_factor (fef_id,fuel_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year, unit, iso_country_code)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
+                INSERT INTO fuel_emission_factor (
+                    fef_id, ef_code, scope,
+                    layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source,
+                    created_by
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, fuel_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
+            const result = await client.query(query, [
+                id, ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source,
+                req.user_id
+            ]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -1035,61 +951,54 @@ export async function addFuelEmissionFactor(req: any, res: any) {
 export async function updateFuelEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-
-            console.log(req.user_id, "user_id");
-
             const updatingData = req.body;
             const updatedRows: any[] = [];
 
             for (const item of updatingData) {
-
-                if (!item.fuel_type) {
-                    throw new Error("Type of energy is required");
+                if (!item.fef_id) throw new Error("fef_id is required");
+                if (!item.ef_code) throw new Error("EF code (Excel ID) is required");
+                if (!item.region) throw new Error("Region is required");
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    throw new Error("EF Value is required");
                 }
 
-
-                if (!item.ef_eu_region) {
-                    throw new Error("Ef Eu region is required");
-                }
-
-                if (!item.ef_india_region) {
-                    throw new Error("Ef India region is required");
-                }
-
-                if (!item.ef_global_region) {
-                    throw new Error("Ef global region is required");
-                }
-
-                const checkName = await client.query(
-                    `SELECT 1 
-                     FROM fuel_emission_factor 
-                     WHERE fuel_type ILIKE $1 AND fef_id <> $2`,
-                    [item.fuel_type, item.fef_id]
+                const dupCheck = await client.query(
+                    `SELECT 1
+                     FROM fuel_emission_factor
+                     WHERE ef_code = $1 AND fef_id <> $2`,
+                    [item.ef_code, item.fef_id]
                 );
 
-                if (checkName.rowCount > 0) {
+                if (dupCheck.rowCount > 0) {
                     return res
                         .status(400)
-                        .send(generateResponse(false, `Type of energy '${item.fuel_type}' already exists`, 400, null));
+                        .send(generateResponse(false, `EF code '${item.ef_code}' already exists`, 400, null));
                 }
 
                 const query = `
-                    UPDATE fuel_emission_factor
-                    SET
-                    fuel_type        = $2,
-                    ef_eu_region        = $3,
-                    ef_india_region     = $4,
-                    ef_global_region    = $5,
-                    updated_by          = $6,
-                    year=$7,
-                    unit=$8,
-                    iso_country_code=$9
-                     WHERE fef_id = $1
-                     RETURNING *;
-
+                    UPDATE fuel_emission_factor SET
+                        ef_code     = $2,
+                        scope       = $3,
+                        layer1      = $4,
+                        layer2      = $5,
+                        layer3      = $6,
+                        layer4      = $7,
+                        region      = $8,
+                        year        = $9,
+                        ef_value    = $10,
+                        unit        = $11,
+                        data_source = $12,
+                        updated_by  = $13
+                    WHERE fef_id = $1
+                    RETURNING *;
                 `;
 
-                const result = await client.query(query, [item.fef_id, item.fuel_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
+                const result = await client.query(query, [
+                    item.fef_id, item.ef_code, item.scope,
+                    item.layer1, item.layer2, item.layer3, item.layer4,
+                    item.region, item.year, item.ef_value, item.unit, item.data_source,
+                    req.user_id
+                ]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -1106,26 +1015,41 @@ export async function updateFuelEmissionFactor(req: any, res: any) {
 export async function getFuelEmissionFactorListSearch(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { searchValue } = req.query;
-            let whereClause = '';
+            const { searchValue, region, year, layer1, layer2, layer3, layer4 } = req.query;
+            const filters: string[] = [];
             const values: any[] = [];
 
             if (searchValue) {
-                whereClause = `AND (i.code ILIKE $1 OR i.fuel_type ILIKE $1)`;
                 values.push(`%${searchValue}%`);
+                const p = `$${values.length}`;
+                filters.push(`(
+                    i.ef_code ILIKE ${p}
+                    OR i.layer1 ILIKE ${p}
+                    OR i.layer2 ILIKE ${p}
+                    OR i.layer3 ILIKE ${p}
+                    OR i.layer4 ILIKE ${p}
+                )`);
             }
+            if (region) { values.push(region); filters.push(`i.region = $${values.length}`); }
+            if (year) { values.push(year); filters.push(`i.year = $${values.length}`); }
+            if (layer1) { values.push(layer1); filters.push(`i.layer1 = $${values.length}`); }
+            if (layer2) { values.push(layer2); filters.push(`i.layer2 = $${values.length}`); }
+            if (layer3) { values.push(layer3); filters.push(`i.layer3 = $${values.length}`); }
+            if (layer4) { values.push(layer4); filters.push(`i.layer4 = $${values.length}`); }
+
+            const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
             const listQuery = `
                 SELECT i.*
                 FROM fuel_emission_factor i
-                WHERE 1=1 ${whereClause}
-                ORDER BY i.created_date ASC;
+                ${whereClause}
+                ORDER BY i.ef_code ASC NULLS LAST, i.created_date ASC;
             `;
 
             const countQuery = `
                 SELECT COUNT(*)
                 FROM fuel_emission_factor i
-                WHERE 1=1 ${whereClause};
+                ${whereClause};
             `;
 
             const totalCount = await client.query(countQuery, values);
@@ -1242,128 +1166,55 @@ export async function fuelEmissionFactorDataSetup(req: any, res: any) {
                     .send(generateResponse(false, "Invalid input array", 400, null));
             }
 
-            // ------------------------------------
-            // Build combined names
-            // ------------------------------------
-            const combinedNames = data.map(d =>
-                `${d.fuel_type} - ${d.sub_fuel_type}`.toLowerCase()
-            );
-
-            // ------------------------------------
-            // Check duplicate combined names in payload
-            // ------------------------------------
-            const duplicatePayloadNames = combinedNames.filter(
-                (n, i) => combinedNames.indexOf(n) !== i
-            );
-
-            if (duplicatePayloadNames.length > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Duplicate fuel_type + sub_fuel_type in payload", 400, null));
+            for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+                const rowLabel = item.ef_code ? `row ${item.ef_code}` : `row index ${i}`;
+                if (!item.ef_code) {
+                    return res.status(400).send(generateResponse(false, `Missing ID (ef_code) in ${rowLabel}`, 400, null));
+                }
+                if (!item.region) {
+                    return res.status(400).send(generateResponse(false, `Missing Region in ${rowLabel}`, 400, null));
+                }
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    return res.status(400).send(generateResponse(false, `Missing EF Value in ${rowLabel}`, 400, null));
+                }
             }
 
-            // ------------------------------------
-            // Validate fuel_type from fuel_types
-            // ------------------------------------
-            const fuelTypes = [...new Set(data.map(d => d.fuel_type))];
-
-            const fuelTypeCheck = await client.query(
-                `SELECT name FROM fuel_types WHERE name = ANY($1)`,
-                [fuelTypes]
-            );
-
-            if (fuelTypeCheck.rowCount !== fuelTypes.length) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Invalid fuel_type (not found in fuel_types)", 400, null));
-            }
-
-            // ------------------------------------
-            // Validate sub_fuel_type from sub_fuel_types
-            // ------------------------------------
-            const subFuelTypes = [...new Set(data.map(d => d.sub_fuel_type))];
-
-            const subFuelTypeCheck = await client.query(
-                `SELECT name FROM sub_fuel_types WHERE name = ANY($1)`,
-                [subFuelTypes]
-            );
-
-            // Existing names from DB
-            const existingSubFuelTypes = subFuelTypeCheck.rows.map((r: { name: string }) => r.name);
-
-            // Find missing ones
-            const missingSubFuelTypes = subFuelTypes.filter(
-                type => !existingSubFuelTypes.includes(type)
-            );
-
-            if (missingSubFuelTypes.length > 0) {
+            const efCodes = data.map((d: any) => d.ef_code);
+            const dupCodes = efCodes.filter((c: string, i: number) => efCodes.indexOf(c) !== i);
+            if (dupCodes.length > 0) {
                 return res.status(400).send(
-                    generateResponse(
-                        false,
-                        `Invalid sub_fuel_type(s): ${missingSubFuelTypes.join(", ")}`,
-                        400,
-                        null
-                    )
+                    generateResponse(false, `Duplicate ef_code in payload: ${[...new Set(dupCodes)].join(', ')}`, 400, null)
                 );
             }
 
-
-            // const subFuelTypes = [...new Set(data.map(d => d.sub_fuel_type))];
-
-            // const subFuelTypeCheck = await client.query(
-            //     `SELECT name FROM sub_fuel_types WHERE name = ANY($1)`,
-            //     [subFuelTypes]
-            // );
-
-            // if (subFuelTypeCheck.rowCount !== subFuelTypes.length) {
-            //     return res
-            //         .status(400)
-            //         .send(generateResponse(false, "Invalid sub_fuel_type (not found in sub_fuel_types)", 400, null));
-            // }
-
-            // ------------------------------------
-            // Check existing combined names in fuel_emission_factor
-            // ------------------------------------
             const existing = await client.query(
-                `SELECT fuel_type
-                 FROM fuel_emission_factor
-                 WHERE LOWER(fuel_type) = ANY($1)`,
-                [combinedNames]
+                `SELECT ef_code FROM fuel_emission_factor WHERE ef_code = ANY($1)`,
+                [efCodes]
             );
 
             if (existing.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Fuel emission factor already exists", 400, null));
+                const existingCodes = existing.rows.map((r: any) => r.ef_code);
+                return res.status(400).send(
+                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
+                );
             }
 
-            // ------------------------------------
-            // Insert records
-            // ------------------------------------
-            const rows: any[] = [];
-            let nextNumber = await generateDynamicCode(client, 'FEF', 'fuel_emission_factor');
-
-            for (const item of data) {
-                if (!item.fuel_type || !item.sub_fuel_type) {
-                    throw new Error("fuel_type and sub_fuel_type are required");
-                }
-
-                const code = formatCode('FEF', nextNumber++);
-                const combinedName = `${item.fuel_type} - ${item.sub_fuel_type}`;
-
-                rows.push({
-                    fef_id: ulid(),
-                    code,
-                    fuel_type: combinedName,
-                    ef_eu_region: item.ef_eu_region,
-                    ef_india_region: item.ef_india_region,
-                    ef_global_region: item.ef_global_region,
-                    year: item.year,
-                    iso_country_code: item.iso_country_code,
-                    unit: item.unit,
-                    created_by: req.user_id
-                });
-            }
+            const rows = data.map((item: any) => ({
+                fef_id: ulid(),
+                ef_code: item.ef_code,
+                scope: item.scope || null,
+                layer1: item.layer1 || null,
+                layer2: item.layer2 || null,
+                layer3: item.layer3 || null,
+                layer4: item.layer4,
+                region: item.region,
+                year: item.year || null,
+                ef_value: item.ef_value,
+                unit: item.unit || null,
+                data_source: item.data_source || null,
+                created_by: req.user_id
+            }));
 
             const columns = Object.keys(rows[0]);
             const values: any[] = [];
@@ -1658,72 +1509,44 @@ export async function addPackagingEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const {
-                material_type,
-                ptt_id,
-                ef_eu_region,
-                ef_india_region,
-                ef_global_region,
-                year,
-                unit,
-                iso_country_code
+                ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source
             } = req.body;
 
-            if (!material_type) throw new Error("material_type is required");
-            if (!ptt_id) throw new Error("ptt_id is required");
-            if (!ef_eu_region) throw new Error("ef_eu_region is required");
-            if (!ef_india_region) throw new Error("ef_india_region is required");
-            if (!ef_global_region) throw new Error("ef_global_region is required");
+            if (!ef_code) throw new Error("EF code (Excel ID) is required");
+            if (!region) throw new Error("Region is required");
+            if (ef_value === undefined || ef_value === null || ef_value === '') {
+                throw new Error("EF Value is required");
+            }
 
-            const check = await client.query(
-                `SELECT 1 
-                 FROM packaging_material_treatment_type_emission_factor 
-                 WHERE material_type ILIKE $1 AND ptt_id = $2`,
-                [material_type, ptt_id]
+            const dupCheck = await client.query(
+                `SELECT 1 FROM packaging_material_treatment_type_emission_factor WHERE ef_code = $1`,
+                [ef_code]
             );
-
-            if (check.rowCount > 0) {
+            if (dupCheck.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Combination already exists", 400, null));
+                    .send(generateResponse(false, `EF code '${ef_code}' already exists`, 400, null));
             }
 
             const pef_id = ulid();
-            const nextNumber = await generateDynamicCode(
-                client,
-                'PEF',
-                'packaging_material_treatment_type_emission_factor'
-            );
-            const code = formatCode('PEF', nextNumber);
 
             const insertQuery = `
                 INSERT INTO packaging_material_treatment_type_emission_factor (
-                    pef_id,
-                    material_type,
-                    ptt_id,
-                    ef_eu_region,
-                    ef_india_region,
-                    ef_global_region,
-                    year,
-                    unit,
-                    iso_country_code,
-                    code,
+                    pef_id, ef_code, scope,
+                    layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source,
                     created_by
                 )
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING *;
             `;
 
             const result = await client.query(insertQuery, [
-                pef_id,
-                material_type,
-                ptt_id,
-                ef_eu_region,
-                ef_india_region,
-                ef_global_region,
-                year,
-                unit,
-                iso_country_code,
-                code,
+                pef_id, ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source,
                 req.user_id
             ]);
 
@@ -1742,49 +1565,48 @@ export async function updatePackagingEmissionFactor(req: any, res: any) {
 
             for (const item of updatingData) {
                 if (!item.pef_id) throw new Error("pef_id is required");
+                if (!item.ef_code) throw new Error("EF code (Excel ID) is required");
+                if (!item.region) throw new Error("Region is required");
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    throw new Error("EF Value is required");
+                }
 
-                const duplicateCheck = await client.query(
+                const dupCheck = await client.query(
                     `SELECT 1
                      FROM packaging_material_treatment_type_emission_factor
-                     WHERE material_type ILIKE $1
-                       AND ptt_id = $2
-                       AND pef_id <> $3`,
-                    [item.material_type, item.ptt_id, item.pef_id]
+                     WHERE ef_code = $1 AND pef_id <> $2`,
+                    [item.ef_code, item.pef_id]
                 );
 
-                if (duplicateCheck.rowCount > 0) {
+                if (dupCheck.rowCount > 0) {
                     return res.status(400).send(
-                        generateResponse(false, "Combination already exists", 400, null)
+                        generateResponse(false, `EF code '${item.ef_code}' already exists`, 400, null)
                     );
                 }
 
                 const updateQuery = `
-                    UPDATE packaging_material_treatment_type_emission_factor
-                    SET
-                        material_type     = $2,
-                        ptt_id            = $3,
-                        ef_eu_region      = $4,
-                        ef_india_region   = $5,
-                        ef_global_region  = $6,
-                        year              = $7,
-                        unit              = $8,
-                        iso_country_code  = $9,
-                        updated_by        = $10,
-                        update_date       = CURRENT_TIMESTAMP
+                    UPDATE packaging_material_treatment_type_emission_factor SET
+                        ef_code     = $2,
+                        scope       = $3,
+                        layer1      = $4,
+                        layer2      = $5,
+                        layer3      = $6,
+                        layer4      = $7,
+                        region      = $8,
+                        year        = $9,
+                        ef_value    = $10,
+                        unit        = $11,
+                        data_source = $12,
+                        updated_by  = $13,
+                        update_date = CURRENT_TIMESTAMP
                     WHERE pef_id = $1
                     RETURNING *;
                 `;
 
                 const result = await client.query(updateQuery, [
-                    item.pef_id,
-                    item.material_type,
-                    item.ptt_id,
-                    item.ef_eu_region,
-                    item.ef_india_region,
-                    item.ef_global_region,
-                    item.year,
-                    item.unit,
-                    item.iso_country_code,
+                    item.pef_id, item.ef_code, item.scope,
+                    item.layer1, item.layer2, item.layer3, item.layer4,
+                    item.region, item.year, item.ef_value, item.unit, item.data_source,
                     req.user_id
                 ]);
 
@@ -1809,48 +1631,55 @@ export async function packagingEmissionFactorDataSetup(req: any, res: any) {
                 );
             }
 
-            const rows: any[] = [];
-            let nextNumber = await generateDynamicCode(
-                client,
-                'PEF',
-                'packaging_material_treatment_type_emission_factor'
+            for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+                const rowLabel = item.ef_code ? `row ${item.ef_code}` : `row index ${i}`;
+                if (!item.ef_code) {
+                    return res.status(400).send(generateResponse(false, `Missing ID (ef_code) in ${rowLabel}`, 400, null));
+                }
+                if (!item.region) {
+                    return res.status(400).send(generateResponse(false, `Missing Region in ${rowLabel}`, 400, null));
+                }
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    return res.status(400).send(generateResponse(false, `Missing EF Value in ${rowLabel}`, 400, null));
+                }
+            }
+
+            const efCodes = data.map((d: any) => d.ef_code);
+            const dupCodes = efCodes.filter((c: string, i: number) => efCodes.indexOf(c) !== i);
+            if (dupCodes.length > 0) {
+                return res.status(400).send(
+                    generateResponse(false, `Duplicate ef_code in payload: ${[...new Set(dupCodes)].join(', ')}`, 400, null)
+                );
+            }
+
+            const existing = await client.query(
+                `SELECT ef_code FROM packaging_material_treatment_type_emission_factor WHERE ef_code = ANY($1)`,
+                [efCodes]
             );
 
-            for (const item of data) {
-                if (!item.material_type) throw new Error("material_type is required");
-                if (!item.treatment_type_name) throw new Error("treatment_type_name is required");
-
-                // 🔹 Fetch ptt_id from name
-                const treatment = await client.query(
-                    `SELECT ptt_id 
-                     FROM packaging_treatment_type
-                     WHERE name ILIKE $1`,
-                    [item.treatment_type_name]
+            if (existing.rowCount > 0) {
+                const existingCodes = existing.rows.map((r: any) => r.ef_code);
+                return res.status(400).send(
+                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
                 );
-
-                if (treatment.rowCount === 0) {
-                    throw new Error(
-                        `Treatment type '${item.treatment_type_name}' not found`
-                    );
-                }
-
-                const ptt_id = treatment.rows[0].ptt_id;
-                const code = formatCode('PEF', nextNumber++);
-
-                rows.push({
-                    pef_id: ulid(),
-                    code,
-                    material_type: item.material_type,
-                    ptt_id,
-                    ef_eu_region: item.ef_eu_region,
-                    ef_india_region: item.ef_india_region,
-                    ef_global_region: item.ef_global_region,
-                    year: item.year,
-                    unit: item.unit,
-                    iso_country_code: item.iso_country_code,
-                    created_by: req.user_id
-                });
             }
+
+            const rows = data.map((item: any) => ({
+                pef_id: ulid(),
+                ef_code: item.ef_code,
+                scope: item.scope || null,
+                layer1: item.layer1 || null,
+                layer2: item.layer2 || null,
+                layer3: item.layer3 || null,
+                layer4: item.layer4,
+                region: item.region,
+                year: item.year || null,
+                ef_value: item.ef_value,
+                unit: item.unit || null,
+                data_source: item.data_source || null,
+                created_by: req.user_id
+            }));
 
             const columns = Object.keys(rows[0]);
             const values: any[] = [];
@@ -1885,39 +1714,40 @@ export async function packagingEmissionFactorDataSetup(req: any, res: any) {
 export async function getPackagingEmissionFactorListSearch(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { searchValue } = req.query;
+            const { searchValue, region, year, layer1, layer2, layer3, layer4 } = req.query;
+            const filters: string[] = [];
             const values: any[] = [];
-            let whereClause = '';
 
             if (searchValue) {
-                whereClause = `
-                    AND (
-                        pef.code ILIKE $1
-                        OR pef.material_type ILIKE $1
-                        OR ptt.treatment_type_name ILIKE $1
-                    )
-                `;
                 values.push(`%${searchValue}%`);
+                const p = `$${values.length}`;
+                filters.push(`(
+                    pef.ef_code ILIKE ${p}
+                    OR pef.layer1 ILIKE ${p}
+                    OR pef.layer2 ILIKE ${p}
+                    OR pef.layer3 ILIKE ${p}
+                    OR pef.layer4 ILIKE ${p}
+                )`);
             }
+            if (region) { values.push(region); filters.push(`pef.region = $${values.length}`); }
+            if (year) { values.push(year); filters.push(`pef.year = $${values.length}`); }
+            if (layer1) { values.push(layer1); filters.push(`pef.layer1 = $${values.length}`); }
+            if (layer2) { values.push(layer2); filters.push(`pef.layer2 = $${values.length}`); }
+            if (layer3) { values.push(layer3); filters.push(`pef.layer3 = $${values.length}`); }
+            if (layer4) { values.push(layer4); filters.push(`pef.layer4 = $${values.length}`); }
+
+            const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
             const listQuery = `
-                SELECT
-                    pef.*,
-                    ptt.name
+                SELECT pef.*
                 FROM packaging_material_treatment_type_emission_factor pef
-                LEFT JOIN packaging_treatment_type ptt
-                    ON ptt.ptt_id = pef.ptt_id
-                WHERE 1=1
                 ${whereClause}
-                ORDER BY pef.created_date DESC;
+                ORDER BY pef.ef_code ASC NULLS LAST, pef.created_date DESC;
             `;
 
             const countQuery = `
                 SELECT COUNT(*)
                 FROM packaging_material_treatment_type_emission_factor pef
-                LEFT JOIN packaging_treatment_type ptt
-                    ON ptt.ptt_id = pef.ptt_id
-                WHERE 1=1
                 ${whereClause};
             `;
 
@@ -2224,69 +2054,44 @@ export async function addWasteEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
             const {
-                waste_type,
-                wtt_id,
-                ef_eu_region,
-                ef_india_region,
-                ef_global_region,
-                year,
-                unit,
-                iso_country_code
+                ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source
             } = req.body;
 
-            if (!waste_type) throw new Error("waste_type is required");
-            if (!wtt_id) throw new Error("wtt_id is required");
+            if (!ef_code) throw new Error("EF code (Excel ID) is required");
+            if (!region) throw new Error("Region is required");
+            if (ef_value === undefined || ef_value === null || ef_value === '') {
+                throw new Error("EF Value is required");
+            }
 
-            const duplicate = await client.query(
-                `SELECT 1
-                 FROM waste_material_treatment_type_emission_factor
-                 WHERE waste_type ILIKE $1 AND wtt_id = $2`,
-                [waste_type, wtt_id]
+            const dupCheck = await client.query(
+                `SELECT 1 FROM waste_material_treatment_type_emission_factor WHERE ef_code = $1`,
+                [ef_code]
             );
-
-            if (duplicate.rowCount > 0) {
-                return res.status(400).send(
-                    generateResponse(false, "Combination already exists", 400, null)
-                );
+            if (dupCheck.rowCount > 0) {
+                return res
+                    .status(400)
+                    .send(generateResponse(false, `EF code '${ef_code}' already exists`, 400, null));
             }
 
             const wmttef_id = ulid();
-            const nextNumber = await generateDynamicCode(
-                client,
-                'WMTTEF',
-                'waste_material_treatment_type_emission_factor'
-            );
-            const code = formatCode('WMTTEF', nextNumber);
 
             const query = `
                 INSERT INTO waste_material_treatment_type_emission_factor (
-                    wmttef_id,
-                    waste_type,
-                    wtt_id,
-                    ef_eu_region,
-                    ef_india_region,
-                    ef_global_region,
-                    year,
-                    unit,
-                    iso_country_code,
-                    code,
+                    wmttef_id, ef_code, scope,
+                    layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source,
                     created_by
                 )
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING *;
             `;
 
             const result = await client.query(query, [
-                wmttef_id,
-                waste_type,
-                wtt_id,
-                ef_eu_region,
-                ef_india_region,
-                ef_global_region,
-                year,
-                unit,
-                iso_country_code,
-                code,
+                wmttef_id, ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source,
                 req.user_id
             ]);
 
@@ -2305,49 +2110,48 @@ export async function updateWasteEmissionFactor(req: any, res: any) {
 
             for (const item of data) {
                 if (!item.wmttef_id) throw new Error("wmttef_id is required");
+                if (!item.ef_code) throw new Error("EF code (Excel ID) is required");
+                if (!item.region) throw new Error("Region is required");
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    throw new Error("EF Value is required");
+                }
 
-                const duplicate = await client.query(
+                const dupCheck = await client.query(
                     `SELECT 1
                      FROM waste_material_treatment_type_emission_factor
-                     WHERE waste_type ILIKE $1
-                       AND wtt_id = $2
-                       AND wmttef_id <> $3`,
-                    [item.waste_type, item.wtt_id, item.wmttef_id]
+                     WHERE ef_code = $1 AND wmttef_id <> $2`,
+                    [item.ef_code, item.wmttef_id]
                 );
 
-                if (duplicate.rowCount > 0) {
+                if (dupCheck.rowCount > 0) {
                     return res.status(400).send(
-                        generateResponse(false, "Combination already exists", 400, null)
+                        generateResponse(false, `EF code '${item.ef_code}' already exists`, 400, null)
                     );
                 }
 
                 const query = `
-                    UPDATE waste_material_treatment_type_emission_factor
-                    SET
-                        waste_type        = $2,
-                        wtt_id            = $3,
-                        ef_eu_region      = $4,
-                        ef_india_region   = $5,
-                        ef_global_region  = $6,
-                        year              = $7,
-                        unit              = $8,
-                        iso_country_code  = $9,
-                        updated_by        = $10,
-                        update_date       = CURRENT_TIMESTAMP
+                    UPDATE waste_material_treatment_type_emission_factor SET
+                        ef_code     = $2,
+                        scope       = $3,
+                        layer1      = $4,
+                        layer2      = $5,
+                        layer3      = $6,
+                        layer4      = $7,
+                        region      = $8,
+                        year        = $9,
+                        ef_value    = $10,
+                        unit        = $11,
+                        data_source = $12,
+                        updated_by  = $13,
+                        update_date = CURRENT_TIMESTAMP
                     WHERE wmttef_id = $1
                     RETURNING *;
                 `;
 
                 const result = await client.query(query, [
-                    item.wmttef_id,
-                    item.waste_type,
-                    item.wtt_id,
-                    item.ef_eu_region,
-                    item.ef_india_region,
-                    item.ef_global_region,
-                    item.year,
-                    item.unit,
-                    item.iso_country_code,
+                    item.wmttef_id, item.ef_code, item.scope,
+                    item.layer1, item.layer2, item.layer3, item.layer4,
+                    item.region, item.year, item.ef_value, item.unit, item.data_source,
                     req.user_id
                 ]);
 
@@ -2372,48 +2176,55 @@ export async function wasteEmissionFactorDataSetup(req: any, res: any) {
                 );
             }
 
-            const rows: any[] = [];
-            let nextNumber = await generateDynamicCode(
-                client,
-                'WMTTEF',
-                'waste_material_treatment_type_emission_factor'
+            for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+                const rowLabel = item.ef_code ? `row ${item.ef_code}` : `row index ${i}`;
+                if (!item.ef_code) {
+                    return res.status(400).send(generateResponse(false, `Missing ID (ef_code) in ${rowLabel}`, 400, null));
+                }
+                if (!item.region) {
+                    return res.status(400).send(generateResponse(false, `Missing Region in ${rowLabel}`, 400, null));
+                }
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    return res.status(400).send(generateResponse(false, `Missing EF Value in ${rowLabel}`, 400, null));
+                }
+            }
+
+            const efCodes = data.map((d: any) => d.ef_code);
+            const dupCodes = efCodes.filter((c: string, i: number) => efCodes.indexOf(c) !== i);
+            if (dupCodes.length > 0) {
+                return res.status(400).send(
+                    generateResponse(false, `Duplicate ef_code in payload: ${[...new Set(dupCodes)].join(', ')}`, 400, null)
+                );
+            }
+
+            const existing = await client.query(
+                `SELECT ef_code FROM waste_material_treatment_type_emission_factor WHERE ef_code = ANY($1)`,
+                [efCodes]
             );
 
-            for (const item of data) {
-                if (!item.waste_type) throw new Error("waste_type is required");
-                if (!item.treatment_type_name)
-                    throw new Error("treatment_type_name is required");
-
-                const treatment = await client.query(
-                    `SELECT wtt_id
-                     FROM waste_treatment_type
-                     WHERE name ILIKE $1`,
-                    [item.treatment_type_name]
+            if (existing.rowCount > 0) {
+                const existingCodes = existing.rows.map((r: any) => r.ef_code);
+                return res.status(400).send(
+                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
                 );
-
-                if (treatment.rowCount === 0) {
-                    throw new Error(
-                        `Waste Treatment type '${item.treatment_type_name}' not found`
-                    );
-                }
-
-                const code = formatCode('WMTTEF', nextNumber++);
-                const wtt_id = treatment.rows[0].wtt_id;
-
-                rows.push({
-                    wmttef_id: ulid(),
-                    code,
-                    waste_type: item.waste_type,
-                    wtt_id,
-                    ef_eu_region: item.ef_eu_region,
-                    ef_india_region: item.ef_india_region,
-                    ef_global_region: item.ef_global_region,
-                    year: item.year,
-                    unit: item.unit,
-                    iso_country_code: item.iso_country_code,
-                    created_by: req.user_id
-                });
             }
+
+            const rows = data.map((item: any) => ({
+                wmttef_id: ulid(),
+                ef_code: item.ef_code,
+                scope: item.scope || null,
+                layer1: item.layer1 || null,
+                layer2: item.layer2 || null,
+                layer3: item.layer3 || null,
+                layer4: item.layer4,
+                region: item.region,
+                year: item.year || null,
+                ef_value: item.ef_value,
+                unit: item.unit || null,
+                data_source: item.data_source || null,
+                created_by: req.user_id
+            }));
 
             const columns = Object.keys(rows[0]);
             const values: any[] = [];
@@ -2448,39 +2259,40 @@ export async function wasteEmissionFactorDataSetup(req: any, res: any) {
 export async function getWasteEmissionFactorListSearch(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { searchValue } = req.query;
+            const { searchValue, region, year, layer1, layer2, layer3, layer4 } = req.query;
+            const filters: string[] = [];
             const values: any[] = [];
-            let whereClause = '';
 
             if (searchValue) {
-                whereClause = `
-                    AND (
-                        w.code ILIKE $1
-                        OR w.waste_type ILIKE $1
-                        OR wt.name ILIKE $1
-                    )
-                `;
                 values.push(`%${searchValue}%`);
+                const p = `$${values.length}`;
+                filters.push(`(
+                    w.ef_code ILIKE ${p}
+                    OR w.layer1 ILIKE ${p}
+                    OR w.layer2 ILIKE ${p}
+                    OR w.layer3 ILIKE ${p}
+                    OR w.layer4 ILIKE ${p}
+                )`);
             }
+            if (region) { values.push(region); filters.push(`w.region = $${values.length}`); }
+            if (year) { values.push(year); filters.push(`w.year = $${values.length}`); }
+            if (layer1) { values.push(layer1); filters.push(`w.layer1 = $${values.length}`); }
+            if (layer2) { values.push(layer2); filters.push(`w.layer2 = $${values.length}`); }
+            if (layer3) { values.push(layer3); filters.push(`w.layer3 = $${values.length}`); }
+            if (layer4) { values.push(layer4); filters.push(`w.layer4 = $${values.length}`); }
+
+            const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
             const listQuery = `
-                SELECT
-                    w.*,
-                    wt.name
+                SELECT w.*
                 FROM waste_material_treatment_type_emission_factor w
-                LEFT JOIN waste_treatment_type wt
-                    ON wt.wtt_id = w.wtt_id
-                WHERE 1=1
                 ${whereClause}
-                ORDER BY w.created_date DESC;
+                ORDER BY w.ef_code ASC NULLS LAST, w.created_date DESC;
             `;
 
             const countQuery = `
                 SELECT COUNT(*)
                 FROM waste_material_treatment_type_emission_factor w
-                LEFT JOIN waste_treatment_type wt
-                    ON wt.wtt_id = w.wtt_id
-                WHERE 1=1
                 ${whereClause};
             `;
 
@@ -2576,55 +2388,47 @@ export async function deleteWasteEmissionFactor(req: any, res: any) {
 export async function addVehicleTypeEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
+            const {
+                ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source
+            } = req.body;
 
-
-            const { vehicle_type, ef_eu_region, ef_india_region, ef_global_region, year, unit, iso_country_code } = req.body;
-
-            console.log(req.user_id, "user_id");
-
-            if (!vehicle_type) {
-                throw new Error("Type of energy is required");
+            if (!ef_code) throw new Error("EF code (Excel ID) is required");
+            if (!region) throw new Error("Region is required");
+            if (ef_value === undefined || ef_value === null || ef_value === '') {
+                throw new Error("EF Value is required");
             }
 
-            if (!ef_eu_region) {
-                throw new Error("Ef Eu region is required");
-            }
-
-            if (!ef_india_region) {
-                throw new Error("Ef India region is required");
-            }
-
-            if (!ef_global_region) {
-                throw new Error("Ef global region is required");
-            }
-
-
-
-            const checkName = await client.query(
-                `SELECT 1 FROM vehicle_type_emission_factor WHERE vehicle_type ILIKE $1`,
-                [vehicle_type]
+            const dupCheck = await client.query(
+                `SELECT 1 FROM vehicle_type_emission_factor WHERE ef_code = $1`,
+                [ef_code]
             );
-
-            if (checkName.rowCount > 0) {
+            if (dupCheck.rowCount > 0) {
                 return res
                     .status(400)
-                    .send(generateResponse(false, "Type of energy already exists", 400, null));
+                    .send(generateResponse(false, `EF code '${ef_code}' already exists`, 400, null));
             }
 
             const id = ulid();
 
-
-            const nextNumber = await generateDynamicCode(client, 'VTEF', 'vehicle_type_emission_factor');
-
-            const code = formatCode('VTEF', nextNumber);
-
             const query = `
-                INSERT INTO vehicle_type_emission_factor (wtef_id,vehicle_type,ef_eu_region,ef_india_region,ef_global_region,code, created_by,year, unit, iso_country_code)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8,$9,$10)
+                INSERT INTO vehicle_type_emission_factor (
+                    wtef_id, ef_code, scope,
+                    layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source,
+                    created_by
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING *;
             `;
 
-            const result = await client.query(query, [id, vehicle_type, ef_eu_region, ef_india_region, ef_global_region, code, req.user_id, year, unit, iso_country_code]);
+            const result = await client.query(query, [
+                id, ef_code, scope,
+                layer1, layer2, layer3, layer4,
+                region, year, ef_value, unit, data_source,
+                req.user_id
+            ]);
 
             return res.send(generateResponse(true, "Added successfully", 200, result.rows[0]));
         } catch (error: any) {
@@ -2636,61 +2440,54 @@ export async function addVehicleTypeEmissionFactor(req: any, res: any) {
 export async function updateVehicleTypeEmissionFactor(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-
-            console.log(req.user_id, "user_id");
-
             const updatingData = req.body;
             const updatedRows: any[] = [];
 
             for (const item of updatingData) {
-
-                if (!item.vehicle_type) {
-                    throw new Error("Type of energy is required");
+                if (!item.wtef_id) throw new Error("wtef_id is required");
+                if (!item.ef_code) throw new Error("EF code (Excel ID) is required");
+                if (!item.region) throw new Error("Region is required");
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    throw new Error("EF Value is required");
                 }
 
-
-                if (!item.ef_eu_region) {
-                    throw new Error("Ef Eu region is required");
-                }
-
-                if (!item.ef_india_region) {
-                    throw new Error("Ef India region is required");
-                }
-
-                if (!item.ef_global_region) {
-                    throw new Error("Ef global region is required");
-                }
-
-                const checkName = await client.query(
-                    `SELECT 1 
-                     FROM vehicle_type_emission_factor 
-                     WHERE vehicle_type ILIKE $1 AND wtef_id <> $2`,
-                    [item.vehicle_type, item.wtef_id]
+                const dupCheck = await client.query(
+                    `SELECT 1
+                     FROM vehicle_type_emission_factor
+                     WHERE ef_code = $1 AND wtef_id <> $2`,
+                    [item.ef_code, item.wtef_id]
                 );
 
-                if (checkName.rowCount > 0) {
+                if (dupCheck.rowCount > 0) {
                     return res
                         .status(400)
-                        .send(generateResponse(false, `Type of energy '${item.vehicle_type}' already exists`, 400, null));
+                        .send(generateResponse(false, `EF code '${item.ef_code}' already exists`, 400, null));
                 }
 
                 const query = `
-                    UPDATE vehicle_type_emission_factor
-                    SET
-                    vehicle_type        = $2,
-                    ef_eu_region        = $3,
-                    ef_india_region     = $4,
-                    ef_global_region    = $5,
-                     updated_by          = $6,
-                     year=$7,
-                    unit=$8,
-                    iso_country_code=$9
-                     WHERE wtef_id = $1
-                     RETURNING *;
-
+                    UPDATE vehicle_type_emission_factor SET
+                        ef_code     = $2,
+                        scope       = $3,
+                        layer1      = $4,
+                        layer2      = $5,
+                        layer3      = $6,
+                        layer4      = $7,
+                        region      = $8,
+                        year        = $9,
+                        ef_value    = $10,
+                        unit        = $11,
+                        data_source = $12,
+                        updated_by  = $13
+                    WHERE wtef_id = $1
+                    RETURNING *;
                 `;
 
-                const result = await client.query(query, [item.wtef_id, item.vehicle_type, item.ef_eu_region, item.ef_india_region, item.ef_global_region, req.user_id, item.year, item.unit, item.iso_country_code]);
+                const result = await client.query(query, [
+                    item.wtef_id, item.ef_code, item.scope,
+                    item.layer1, item.layer2, item.layer3, item.layer4,
+                    item.region, item.year, item.ef_value, item.unit, item.data_source,
+                    req.user_id
+                ]);
 
                 if (result.rows.length > 0) {
                     updatedRows.push(result.rows[0]);
@@ -2707,26 +2504,41 @@ export async function updateVehicleTypeEmissionFactor(req: any, res: any) {
 export async function getVehicleTypeEmissionFactorListSearch(req: any, res: any) {
     return withClient(async (client: any) => {
         try {
-            const { searchValue } = req.query;
-            let whereClause = '';
+            const { searchValue, region, year, layer1, layer2, layer3, layer4 } = req.query;
+            const filters: string[] = [];
             const values: any[] = [];
 
             if (searchValue) {
-                whereClause = `AND (i.code ILIKE $1 OR i.vehicle_type ILIKE $1)`;
                 values.push(`%${searchValue}%`);
+                const p = `$${values.length}`;
+                filters.push(`(
+                    i.ef_code ILIKE ${p}
+                    OR i.layer1 ILIKE ${p}
+                    OR i.layer2 ILIKE ${p}
+                    OR i.layer3 ILIKE ${p}
+                    OR i.layer4 ILIKE ${p}
+                )`);
             }
+            if (region) { values.push(region); filters.push(`i.region = $${values.length}`); }
+            if (year) { values.push(year); filters.push(`i.year = $${values.length}`); }
+            if (layer1) { values.push(layer1); filters.push(`i.layer1 = $${values.length}`); }
+            if (layer2) { values.push(layer2); filters.push(`i.layer2 = $${values.length}`); }
+            if (layer3) { values.push(layer3); filters.push(`i.layer3 = $${values.length}`); }
+            if (layer4) { values.push(layer4); filters.push(`i.layer4 = $${values.length}`); }
+
+            const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
             const listQuery = `
                 SELECT i.*
                 FROM vehicle_type_emission_factor i
-                WHERE 1=1 ${whereClause}
-                ORDER BY i.created_date ASC;
+                ${whereClause}
+                ORDER BY i.ef_code ASC NULLS LAST, i.created_date ASC;
             `;
 
             const countQuery = `
                 SELECT COUNT(*)
                 FROM vehicle_type_emission_factor i
-                WHERE 1=1 ${whereClause};
+                ${whereClause};
             `;
 
             const totalCount = await client.query(countQuery, values);
@@ -2753,77 +2565,55 @@ export async function vehicleTypeEmissionFactorDataSetup(req: any, res: any) {
                     .send(generateResponse(false, "Invalid input array", 400, null));
             }
 
-            // Check duplicate names inside payload
-            const names = data.map(d => d.vehicle_type.toLowerCase());
-            const duplicatePayloadNames = names.filter(
-                (n, i) => names.indexOf(n) !== i
-            );
-
-            if (duplicatePayloadNames.length > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "Duplicate names in payload", 400, null));
+            for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+                const rowLabel = item.ef_code ? `row ${item.ef_code}` : `row index ${i}`;
+                if (!item.ef_code) {
+                    return res.status(400).send(generateResponse(false, `Missing ID (ef_code) in ${rowLabel}`, 400, null));
+                }
+                if (!item.region) {
+                    return res.status(400).send(generateResponse(false, `Missing Region in ${rowLabel}`, 400, null));
+                }
+                if (item.ef_value === undefined || item.ef_value === null || item.ef_value === '') {
+                    return res.status(400).send(generateResponse(false, `Missing EF Value in ${rowLabel}`, 400, null));
+                }
             }
 
-            // ------------------------------------
-            // Validate vehicle_type from vehicle_types table
-            // ------------------------------------
-            const vehicleTypes = [...new Set(data.map(d => d.vehicle_type))];
-
-            const vehicleTypeCheck = await client.query(
-                `SELECT name FROM vehicle_types WHERE name = ANY($1)`,
-                [vehicleTypes]
-            );
-
-            if (vehicleTypeCheck.rowCount !== vehicleTypes.length) {
-                return res
-                    .status(400)
-                    .send(generateResponse(
-                        false,
-                        "Invalid vehicle_type (not found in vehicle_types)",
-                        400,
-                        null
-                    ));
+            const efCodes = data.map((d: any) => d.ef_code);
+            const dupCodes = efCodes.filter((c: string, i: number) => efCodes.indexOf(c) !== i);
+            if (dupCodes.length > 0) {
+                return res.status(400).send(
+                    generateResponse(false, `Duplicate ef_code in payload: ${[...new Set(dupCodes)].join(', ')}`, 400, null)
+                );
             }
 
-            // Check existing names in DB
             const existing = await client.query(
-                `SELECT vehicle_type FROM vehicle_type_emission_factor WHERE vehicle_type ILIKE ANY($1)`,
-                [names]
+                `SELECT ef_code FROM vehicle_type_emission_factor WHERE ef_code = ANY($1)`,
+                [efCodes]
             );
 
             if (existing.rowCount > 0) {
-                return res
-                    .status(400)
-                    .send(generateResponse(false, "One or more names already exist", 400, null));
+                const existingCodes = existing.rows.map((r: any) => r.ef_code);
+                return res.status(400).send(
+                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
+                );
             }
 
-            const rows: any[] = [];
-
-            let nextNumber = await generateDynamicCode(client, 'VTEF', 'vehicle_type_emission_factor');
-
-            for (const item of data) {
-
-                if (!item.vehicle_type) {
-                    throw new Error("vehicle_type is required");
-                }
-
-                const code = formatCode('VTEF', nextNumber);
-                nextNumber++;
-
-                rows.push({
-                    wtef_id: ulid(),
-                    code: code,
-                    vehicle_type: item.vehicle_type,
-                    ef_eu_region: item.ef_eu_region,
-                    ef_india_region: item.ef_india_region,
-                    ef_global_region: item.ef_global_region,
-                    created_by: req.user_id,
-                    year: item.year,
-                    iso_country_code: item.iso_country_code,
-                    unit: item.unit
-                });
-            }
+            const rows = data.map((item: any) => ({
+                wtef_id: ulid(),
+                ef_code: item.ef_code,
+                scope: item.scope || null,
+                layer1: item.layer1 || null,
+                layer2: item.layer2 || null,
+                layer3: item.layer3 || null,
+                layer4: item.layer4,
+                region: item.region,
+                year: item.year || null,
+                ef_value: item.ef_value,
+                unit: item.unit || null,
+                data_source: item.data_source || null,
+                created_by: req.user_id
+            }));
 
             const columns = Object.keys(rows[0]);
             const values: any[] = [];
@@ -2888,4 +2678,299 @@ export async function getVehicleTypeEmissionFactorDropDownnList(_req: any, res: 
             return res.send(generateResponse(false, error.message, 400, null));
         }
     });
+}
+
+// ============================================================
+// Unified Categorized Emission Factor endpoints.
+// One router handles all 6 EF types via `ef_group` param/body field.
+// Used by the new frontend EF setup pages AND by the supplier
+// questionnaire layer cascade. The list endpoint is intentionally
+// public — unauthenticated supplier links must read the rows.
+// ============================================================
+
+type EfGroup = "materials" | "electricity" | "fuel" | "packaging" | "vehicle" | "waste";
+
+interface EfGroupConfig {
+    table: string;
+    pk: string;
+}
+
+const EF_GROUP_CONFIG: Record<EfGroup, EfGroupConfig> = {
+    materials:   { table: "materials_emission_factor",                         pk: "mef_id"    },
+    electricity: { table: "electricity_emission_factor",                       pk: "eef_id"    },
+    fuel:        { table: "fuel_emission_factor",                              pk: "fef_id"    },
+    packaging:   { table: "packaging_material_treatment_type_emission_factor", pk: "pef_id"    },
+    vehicle:     { table: "vehicle_type_emission_factor",                      pk: "wtef_id"   },
+    waste:       { table: "waste_material_treatment_type_emission_factor",     pk: "wmttef_id" },
+};
+
+function resolveGroup(ef_group: any): EfGroupConfig | null {
+    if (typeof ef_group !== "string") return null;
+    const key = ef_group.toLowerCase() as EfGroup;
+    return EF_GROUP_CONFIG[key] || null;
+}
+
+function toCategorizedRow(ef_group: string, row: any): Record<string, any> {
+    return {
+        ef_group,
+        ef_id: row.ef_code ?? null,
+        scope: row.scope ?? null,
+        layer1: row.layer1 ?? null,
+        layer2: row.layer2 ?? null,
+        layer3: row.layer3 ?? null,
+        layer4: row.layer4 ?? null,
+        region: row.region ?? null,
+        year: row.year != null ? String(row.year) : null,
+        ef_value: row.ef_value != null ? String(row.ef_value) : null,
+        unit: row.unit ?? null,
+        data_source: row.data_source ?? null,
+        category: null,
+    };
+}
+
+// GET /list?ef_group=materials  — PUBLIC (no auth, supplier link uses it)
+export async function listCategorizedEmissionFactors(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const cfg = resolveGroup(req.query?.ef_group);
+            if (!cfg) {
+                return res.status(400).send(
+                    generateResponse(false, "Invalid or missing ef_group", 400, null)
+                );
+            }
+            const result = await client.query(
+                `SELECT ef_code, scope, layer1, layer2, layer3, layer4,
+                        region, year, ef_value, unit, data_source
+                 FROM ${cfg.table}
+                 WHERE ef_code IS NOT NULL
+                 ORDER BY ef_code ASC;`
+            );
+            const rows = result.rows.map((r: any) => toCategorizedRow(req.query.ef_group, r));
+            return res.send(generateResponse(true, "List fetched", 200, rows));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+export async function addCategorizedEmissionFactor(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { ef_group, ef_id, scope, layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source } = req.body || {};
+            const cfg = resolveGroup(ef_group);
+            if (!cfg) throw new Error("Invalid or missing ef_group");
+            if (!ef_id) throw new Error("ef_id is required");
+            if (!region) throw new Error("region is required");
+            if (ef_value === undefined || ef_value === null || ef_value === "") {
+                throw new Error("ef_value is required");
+            }
+
+            const dup = await client.query(
+                `SELECT 1 FROM ${cfg.table} WHERE ef_code = $1`,
+                [ef_id]
+            );
+            if (dup.rowCount > 0) {
+                return res.status(400).send(
+                    generateResponse(false, `ef_id '${ef_id}' already exists`, 400, null)
+                );
+            }
+
+            const insertSql = `
+                INSERT INTO ${cfg.table} (
+                    ${cfg.pk}, ef_code, scope,
+                    layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source,
+                    created_by
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                RETURNING *;
+            `;
+            const result = await client.query(insertSql, [
+                ulid(), ef_id, scope || null,
+                layer1 || null, layer2 || null, layer3 || null, layer4 || null,
+                region, year || null, ef_value, unit || null, data_source || null,
+                req.user_id || null,
+            ]);
+            return res.send(generateResponse(true, "Added", 200, toCategorizedRow(ef_group, result.rows[0])));
+        } catch (error: any) {
+            return res.status(400).send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function updateCategorizedEmissionFactor(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { ef_group, ef_id, scope, layer1, layer2, layer3, layer4,
+                    region, year, ef_value, unit, data_source } = req.body || {};
+            const cfg = resolveGroup(ef_group);
+            if (!cfg) throw new Error("Invalid or missing ef_group");
+            if (!ef_id) throw new Error("ef_id is required");
+
+            const updateSql = `
+                UPDATE ${cfg.table} SET
+                    scope       = $2,
+                    layer1      = $3,
+                    layer2      = $4,
+                    layer3      = $5,
+                    layer4      = $6,
+                    region      = $7,
+                    year        = $8,
+                    ef_value    = $9,
+                    unit        = $10,
+                    data_source = $11,
+                    updated_by  = $12,
+                    update_date = CURRENT_TIMESTAMP
+                WHERE ef_code = $1
+                RETURNING *;
+            `;
+            const result = await client.query(updateSql, [
+                ef_id, scope || null,
+                layer1 || null, layer2 || null, layer3 || null, layer4 || null,
+                region || null, year || null, ef_value ?? null, unit || null, data_source || null,
+                req.user_id || null,
+            ]);
+            if (result.rowCount === 0) {
+                return res.status(404).send(generateResponse(false, `ef_id '${ef_id}' not found`, 404, null));
+            }
+            return res.send(generateResponse(true, "Updated", 200, toCategorizedRow(ef_group, result.rows[0])));
+        } catch (error: any) {
+            return res.status(400).send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function deleteCategorizedEmissionFactor(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { ef_group, ef_id } = req.body || {};
+            const cfg = resolveGroup(ef_group);
+            if (!cfg) throw new Error("Invalid or missing ef_group");
+            if (!ef_id) throw new Error("ef_id is required");
+            await client.query(`DELETE FROM ${cfg.table} WHERE ef_code = $1`, [ef_id]);
+            return res.send(generateResponse(true, "Deleted", 200, null));
+        } catch (error: any) {
+            return res.status(400).send(generateResponse(false, error.message, 400, null));
+        }
+    });
+}
+
+export async function bulkAddCategorizedEmissionFactor(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const { ef_group, rows } = req.body || {};
+            const cfg = resolveGroup(ef_group);
+            if (!cfg) throw new Error("Invalid or missing ef_group");
+            if (!Array.isArray(rows) || rows.length === 0) {
+                return res.status(400).send(generateResponse(false, "rows array is required", 400, null));
+            }
+
+            const efIds = rows.map((r: any) => r.ef_id).filter(Boolean);
+            const existing = await client.query(
+                `SELECT ef_code FROM ${cfg.table} WHERE ef_code = ANY($1)`,
+                [efIds]
+            );
+            if (existing.rowCount > 0) {
+                const existingCodes = existing.rows.map((r: any) => r.ef_code);
+                return res.status(400).send(
+                    generateResponse(false, `ef_id(s) already exist: ${existingCodes.join(", ")}`, 400, null)
+                );
+            }
+
+            const built = rows.map((item: any) => ({
+                [cfg.pk]: ulid(),
+                ef_code: item.ef_id,
+                scope: item.scope || null,
+                layer1: item.layer1 || null,
+                layer2: item.layer2 || null,
+                layer3: item.layer3 || null,
+                layer4: item.layer4 || null,
+                region: item.region,
+                year: item.year || null,
+                ef_value: item.ef_value,
+                unit: item.unit || null,
+                data_source: item.data_source || null,
+                created_by: req.user_id || null,
+            }));
+
+            const columns = Object.keys(built[0]);
+            const values: any[] = [];
+            const placeholders: string[] = [];
+            built.forEach((row, rowIndex) => {
+                const rowValues = Object.values(row);
+                values.push(...rowValues);
+                placeholders.push(
+                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(", ")})`
+                );
+            });
+
+            const insertSql = `
+                INSERT INTO ${cfg.table} (${columns.join(", ")})
+                VALUES ${placeholders.join(", ")}
+                RETURNING *;
+            `;
+            const result = await client.query(insertSql, values);
+            const out = result.rows.map((r: any) => toCategorizedRow(ef_group, r));
+            return res.send(generateResponse(true, "Bulk added", 200, out));
+        } catch (error: any) {
+            return res.status(500).send(generateResponse(false, error.message, 500, null));
+        }
+    });
+}
+
+// Helper for supplier questionnaire — resolve ef_code by layer match.
+export async function resolveEfCodeForGroup(
+    client: any,
+    ef_group: EfGroup,
+    layers: { layer1?: any; layer2?: any; layer3?: any; layer4?: any },
+    region?: any,
+    year?: any
+): Promise<string | null> {
+    const cfg = EF_GROUP_CONFIG[ef_group];
+    if (!cfg) return null;
+
+    // Builds and runs a lookup with the given filters. Returns null if no match.
+    const runLookup = async (includeYear: boolean): Promise<string | null> => {
+        const conds: string[] = [];
+        const params: any[] = [];
+        const addEq = (col: string, val: any) => {
+            if (val === undefined || val === null || val === "") {
+                conds.push(`(${col} IS NULL OR ${col} = '')`);
+            } else {
+                params.push(val);
+                conds.push(`${col} = $${params.length}`);
+            }
+        };
+        addEq("layer1", layers.layer1);
+        addEq("layer2", layers.layer2);
+        addEq("layer3", layers.layer3);
+        addEq("layer4", layers.layer4);
+        if (region) {
+            params.push(region);
+            conds.push(`region = $${params.length}`);
+        }
+        if (includeYear && year) {
+            params.push(year);
+            conds.push(`year = $${params.length}`);
+        }
+
+        const sql = `
+            SELECT ef_code FROM ${cfg.table}
+            WHERE ef_code IS NOT NULL AND ${conds.join(" AND ")}
+            ORDER BY year DESC NULLS LAST
+            LIMIT 1;
+        `;
+        const result = await client.query(sql, params);
+        return result.rows[0]?.ef_code || null;
+    };
+
+    // Try exact year match first (preserves existing behavior when EF exists for the requested year).
+    if (year) {
+        const exact = await runLookup(true);
+        if (exact) return exact;
+    }
+    // Fall back to most recent available year. Many EF tables aren't republished
+    // every year; without this fallback, valid combos return NULL for newer reporting periods.
+    return await runLookup(false);
 }

@@ -3686,6 +3686,185 @@ ADD COLUMN IF NOT EXISTS drop_lat DECIMAL,
 ADD COLUMN IF NOT EXISTS drop_lng DECIMAL;
 `,
 
+        // ============================================================
+        // EF schema redesign - Step 1: add new columns to 6 EF tables.
+        // Source: Categorized_EF_Database.xlsx (4-layer hierarchy).
+        // Old columns (ef_eu_region, ef_india_region, ef_global_region,
+        // element_name/type_of_energy/fuel_type/material_type/waste_type/
+        // vehicle_type, iso_country_code, code, ptt_id, wtt_id) are kept
+        // until controllers are rewritten to use ef_code lookups.
+        // ef_code is nullable for now (old rows have no Excel ID);
+        // becomes NOT NULL in the cleanup migration after re-import.
+        // ============================================================
+
+        `ALTER TABLE materials_emission_factor
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
+ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS region VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
+ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
+`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS materials_emission_factor_ef_code_uniq
+ON materials_emission_factor (ef_code);
+`,
+
+        `ALTER TABLE electricity_emission_factor
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
+ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS region VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
+ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
+`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS electricity_emission_factor_ef_code_uniq
+ON electricity_emission_factor (ef_code);
+`,
+
+        `ALTER TABLE fuel_emission_factor
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
+ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS region VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
+ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
+`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS fuel_emission_factor_ef_code_uniq
+ON fuel_emission_factor (ef_code);
+`,
+
+        `ALTER TABLE vehicle_type_emission_factor
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
+ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS region VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
+ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
+`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_type_emission_factor_ef_code_uniq
+ON vehicle_type_emission_factor (ef_code);
+`,
+
+        `ALTER TABLE packaging_material_treatment_type_emission_factor
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
+ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS region VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
+ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
+`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS packaging_mtt_emission_factor_ef_code_uniq
+ON packaging_material_treatment_type_emission_factor (ef_code);
+`,
+
+        `ALTER TABLE waste_material_treatment_type_emission_factor
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
+ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS region VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
+ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
+`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS waste_mtt_emission_factor_ef_code_uniq
+ON waste_material_treatment_type_emission_factor (ef_code);
+`,
+
+        // ============================================================
+        // EF schema redesign - Step 1: add layer fields to 7 supplier
+        // questionnaire response tables. Layers stored as text snapshot
+        // (point-in-time copy); ef_code is a soft pointer with no FK
+        // so that EF re-imports don't break historical responses.
+        // Old material_name / material_type columns kept for legacy reads.
+        // All nullable at DB level — Layer4 non-null enforced at the
+        // controller layer for new submissions only.
+        // ============================================================
+
+        `ALTER TABLE raw_materials_used_in_component_manufacturing_questions
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
+`,
+
+        `ALTER TABLE recycled_materials_with_percentage_questions
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
+`,
+
+        `ALTER TABLE pir_pcr_material_percentage_questions
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
+`,
+
+        `ALTER TABLE scope_two_indirect_emissions_from_purchased_energy_questions
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
+`,
+
+        `ALTER TABLE weight_of_packaging_per_unit_product_questions
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
+`,
+
+        `ALTER TABLE weight_of_pro_packaging_waste_questions
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
+`,
+
+        `ALTER TABLE mode_of_transport_used_for_transportation_questions
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
+`,
+
+        // Q60 actually saves to type_of_pack_mat_used_for_delivering_questions
+        // (the weight_of_packaging_per_unit_product_questions table is unused —
+        // Q61 was merged into Q60). Adding layer fields here so Q8 packaging
+        // submissions can carry layer1-4 + ef_code.
+        `ALTER TABLE type_of_pack_mat_used_for_delivering_questions
+ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
+ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
+`,
+
     ]
 
     // try {
