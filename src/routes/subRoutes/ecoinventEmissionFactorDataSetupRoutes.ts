@@ -70,7 +70,12 @@ Routes.post('/api/ecoinvent-emission-factor-data-setup/vehicle-type-emission-fac
 Routes.post('/api/ecoinvent-emission-factor-data-setup/vehicle-type-emission-factor/delete', authService.authenticate, Controller.deleteVehicleTypeEmissionFactor);
 Routes.get('/api/ecoinvent-emission-factor-data-setup/vehicle-type-emission-factor/drop-down-list', Controller.getVehicleTypeEmissionFactorDropDownnList);
 
-
-
+// Unified Categorized Emission Factor (new layered schema, ef_group dispatches to right EF table)
+// LIST is intentionally public so unauthenticated supplier links can read it.
+Routes.get('/api/ecoinvent-emission-factor-data-setup/categorized-emission-factor/list', Controller.listCategorizedEmissionFactors);
+Routes.post('/api/ecoinvent-emission-factor-data-setup/categorized-emission-factor/add', authService.authenticate, Controller.addCategorizedEmissionFactor);
+Routes.post('/api/ecoinvent-emission-factor-data-setup/categorized-emission-factor/update', authService.authenticate, Controller.updateCategorizedEmissionFactor);
+Routes.post('/api/ecoinvent-emission-factor-data-setup/categorized-emission-factor/delete', authService.authenticate, Controller.deleteCategorizedEmissionFactor);
+Routes.post('/api/ecoinvent-emission-factor-data-setup/categorized-emission-factor/bulk/add', authService.authenticate, Controller.bulkAddCategorizedEmissionFactor);
 
 export default Routes;

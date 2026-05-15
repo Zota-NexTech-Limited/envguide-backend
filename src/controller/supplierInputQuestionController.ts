@@ -5,6 +5,20 @@ import { updateSupplierSustainabilityService } from '../services/supplierInputQu
 import { assertScopeThreeBomRowsValid } from '../services/scopeThreeBomValidation.js';
 import axios from 'axios';
 import { generateQuestionnairePdfBuffer, type PdfSection } from '../helper/questionnairePdfGenerator.js';
+import { resolveEfCodeForGroup } from './ecoinventEmissionFactorDataSetupController.js';
+
+// Map supplier-facing location label ("Europe" / "India" / "Global") to the
+// EF table's region column value ("EU" / "INDIA" / "GLOBAL"). Used when
+// resolving ef_code for a questionnaire row from its 4 layers.
+function deriveSupplierRegion(data: any): string | null {
+    const loc = data?.production_site_details_questions?.[0]?.location;
+    if (!loc) return null;
+    const v = String(loc).trim().toLowerCase();
+    if (v === "europe" || v === "eu") return "EU";
+    if (v === "india" || v === "in") return "INDIA";
+    if (v === "global") return "GLOBAL";
+    return String(loc).toUpperCase();
+}
 
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
     return withClient(async (client: any) => {
@@ -1906,8 +1920,18 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
 
         const dqrQ22: any[] = [];
 
-        const rows = data.scope_two_indirect_emissions_from_purchased_energy_questions.map((e: any) => {
+        const rows = await Promise.all(data.scope_two_indirect_emissions_from_purchased_energy_questions.map(async (e: any) => {
             const stidefpe_id = ulid();
+
+            // Resolve ef_code from the 4 layers + region (if not already sent by frontend)
+            const region = e.region || deriveSupplierRegion(data);
+            const ef_code = e.ef_code || (
+                (e.layer1 || e.layer2 || e.layer3 || e.layer4)
+                    ? await resolveEfCodeForGroup(client, 'electricity',
+                        { layer1: e.layer1, layer2: e.layer2, layer3: e.layer3, layer4: e.layer4 },
+                        region, annual_reporting_period)
+                    : null
+            );
 
             // e = data.sup_id;
             prepareDQR({
@@ -1918,18 +1942,30 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
                     energy_type: e.energy_type,
                     quantity: e.quantity,
                     unit: e.unit,
+                    layer1: e.layer1,
+                    layer2: e.layer2,
+                    layer3: e.layer3,
+                    layer4: e.layer4,
+                    ef_code,
                     sup_id: data.sup_id,
                     annual_reporting_period
                 }
             });
 
-            return [stidefpe_id, stide_id, e.energy_source, e.energy_type, e.quantity, e.unit, data.sup_id, annual_reporting_period];
-        });
+            return [
+                stidefpe_id, stide_id,
+                e.energy_source ?? null, e.energy_type ?? null,
+                e.quantity ?? null, e.unit ?? null,
+                data.sup_id, annual_reporting_period,
+                e.layer1 ?? null, e.layer2 ?? null, e.layer3 ?? null, e.layer4 ?? null, ef_code,
+            ];
+        }));
 
         childInserts.push(bulkInsert(
             client,
             'scope_two_indirect_emissions_from_purchased_energy_questions',
-            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'sup_id', 'annual_reporting_period'],
+            ['stidefpe_id', 'stide_id', 'energy_source', 'energy_type', 'quantity', 'unit', 'sup_id', 'annual_reporting_period',
+             'layer1', 'layer2', 'layer3', 'layer4', 'ef_code'],
             rows
         ));
 
@@ -2817,8 +2853,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const dqr52: any[] = [];
 
-        const rows = data.raw_materials_used_in_component_manufacturing_questions.map((m: any) => {
+        const rows = await Promise.all(data.raw_materials_used_in_component_manufacturing_questions.map(async (m: any) => {
             const rmuicm_id = ulid();
+            const region = m.region || deriveSupplierRegion(data);
+            const ef_code = m.ef_code || (
+                (m.layer1 || m.layer2 || m.layer3 || m.layer4)
+                    ? await resolveEfCodeForGroup(client, 'materials',
+                        { layer1: m.layer1, layer2: m.layer2, layer3: m.layer3, layer4: m.layer4 },
+                        region, annual_reporting_period)
+                    : null
+            );
+            // composition_percent is the new field name; percentage is the legacy name
+            const percentage = m.composition_percent ?? m.percentage ?? null;
 
             prepareDQR({
                 records: dqr52,
@@ -2827,19 +2873,26 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                     bom_id: m.bom_id,
                     material_number: m.material_number,
                     material_name: m.material_name,
-                    percentage: m.percentage,
+                    percentage,
+                    layer1: m.layer1, layer2: m.layer2, layer3: m.layer3, layer4: m.layer4,
+                    ef_code,
                     annual_reporting_period
                 }
             });
 
             const linked = resolveBomLink(m);
-            return [rmuicm_id, stoie_id, linked.bom_id, linked.material_number, m.material_name, m.percentage, annual_reporting_period];
-        });
+            return [
+                rmuicm_id, stoie_id, linked.bom_id, linked.material_number,
+                m.material_name ?? null, percentage, annual_reporting_period,
+                m.layer1 ?? null, m.layer2 ?? null, m.layer3 ?? null, m.layer4 ?? null, ef_code,
+            ];
+        }));
 
         childInserts.push(bulkInsert(
             client,
             'raw_materials_used_in_component_manufacturing_questions',
-            ['rmuicm_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage', 'annual_reporting_period'],
+            ['rmuicm_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage', 'annual_reporting_period',
+             'layer1', 'layer2', 'layer3', 'layer4', 'ef_code'],
             rows
         ));
 
@@ -2855,8 +2908,17 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const dqr56: any[] = [];
 
-        const rows = data.recycled_materials_with_percentage_questions.map((r: any) => {
+        const rows = await Promise.all(data.recycled_materials_with_percentage_questions.map(async (r: any) => {
             const rmwp_id = ulid();
+            const region = r.region || deriveSupplierRegion(data);
+            const ef_code = r.ef_code || (
+                (r.layer1 || r.layer2 || r.layer3 || r.layer4)
+                    ? await resolveEfCodeForGroup(client, 'materials',
+                        { layer1: r.layer1, layer2: r.layer2, layer3: r.layer3, layer4: r.layer4 },
+                        region, annual_reporting_period)
+                    : null
+            );
+            const percentage = r.composition_percent ?? r.percentage ?? null;
 
             prepareDQR({
                 records: dqr56,
@@ -2865,18 +2927,25 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                     bom_id: r.bom_id,
                     material_number: r.material_number,
                     material_name: r.material_name,
-                    percentage: r.percentage
+                    percentage,
+                    layer1: r.layer1, layer2: r.layer2, layer3: r.layer3, layer4: r.layer4,
+                    ef_code,
                 }
             });
 
             const linked = resolveBomLink(r);
-            return [rmwp_id, stoie_id, linked.bom_id, linked.material_number, r.material_name, r.percentage];
-        });
+            return [
+                rmwp_id, stoie_id, linked.bom_id, linked.material_number,
+                r.material_name ?? null, percentage,
+                r.layer1 ?? null, r.layer2 ?? null, r.layer3 ?? null, r.layer4 ?? null, ef_code,
+            ];
+        }));
 
         childInserts.push(bulkInsert(
             client,
             'recycled_materials_with_percentage_questions',
-            ['rmwp_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage'],
+            ['rmwp_id', 'stoie_id', 'bom_id', 'material_number', 'material_name', 'percentage',
+             'layer1', 'layer2', 'layer3', 'layer4', 'ef_code'],
             rows
         ));
 
@@ -2926,25 +2995,39 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const dqr59: any[] = [];
 
-        const rows = data.pir_pcr_material_percentage_questions.map((p: any) => {
+        const rows = await Promise.all(data.pir_pcr_material_percentage_questions.map(async (p: any) => {
             const ppmp_id = ulid();
+            const region = p.region || deriveSupplierRegion(data);
+            const ef_code = p.ef_code || (
+                (p.layer1 || p.layer2 || p.layer3 || p.layer4)
+                    ? await resolveEfCodeForGroup(client, 'materials',
+                        { layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, layer4: p.layer4 },
+                        region, annual_reporting_period)
+                    : null
+            );
 
             prepareDQR({
                 records: dqr59,
                 childId: ppmp_id,
                 payload: {
                     material_type: p.material_type,
-                    percentage: p.percentage
+                    percentage: p.percentage,
+                    layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, layer4: p.layer4,
+                    ef_code,
                 }
             });
 
-            return [ppmp_id, stoie_id, p.material_type, p.percentage];
-        });
+            return [
+                ppmp_id, stoie_id, p.material_type ?? null, p.percentage ?? null,
+                p.layer1 ?? null, p.layer2 ?? null, p.layer3 ?? null, p.layer4 ?? null, ef_code,
+            ];
+        }));
 
         childInserts.push(bulkInsert(
             client,
             'pir_pcr_material_percentage_questions',
-            ['ppmp_id', 'stoie_id', 'material_type', 'percentage'],
+            ['ppmp_id', 'stoie_id', 'material_type', 'percentage',
+             'layer1', 'layer2', 'layer3', 'layer4', 'ef_code'],
             rows
         ));
 
@@ -2960,14 +3043,22 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const dqr60: any[] = [];
 
-        const rows = data.type_of_pack_mat_used_for_delivering_questions.map((p: any) => {
+        const rows = await Promise.all(data.type_of_pack_mat_used_for_delivering_questions.map(async (p: any) => {
             const topmudp_id = ulid();
             const linked = resolveBomLink(p);
+            const region = p.region || deriveSupplierRegion(data);
+            const ef_code = p.ef_code || (
+                (p.layer1 || p.layer2 || p.layer3 || p.layer4)
+                    ? await resolveEfCodeForGroup(client, 'packaging',
+                        { layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, layer4: p.layer4 },
+                        region, annual_reporting_period)
+                    : null
+            );
 
             prepareDQR({
                 records: dqr60,
                 childId: topmudp_id,
-                payload: p
+                payload: { ...p, ef_code }
             });
 
             // Q61 (packagin_weight + unit) merged into Q60 — each packaging row
@@ -2976,17 +3067,19 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
             return [
                 topmudp_id, stoie_id,
                 linked.bom_id, linked.material_number, linked.component_name,
-                p.packagin_type, p.packaging_size, p.unit, p.treatment_type,
+                p.packagin_type ?? null, p.packaging_size ?? null, p.unit ?? null, p.treatment_type ?? null,
                 p.packagin_weight ?? null,
+                p.layer1 ?? null, p.layer2 ?? null, p.layer3 ?? null, p.layer4 ?? null, ef_code,
             ];
-        });
+        }));
 
         childInserts.push(bulkInsert(
             client,
             'type_of_pack_mat_used_for_delivering_questions',
             ['topmudp_id', 'stoie_id', 'bom_id', 'material_number', 'component_name',
              'packagin_type', 'packaging_size', 'unit', 'treatment_type',
-             'packagin_weight'],
+             'packagin_weight',
+             'layer1', 'layer2', 'layer3', 'layer4', 'ef_code'],
             rows
         ));
 
@@ -3063,8 +3156,18 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const dqr68: any[] = [];
 
-        const rows = data.weight_of_pro_packaging_waste_questions.map((w: any) => {
+        const rows = await Promise.all(data.weight_of_pro_packaging_waste_questions.map(async (w: any) => {
             const woppw_id = ulid();
+            const region = w.region || deriveSupplierRegion(data);
+            const ef_code = w.ef_code || (
+                (w.layer1 || w.layer2 || w.layer3 || w.layer4)
+                    ? await resolveEfCodeForGroup(client, 'waste',
+                        { layer1: w.layer1, layer2: w.layer2, layer3: w.layer3, layer4: w.layer4 },
+                        region, annual_reporting_period)
+                    : null
+            );
+            // friend's frontend sends `weight` (not `waste_weight`) for Q9; accept both
+            const waste_weight = w.waste_weight ?? w.weight ?? null;
 
             prepareDQR({
                 records: dqr68,
@@ -3074,21 +3177,29 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                     material_number: w.material_number,
                     component_name: w.component_name,
                     waste_type: w.waste_type,
-                    waste_weight: w.waste_weight,
+                    waste_weight,
                     unit: w.unit,
                     treatment_type: w.treatment_type,
+                    layer1: w.layer1, layer2: w.layer2, layer3: w.layer3, layer4: w.layer4,
+                    ef_code,
                     annual_reporting_period
                 }
             });
 
             const linked = resolveBomLink(w);
-            return [woppw_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name, w.waste_type, w.waste_weight, w.unit, w.treatment_type, annual_reporting_period];
-        });
+            return [
+                woppw_id, stoie_id, linked.bom_id, linked.material_number, linked.component_name,
+                w.waste_type ?? null, waste_weight, w.unit ?? null, w.treatment_type ?? null,
+                annual_reporting_period,
+                w.layer1 ?? null, w.layer2 ?? null, w.layer3 ?? null, w.layer4 ?? null, ef_code,
+            ];
+        }));
 
         childInserts.push(bulkInsert(
             client,
             'weight_of_pro_packaging_waste_questions',
-            ['woppw_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type', 'annual_reporting_period'],
+            ['woppw_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'waste_type', 'waste_weight', 'unit', 'treatment_type', 'annual_reporting_period',
+             'layer1', 'layer2', 'layer3', 'layer4', 'ef_code'],
             rows
         ));
 
@@ -3194,8 +3305,20 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const dqr74: any[] = [];
 
-        const rows = data.mode_of_transport_used_for_transportation_questions.map((t: any) => {
+        const rows = await Promise.all(data.mode_of_transport_used_for_transportation_questions.map(async (t: any) => {
             const motuft_id = ulid();
+            const region = t.region || deriveSupplierRegion(data);
+            const ef_code = t.ef_code || (
+                (t.layer1 || t.layer2 || t.layer3 || t.layer4)
+                    ? await resolveEfCodeForGroup(client, 'vehicle',
+                        { layer1: t.layer1, layer2: t.layer2, layer3: t.layer3, layer4: t.layer4 },
+                        region, annual_reporting_period)
+                    : null
+            );
+            // friend's frontend sends `weight` / `source` / `destination` for Q10; accept both
+            const weight_transported = t.weight_transported ?? t.weight ?? null;
+            const source_point = t.source_point ?? t.source ?? null;
+            const drop_point = t.drop_point ?? t.destination ?? null;
 
             prepareDQR({
                 records: dqr74,
@@ -3205,14 +3328,16 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                     material_number: t.material_number,
                     component_name: t.component_name,
                     mode_of_transport: t.mode_of_transport,
-                    weight_transported: t.weight_transported,
-                    source_point: t.source_point,
+                    weight_transported,
+                    source_point,
                     source_lat: t.source_lat,
                     source_lng: t.source_lng,
-                    drop_point: t.drop_point,
+                    drop_point,
                     drop_lat: t.drop_lat,
                     drop_lng: t.drop_lng,
-                    distance: t.distance
+                    distance: t.distance,
+                    layer1: t.layer1, layer2: t.layer2, layer3: t.layer3, layer4: t.layer4,
+                    ef_code,
                 }
             });
 
@@ -3222,22 +3347,24 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
                 t.bom_id,
                 t.material_number,
                 t.component_name,
-                t.mode_of_transport,
-                t.weight_transported,
-                t.source_point,
+                t.mode_of_transport ?? null,
+                weight_transported,
+                source_point,
                 t.source_lat || null,
                 t.source_lng || null,
-                t.drop_point,
+                drop_point,
                 t.drop_lat || null,
                 t.drop_lng || null,
-                t.distance
+                t.distance ?? null,
+                t.layer1 ?? null, t.layer2 ?? null, t.layer3 ?? null, t.layer4 ?? null, ef_code,
             ];
-        });
+        }));
 
         childInserts.push(bulkInsert(
             client,
             'mode_of_transport_used_for_transportation_questions',
-            ['motuft_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'source_lat', 'source_lng', 'drop_point', 'drop_lat', 'drop_lng', 'distance'],
+            ['motuft_id', 'stoie_id', 'bom_id', 'material_number', 'component_name', 'mode_of_transport', 'weight_transported', 'source_point', 'source_lat', 'source_lng', 'drop_point', 'drop_lat', 'drop_lng', 'distance',
+             'layer1', 'layer2', 'layer3', 'layer4', 'ef_code'],
             rows
         ));
 
