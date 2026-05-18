@@ -772,6 +772,12 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             const annual_reporting_period = supplier_general_info_questions.annual_reporting_period;
             const allDQRConfigs: any[] = [];
 
+            // Derive supplier region ONCE from the top-level payload (production_site_details
+            // lives under supplier_product_questions, which is not visible inside scope insert
+            // functions). Pass this down to scope 2 + 3 so the ef_code resolver can apply
+            // the region filter; without it the resolver picks an arbitrary matching row.
+            const supplierRegion = deriveSupplierRegion(supplier_product_questions);
+
             scope_two_indirect_emissions_questions.sup_id = sup_id;
 
             await assertScopeThreeBomRowsValid(
@@ -874,12 +880,12 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             // SCOPE TWO
             if (scope_two_indirect_emissions_questions) {
-                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, annual_reporting_period));
+                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, annual_reporting_period, supplierRegion));
             }
 
             // SCOPE THREE
             if (scope_three_other_indirect_emissions_questions) {
-                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, annual_reporting_period));
+                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, annual_reporting_period, supplierRegion));
             }
 
             // SCOPE FOUR
@@ -1711,7 +1717,7 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string) {
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_reporting_period: string) {
+async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_reporting_period: string, supplierRegion: string | null) {
     const stide_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -1923,8 +1929,10 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
         const rows = await Promise.all(data.scope_two_indirect_emissions_from_purchased_energy_questions.map(async (e: any) => {
             const stidefpe_id = ulid();
 
-            // Resolve ef_code from the 4 layers + region (if not already sent by frontend)
-            const region = e.region || deriveSupplierRegion(data);
+            // Resolve ef_code from the 4 layers + region (if not already sent by frontend).
+            // supplierRegion is computed at top level from production_site_details_questions
+            // (which lives outside this scope's payload subset).
+            const region = e.region || supplierRegion;
             const ef_code = e.ef_code || (
                 (e.layer1 || e.layer2 || e.layer3 || e.layer4)
                     ? await resolveEfCodeForGroup(client, 'electricity',
@@ -2590,7 +2598,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_reporting_period: string) {
+async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_reporting_period: string, supplierRegion: string | null) {
     const stoie_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -2855,7 +2863,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.raw_materials_used_in_component_manufacturing_questions.map(async (m: any) => {
             const rmuicm_id = ulid();
-            const region = m.region || deriveSupplierRegion(data);
+            const region = m.region || supplierRegion;
             const ef_code = m.ef_code || (
                 (m.layer1 || m.layer2 || m.layer3 || m.layer4)
                     ? await resolveEfCodeForGroup(client, 'materials',
@@ -2910,7 +2918,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.recycled_materials_with_percentage_questions.map(async (r: any) => {
             const rmwp_id = ulid();
-            const region = r.region || deriveSupplierRegion(data);
+            const region = r.region || supplierRegion;
             const ef_code = r.ef_code || (
                 (r.layer1 || r.layer2 || r.layer3 || r.layer4)
                     ? await resolveEfCodeForGroup(client, 'materials',
@@ -2997,7 +3005,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.pir_pcr_material_percentage_questions.map(async (p: any) => {
             const ppmp_id = ulid();
-            const region = p.region || deriveSupplierRegion(data);
+            const region = p.region || supplierRegion;
             const ef_code = p.ef_code || (
                 (p.layer1 || p.layer2 || p.layer3 || p.layer4)
                     ? await resolveEfCodeForGroup(client, 'materials',
@@ -3046,7 +3054,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
         const rows = await Promise.all(data.type_of_pack_mat_used_for_delivering_questions.map(async (p: any) => {
             const topmudp_id = ulid();
             const linked = resolveBomLink(p);
-            const region = p.region || deriveSupplierRegion(data);
+            const region = p.region || supplierRegion;
             const ef_code = p.ef_code || (
                 (p.layer1 || p.layer2 || p.layer3 || p.layer4)
                     ? await resolveEfCodeForGroup(client, 'packaging',
@@ -3158,7 +3166,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.weight_of_pro_packaging_waste_questions.map(async (w: any) => {
             const woppw_id = ulid();
-            const region = w.region || deriveSupplierRegion(data);
+            const region = w.region || supplierRegion;
             const ef_code = w.ef_code || (
                 (w.layer1 || w.layer2 || w.layer3 || w.layer4)
                     ? await resolveEfCodeForGroup(client, 'waste',
@@ -3307,7 +3315,7 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.mode_of_transport_used_for_transportation_questions.map(async (t: any) => {
             const motuft_id = ulid();
-            const region = t.region || deriveSupplierRegion(data);
+            const region = t.region || supplierRegion;
             const ef_code = t.ef_code || (
                 (t.layer1 || t.layer2 || t.layer3 || t.layer4)
                     ? await resolveEfCodeForGroup(client, 'vehicle',
