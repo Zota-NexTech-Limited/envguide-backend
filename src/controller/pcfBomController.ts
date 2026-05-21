@@ -3126,8 +3126,10 @@ export async function pcfCalculate(req: any, res: any) {
                 console.log("Number of materials found:", fetchQ52SupResult.rows.length);
                 fetchQ52SupResult.rows.forEach((mat: any, idx: number) => {
                     console.log(`Material ${idx + 1}:`, {
-                        material_name: mat.material_name,
+                        material: mat.material_name || mat.layer4 || mat.layer2 || null,
                         percentage: mat.percentage,
+                        ef_code: mat.ef_code,
+                        layers: [mat.layer1, mat.layer2, mat.layer3, mat.layer4],
                         bom_id: mat.bom_id
                     });
                 });
@@ -3155,10 +3157,9 @@ export async function pcfCalculate(req: any, res: any) {
                     }
 
                     const Material_Emission_Factor_kg_CO2E_kg = materialEf?.ef_value ?? 0.01; // 0.01 fallback when ef_code is missing
-                    // Display label for the calc engine row — prefer layer2 (the
-                    // material itself e.g. "Acoustic Foam") since material_name is
-                    // no longer populated under the new schema.
-                    const materialDisplayName = ProductData.material_name || ProductData.layer2 || null;
+                    // Use layer4 (the specific material e.g. "Mild Steel", "Cast Iron")
+                    // so two materials sharing the same layer2 don't look identical.
+                    const materialDisplayName = ProductData.material_name || ProductData.layer4 || ProductData.layer2 || null;
 
                     console.log("=== MATERIAL CALCULATION DEBUG ===");
                     console.log("BOM ID:", BomData.id);
