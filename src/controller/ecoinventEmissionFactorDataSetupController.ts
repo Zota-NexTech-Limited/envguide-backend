@@ -2866,53 +2866,58 @@ export async function bulkAddCategorizedEmissionFactor(req: any, res: any) {
                 return res.status(400).send(generateResponse(false, "rows array is required", 400, null));
             }
 
-            const efIds = rows.map((r: any) => r.ef_id).filter(Boolean);
-            const existing = await client.query(
-                `SELECT ef_code FROM ${cfg.table} WHERE ef_code = ANY($1)`,
-                [efIds]
-            );
-            if (existing.rowCount > 0) {
-                const existingCodes = existing.rows.map((r: any) => r.ef_code);
-                return res.status(400).send(
-                    generateResponse(false, `ef_id(s) already exist: ${existingCodes.join(", ")}`, 400, null)
-                );
+            // REPLACE MODE: wipe the table for this ef_group, then insert the CSV rows.
+            // Wrapped in a transaction so the old data is restored if the insert fails.
+            await client.query("BEGIN");
+            try {
+                const deleted = await client.query(`DELETE FROM ${cfg.table}`);
+
+                const built = rows.map((item: any) => ({
+                    [cfg.pk]: ulid(),
+                    ef_code: item.ef_id,
+                    scope: item.scope || null,
+                    layer1: item.layer1 || null,
+                    layer2: item.layer2 || null,
+                    layer3: item.layer3 || null,
+                    layer4: item.layer4 || null,
+                    region: item.region,
+                    year: item.year || null,
+                    ef_value: item.ef_value,
+                    unit: item.unit || null,
+                    data_source: item.data_source || null,
+                    created_by: req.user_id || null,
+                }));
+
+                const columns = Object.keys(built[0]);
+                const values: any[] = [];
+                const placeholders: string[] = [];
+                built.forEach((row, rowIndex) => {
+                    const rowValues = Object.values(row);
+                    values.push(...rowValues);
+                    placeholders.push(
+                        `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(", ")})`
+                    );
+                });
+
+                const insertSql = `
+                    INSERT INTO ${cfg.table} (${columns.join(", ")})
+                    VALUES ${placeholders.join(", ")}
+                    RETURNING *;
+                `;
+                const result = await client.query(insertSql, values);
+                await client.query("COMMIT");
+
+                const out = result.rows.map((r: any) => toCategorizedRow(ef_group, r));
+                return res.send(generateResponse(
+                    true,
+                    `Replaced ${cfg.table}: removed ${deleted.rowCount} old rows, inserted ${result.rowCount} new rows`,
+                    200,
+                    out
+                ));
+            } catch (txErr) {
+                await client.query("ROLLBACK");
+                throw txErr;
             }
-
-            const built = rows.map((item: any) => ({
-                [cfg.pk]: ulid(),
-                ef_code: item.ef_id,
-                scope: item.scope || null,
-                layer1: item.layer1 || null,
-                layer2: item.layer2 || null,
-                layer3: item.layer3 || null,
-                layer4: item.layer4 || null,
-                region: item.region,
-                year: item.year || null,
-                ef_value: item.ef_value,
-                unit: item.unit || null,
-                data_source: item.data_source || null,
-                created_by: req.user_id || null,
-            }));
-
-            const columns = Object.keys(built[0]);
-            const values: any[] = [];
-            const placeholders: string[] = [];
-            built.forEach((row, rowIndex) => {
-                const rowValues = Object.values(row);
-                values.push(...rowValues);
-                placeholders.push(
-                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(", ")})`
-                );
-            });
-
-            const insertSql = `
-                INSERT INTO ${cfg.table} (${columns.join(", ")})
-                VALUES ${placeholders.join(", ")}
-                RETURNING *;
-            `;
-            const result = await client.query(insertSql, values);
-            const out = result.rows.map((r: any) => toCategorizedRow(ef_group, r));
-            return res.send(generateResponse(true, "Bulk added", 200, out));
         } catch (error: any) {
             return res.status(500).send(generateResponse(false, error.message, 500, null));
         }
