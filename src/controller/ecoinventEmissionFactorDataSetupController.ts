@@ -358,59 +358,60 @@ export async function materialsEmissionFactorDataSetup(req: any, res: any) {
                 );
             }
 
-            // Existing ef_codes in DB
-            const existing = await client.query(
-                `SELECT ef_code FROM materials_emission_factor WHERE ef_code = ANY($1)`,
-                [efCodes]
-            );
+            // REPLACE MODE: wipe the table, then insert CSV rows. Transactional —
+            // if INSERT fails, old data is restored on ROLLBACK.
+            await client.query("BEGIN");
+            try {
+                const deleted = await client.query(`DELETE FROM materials_emission_factor`);
 
-            if (existing.rowCount > 0) {
-                const existingCodes = existing.rows.map((r: any) => r.ef_code);
-                return res.status(400).send(
-                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
-                );
+                // Build rows
+                const rows = data.map((item: any) => ({
+                    mef_id: ulid(),
+                    ef_code: item.ef_code,
+                    scope: item.scope || null,
+                    layer1: item.layer1 || null,
+                    layer2: item.layer2 || null,
+                    layer3: item.layer3 || null,
+                    layer4: item.layer4,
+                    region: item.region,
+                    year: item.year || null,
+                    ef_value: item.ef_value,
+                    unit: item.unit || null,
+                    data_source: item.data_source || null,
+                    created_by: req.user_id
+                }));
+
+                const columns = Object.keys(rows[0]);
+                const values: any[] = [];
+                const placeholders: string[] = [];
+
+                rows.forEach((row, rowIndex) => {
+                    const rowValues = Object.values(row);
+                    values.push(...rowValues);
+                    placeholders.push(
+                        `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                    );
+                });
+
+                const insertQuery = `
+                    INSERT INTO materials_emission_factor (${columns.join(', ')})
+                    VALUES ${placeholders.join(', ')}
+                    RETURNING *;
+                `;
+
+                const result = await client.query(insertQuery, values);
+                await client.query("COMMIT");
+
+                return res.send(generateResponse(
+                    true,
+                    `Replaced materials_emission_factor: removed ${deleted.rowCount} old rows, inserted ${result.rowCount} new rows`,
+                    200,
+                    result.rows
+                ));
+            } catch (txErr) {
+                await client.query("ROLLBACK");
+                throw txErr;
             }
-
-            // Build rows
-            const rows = data.map((item: any) => ({
-                mef_id: ulid(),
-                ef_code: item.ef_code,
-                scope: item.scope || null,
-                layer1: item.layer1 || null,
-                layer2: item.layer2 || null,
-                layer3: item.layer3 || null,
-                layer4: item.layer4,
-                region: item.region,
-                year: item.year || null,
-                ef_value: item.ef_value,
-                unit: item.unit || null,
-                data_source: item.data_source || null,
-                created_by: req.user_id
-            }));
-
-            const columns = Object.keys(rows[0]);
-            const values: any[] = [];
-            const placeholders: string[] = [];
-
-            rows.forEach((row, rowIndex) => {
-                const rowValues = Object.values(row);
-                values.push(...rowValues);
-                placeholders.push(
-                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
-                );
-            });
-
-            const insertQuery = `
-                INSERT INTO materials_emission_factor (${columns.join(', ')})
-                VALUES ${placeholders.join(', ')}
-                RETURNING *;
-            `;
-
-            const result = await client.query(insertQuery, values);
-
-            return res.send(
-                generateResponse(true, "Bulk import successful", 200, result.rows)
-            );
 
         } catch (error: any) {
             return res
@@ -774,57 +775,58 @@ export async function electricityEmissionFactorDataSetup(req: any, res: any) {
                 );
             }
 
-            const existing = await client.query(
-                `SELECT ef_code FROM electricity_emission_factor WHERE ef_code = ANY($1)`,
-                [efCodes]
-            );
+            // REPLACE MODE: wipe then insert, transactional.
+            await client.query("BEGIN");
+            try {
+                const deleted = await client.query(`DELETE FROM electricity_emission_factor`);
 
-            if (existing.rowCount > 0) {
-                const existingCodes = existing.rows.map((r: any) => r.ef_code);
-                return res.status(400).send(
-                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
-                );
+                const rows = data.map((item: any) => ({
+                    eef_id: ulid(),
+                    ef_code: item.ef_code,
+                    scope: item.scope || null,
+                    layer1: item.layer1 || null,
+                    layer2: item.layer2 || null,
+                    layer3: item.layer3 || null,
+                    layer4: item.layer4,
+                    region: item.region,
+                    year: item.year || null,
+                    ef_value: item.ef_value,
+                    unit: item.unit || null,
+                    data_source: item.data_source || null,
+                    created_by: req.user_id
+                }));
+
+                const columns = Object.keys(rows[0]);
+                const values: any[] = [];
+                const placeholders: string[] = [];
+
+                rows.forEach((row, rowIndex) => {
+                    const rowValues = Object.values(row);
+                    values.push(...rowValues);
+                    placeholders.push(
+                        `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                    );
+                });
+
+                const insertQuery = `
+                    INSERT INTO electricity_emission_factor (${columns.join(', ')})
+                    VALUES ${placeholders.join(', ')}
+                    RETURNING *;
+                `;
+
+                const result = await client.query(insertQuery, values);
+                await client.query("COMMIT");
+
+                return res.send(generateResponse(
+                    true,
+                    `Replaced electricity_emission_factor: removed ${deleted.rowCount} old rows, inserted ${result.rowCount} new rows`,
+                    200,
+                    result.rows
+                ));
+            } catch (txErr) {
+                await client.query("ROLLBACK");
+                throw txErr;
             }
-
-            const rows = data.map((item: any) => ({
-                eef_id: ulid(),
-                ef_code: item.ef_code,
-                scope: item.scope || null,
-                layer1: item.layer1 || null,
-                layer2: item.layer2 || null,
-                layer3: item.layer3 || null,
-                layer4: item.layer4,
-                region: item.region,
-                year: item.year || null,
-                ef_value: item.ef_value,
-                unit: item.unit || null,
-                data_source: item.data_source || null,
-                created_by: req.user_id
-            }));
-
-            const columns = Object.keys(rows[0]);
-            const values: any[] = [];
-            const placeholders: string[] = [];
-
-            rows.forEach((row, rowIndex) => {
-                const rowValues = Object.values(row);
-                values.push(...rowValues);
-                placeholders.push(
-                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
-                );
-            });
-
-            const insertQuery = `
-                INSERT INTO electricity_emission_factor (${columns.join(', ')})
-                VALUES ${placeholders.join(', ')}
-                RETURNING *;
-            `;
-
-            const result = await client.query(insertQuery, values);
-
-            return res.send(
-                generateResponse(true, "Bulk import successful", 200, result.rows)
-            );
 
         } catch (error: any) {
             return res
@@ -1188,57 +1190,58 @@ export async function fuelEmissionFactorDataSetup(req: any, res: any) {
                 );
             }
 
-            const existing = await client.query(
-                `SELECT ef_code FROM fuel_emission_factor WHERE ef_code = ANY($1)`,
-                [efCodes]
-            );
+            // REPLACE MODE: wipe then insert, transactional.
+            await client.query("BEGIN");
+            try {
+                const deleted = await client.query(`DELETE FROM fuel_emission_factor`);
 
-            if (existing.rowCount > 0) {
-                const existingCodes = existing.rows.map((r: any) => r.ef_code);
-                return res.status(400).send(
-                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
-                );
+                const rows = data.map((item: any) => ({
+                    fef_id: ulid(),
+                    ef_code: item.ef_code,
+                    scope: item.scope || null,
+                    layer1: item.layer1 || null,
+                    layer2: item.layer2 || null,
+                    layer3: item.layer3 || null,
+                    layer4: item.layer4,
+                    region: item.region,
+                    year: item.year || null,
+                    ef_value: item.ef_value,
+                    unit: item.unit || null,
+                    data_source: item.data_source || null,
+                    created_by: req.user_id
+                }));
+
+                const columns = Object.keys(rows[0]);
+                const values: any[] = [];
+                const placeholders: string[] = [];
+
+                rows.forEach((row, rowIndex) => {
+                    const rowValues = Object.values(row);
+                    values.push(...rowValues);
+                    placeholders.push(
+                        `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                    );
+                });
+
+                const insertQuery = `
+                    INSERT INTO fuel_emission_factor (${columns.join(', ')})
+                    VALUES ${placeholders.join(', ')}
+                    RETURNING *;
+                `;
+
+                const result = await client.query(insertQuery, values);
+                await client.query("COMMIT");
+
+                return res.send(generateResponse(
+                    true,
+                    `Replaced fuel_emission_factor: removed ${deleted.rowCount} old rows, inserted ${result.rowCount} new rows`,
+                    200,
+                    result.rows
+                ));
+            } catch (txErr) {
+                await client.query("ROLLBACK");
+                throw txErr;
             }
-
-            const rows = data.map((item: any) => ({
-                fef_id: ulid(),
-                ef_code: item.ef_code,
-                scope: item.scope || null,
-                layer1: item.layer1 || null,
-                layer2: item.layer2 || null,
-                layer3: item.layer3 || null,
-                layer4: item.layer4,
-                region: item.region,
-                year: item.year || null,
-                ef_value: item.ef_value,
-                unit: item.unit || null,
-                data_source: item.data_source || null,
-                created_by: req.user_id
-            }));
-
-            const columns = Object.keys(rows[0]);
-            const values: any[] = [];
-            const placeholders: string[] = [];
-
-            rows.forEach((row, rowIndex) => {
-                const rowValues = Object.values(row);
-                values.push(...rowValues);
-                placeholders.push(
-                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
-                );
-            });
-
-            const insertQuery = `
-                INSERT INTO fuel_emission_factor (${columns.join(', ')})
-                VALUES ${placeholders.join(', ')}
-                RETURNING *;
-            `;
-
-            const result = await client.query(insertQuery, values);
-
-            return res.send(
-                generateResponse(true, "Bulk import successful", 200, result.rows)
-            );
 
         } catch (error: any) {
             return res
@@ -1653,56 +1656,59 @@ export async function packagingEmissionFactorDataSetup(req: any, res: any) {
                 );
             }
 
-            const existing = await client.query(
-                `SELECT ef_code FROM packaging_material_treatment_type_emission_factor WHERE ef_code = ANY($1)`,
-                [efCodes]
-            );
+            // REPLACE MODE: wipe then insert, transactional.
+            await client.query("BEGIN");
+            try {
+                const deleted = await client.query(`DELETE FROM packaging_material_treatment_type_emission_factor`);
 
-            if (existing.rowCount > 0) {
-                const existingCodes = existing.rows.map((r: any) => r.ef_code);
-                return res.status(400).send(
-                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
-                );
+                const rows = data.map((item: any) => ({
+                    pef_id: ulid(),
+                    ef_code: item.ef_code,
+                    scope: item.scope || null,
+                    layer1: item.layer1 || null,
+                    layer2: item.layer2 || null,
+                    layer3: item.layer3 || null,
+                    layer4: item.layer4,
+                    region: item.region,
+                    year: item.year || null,
+                    ef_value: item.ef_value,
+                    unit: item.unit || null,
+                    data_source: item.data_source || null,
+                    created_by: req.user_id
+                }));
+
+                const columns = Object.keys(rows[0]);
+                const values: any[] = [];
+                const placeholders: string[] = [];
+
+                rows.forEach((row, rowIndex) => {
+                    const rowValues = Object.values(row);
+                    values.push(...rowValues);
+                    placeholders.push(
+                        `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                    );
+                });
+
+                const insertQuery = `
+                    INSERT INTO packaging_material_treatment_type_emission_factor
+                    (${columns.join(', ')})
+                    VALUES ${placeholders.join(', ')}
+                    RETURNING *;
+                `;
+
+                const result = await client.query(insertQuery, values);
+                await client.query("COMMIT");
+
+                return res.send(generateResponse(
+                    true,
+                    `Replaced packaging_material_treatment_type_emission_factor: removed ${deleted.rowCount} old rows, inserted ${result.rowCount} new rows`,
+                    200,
+                    result.rows
+                ));
+            } catch (txErr) {
+                await client.query("ROLLBACK");
+                throw txErr;
             }
-
-            const rows = data.map((item: any) => ({
-                pef_id: ulid(),
-                ef_code: item.ef_code,
-                scope: item.scope || null,
-                layer1: item.layer1 || null,
-                layer2: item.layer2 || null,
-                layer3: item.layer3 || null,
-                layer4: item.layer4,
-                region: item.region,
-                year: item.year || null,
-                ef_value: item.ef_value,
-                unit: item.unit || null,
-                data_source: item.data_source || null,
-                created_by: req.user_id
-            }));
-
-            const columns = Object.keys(rows[0]);
-            const values: any[] = [];
-            const placeholders: string[] = [];
-
-            rows.forEach((row, rowIndex) => {
-                const rowValues = Object.values(row);
-                values.push(...rowValues);
-                placeholders.push(
-                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
-                );
-            });
-
-            const insertQuery = `
-                INSERT INTO packaging_material_treatment_type_emission_factor
-                (${columns.join(', ')})
-                VALUES ${placeholders.join(', ')}
-                RETURNING *;
-            `;
-
-            const result = await client.query(insertQuery, values);
-
-            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
         } catch (error: any) {
             return res.status(500).send(
                 generateResponse(false, error.message, 500, null)
@@ -2198,56 +2204,59 @@ export async function wasteEmissionFactorDataSetup(req: any, res: any) {
                 );
             }
 
-            const existing = await client.query(
-                `SELECT ef_code FROM waste_material_treatment_type_emission_factor WHERE ef_code = ANY($1)`,
-                [efCodes]
-            );
+            // REPLACE MODE: wipe then insert, transactional.
+            await client.query("BEGIN");
+            try {
+                const deleted = await client.query(`DELETE FROM waste_material_treatment_type_emission_factor`);
 
-            if (existing.rowCount > 0) {
-                const existingCodes = existing.rows.map((r: any) => r.ef_code);
-                return res.status(400).send(
-                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
-                );
+                const rows = data.map((item: any) => ({
+                    wmttef_id: ulid(),
+                    ef_code: item.ef_code,
+                    scope: item.scope || null,
+                    layer1: item.layer1 || null,
+                    layer2: item.layer2 || null,
+                    layer3: item.layer3 || null,
+                    layer4: item.layer4,
+                    region: item.region,
+                    year: item.year || null,
+                    ef_value: item.ef_value,
+                    unit: item.unit || null,
+                    data_source: item.data_source || null,
+                    created_by: req.user_id
+                }));
+
+                const columns = Object.keys(rows[0]);
+                const values: any[] = [];
+                const placeholders: string[] = [];
+
+                rows.forEach((row, rowIndex) => {
+                    const rowValues = Object.values(row);
+                    values.push(...rowValues);
+                    placeholders.push(
+                        `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                    );
+                });
+
+                const insertQuery = `
+                    INSERT INTO waste_material_treatment_type_emission_factor
+                    (${columns.join(', ')})
+                    VALUES ${placeholders.join(', ')}
+                    RETURNING *;
+                `;
+
+                const result = await client.query(insertQuery, values);
+                await client.query("COMMIT");
+
+                return res.send(generateResponse(
+                    true,
+                    `Replaced waste_material_treatment_type_emission_factor: removed ${deleted.rowCount} old rows, inserted ${result.rowCount} new rows`,
+                    200,
+                    result.rows
+                ));
+            } catch (txErr) {
+                await client.query("ROLLBACK");
+                throw txErr;
             }
-
-            const rows = data.map((item: any) => ({
-                wmttef_id: ulid(),
-                ef_code: item.ef_code,
-                scope: item.scope || null,
-                layer1: item.layer1 || null,
-                layer2: item.layer2 || null,
-                layer3: item.layer3 || null,
-                layer4: item.layer4,
-                region: item.region,
-                year: item.year || null,
-                ef_value: item.ef_value,
-                unit: item.unit || null,
-                data_source: item.data_source || null,
-                created_by: req.user_id
-            }));
-
-            const columns = Object.keys(rows[0]);
-            const values: any[] = [];
-            const placeholders: string[] = [];
-
-            rows.forEach((row, rowIndex) => {
-                const rowValues = Object.values(row);
-                values.push(...rowValues);
-                placeholders.push(
-                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
-                );
-            });
-
-            const insertQuery = `
-                INSERT INTO waste_material_treatment_type_emission_factor
-                (${columns.join(', ')})
-                VALUES ${placeholders.join(', ')}
-                RETURNING *;
-            `;
-
-            const result = await client.query(insertQuery, values);
-
-            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
         } catch (error: any) {
             return res.status(500).send(
                 generateResponse(false, error.message, 500, null)
@@ -2587,55 +2596,58 @@ export async function vehicleTypeEmissionFactorDataSetup(req: any, res: any) {
                 );
             }
 
-            const existing = await client.query(
-                `SELECT ef_code FROM vehicle_type_emission_factor WHERE ef_code = ANY($1)`,
-                [efCodes]
-            );
+            // REPLACE MODE: wipe then insert, transactional.
+            await client.query("BEGIN");
+            try {
+                const deleted = await client.query(`DELETE FROM vehicle_type_emission_factor`);
 
-            if (existing.rowCount > 0) {
-                const existingCodes = existing.rows.map((r: any) => r.ef_code);
-                return res.status(400).send(
-                    generateResponse(false, `ef_code(s) already exist: ${existingCodes.join(', ')}`, 400, null)
-                );
+                const rows = data.map((item: any) => ({
+                    wtef_id: ulid(),
+                    ef_code: item.ef_code,
+                    scope: item.scope || null,
+                    layer1: item.layer1 || null,
+                    layer2: item.layer2 || null,
+                    layer3: item.layer3 || null,
+                    layer4: item.layer4,
+                    region: item.region,
+                    year: item.year || null,
+                    ef_value: item.ef_value,
+                    unit: item.unit || null,
+                    data_source: item.data_source || null,
+                    created_by: req.user_id
+                }));
+
+                const columns = Object.keys(rows[0]);
+                const values: any[] = [];
+                const placeholders: string[] = [];
+
+                rows.forEach((row, rowIndex) => {
+                    const rowValues = Object.values(row);
+                    values.push(...rowValues);
+                    placeholders.push(
+                        `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
+                    );
+                });
+
+                const insertQuery = `
+                    INSERT INTO vehicle_type_emission_factor (${columns.join(', ')})
+                    VALUES ${placeholders.join(', ')}
+                    RETURNING *;
+                `;
+
+                const result = await client.query(insertQuery, values);
+                await client.query("COMMIT");
+
+                return res.send(generateResponse(
+                    true,
+                    `Replaced vehicle_type_emission_factor: removed ${deleted.rowCount} old rows, inserted ${result.rowCount} new rows`,
+                    200,
+                    result.rows
+                ));
+            } catch (txErr) {
+                await client.query("ROLLBACK");
+                throw txErr;
             }
-
-            const rows = data.map((item: any) => ({
-                wtef_id: ulid(),
-                ef_code: item.ef_code,
-                scope: item.scope || null,
-                layer1: item.layer1 || null,
-                layer2: item.layer2 || null,
-                layer3: item.layer3 || null,
-                layer4: item.layer4,
-                region: item.region,
-                year: item.year || null,
-                ef_value: item.ef_value,
-                unit: item.unit || null,
-                data_source: item.data_source || null,
-                created_by: req.user_id
-            }));
-
-            const columns = Object.keys(rows[0]);
-            const values: any[] = [];
-            const placeholders: string[] = [];
-
-            rows.forEach((row, rowIndex) => {
-                const rowValues = Object.values(row);
-                values.push(...rowValues);
-                placeholders.push(
-                    `(${rowValues.map((_, i) => `$${rowIndex * rowValues.length + i + 1}`).join(', ')})`
-                );
-            });
-
-            const insertQuery = `
-                INSERT INTO vehicle_type_emission_factor (${columns.join(', ')})
-                VALUES ${placeholders.join(', ')}
-                RETURNING *;
-            `;
-
-            const result = await client.query(insertQuery, values);
-
-            return res.send(generateResponse(true, "Bulk import successful", 200, result.rows));
         } catch (error: any) {
             return res
                 .status(500)
