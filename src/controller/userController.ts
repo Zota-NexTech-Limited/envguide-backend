@@ -17,9 +17,10 @@ import { sendMail } from "../util/mailTransporter.js";
 
 export async function signup(req: any, res: any) {
     try {
-        const userRoleNormalized = String(req.body.user_role || "").trim().toLowerCase();
-        const isExternalUser =
-            userRoleNormalized === "client" || userRoleNormalized === "supplier";
+        // All newly created users (client, supplier, admin, super admin, admin-d, ...)
+        // get a setup-password email with a 24h JWT link. The admin no longer needs
+        // to share a password manually — the user sets their own via the email link.
+        const isExternalUser = true;
 
         const adminObj = {
             user_id: ulid(),
