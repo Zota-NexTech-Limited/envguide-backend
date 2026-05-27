@@ -2175,9 +2175,10 @@ export async function getUsersByRole(req: any, res: any) {
                 );
             }
 
+            // Normalize role inputs: lowercase + strip spaces so "Super Admin" matches legacy "superadmin"
             const roles = user_role
                 .split(',')
-                .map((r: string) => r.trim());
+                .map((r: string) => r.trim().toLowerCase().replace(/\s+/g, ''));
 
             const query = `
                 SELECT
@@ -2185,7 +2186,7 @@ export async function getUsersByRole(req: any, res: any) {
                     user_name,
                     user_role
                 FROM users_table
-                WHERE user_role = ANY($1)
+                WHERE LOWER(REPLACE(TRIM(user_role), ' ', '')) = ANY($1)
                 ORDER BY user_name ASC;
             `;
 
