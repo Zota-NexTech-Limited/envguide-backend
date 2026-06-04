@@ -3391,23 +3391,12 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
 
         // ===========> Master Data Setup tables end<============
 
-        // ==============> ECOinvent Emission Factor DataSetup <================
-
-        `CREATE TABLE IF NOT EXISTS materials_emission_factor (
-    mef_id VARCHAR(255) PRIMARY KEY,
-    element_name VARCHAR(255), 
-    ef_eu_region VARCHAR(255),  
-    ef_india_region VARCHAR(255),
-    ef_global_region VARCHAR(255),
-    year VARCHAR(255),
-    unit VARCHAR(255),
-    iso_country_code VARCHAR(255),
-    code VARCHAR(255),
-    created_by VARCHAR(255),
-    updated_by VARCHAR(255),
-    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`,
+        // ==============> Legacy ECOInvent helper lookup tables <================
+        // The 6 legacy EF tables (materials, electricity, fuel, packaging, vehicle,
+        // waste material) have been replaced by the unified emission_factors table
+        // (see bottom of file). The small helper lookup tables below
+        // (waste_treatment_type, unit_conversion, packaging_treatment_type) are
+        // retained — they may still be referenced by Phase 2 questionnaire rewires.
 
         `CREATE TABLE IF NOT EXISTS waste_treatment_type (
             wtt_id VARCHAR(255) PRIMARY KEY,
@@ -3418,55 +3407,6 @@ ADD COLUMN IF NOT EXISTS platform VARCHAR(255);
             update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
-
-        `CREATE TABLE IF NOT EXISTS waste_material_treatment_type_emission_factor (
-    wmttef_id VARCHAR(255) PRIMARY KEY,
-    waste_type VARCHAR(255),
-    wtt_id VARCHAR(255),  
-    ef_eu_region VARCHAR(255),  
-    ef_india_region VARCHAR(255),
-    ef_global_region VARCHAR(255),
-    year VARCHAR(255),
-    unit VARCHAR(255),
-    iso_country_code VARCHAR(255),
-    code VARCHAR(255),
-    created_by VARCHAR(255),
-    updated_by VARCHAR(255),
-    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`,
-
-        `CREATE TABLE IF NOT EXISTS electricity_emission_factor (
-    eef_id VARCHAR(255) PRIMARY KEY,
-    type_of_energy VARCHAR(255), 
-    ef_eu_region VARCHAR(255),  
-    ef_india_region VARCHAR(255),
-    ef_global_region VARCHAR(255),
-    year VARCHAR(255),
-    unit VARCHAR(255),
-    iso_country_code VARCHAR(255),
-    code VARCHAR(255),
-    created_by VARCHAR(255),
-    updated_by VARCHAR(255),
-    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`,
-
-        `CREATE TABLE IF NOT EXISTS fuel_emission_factor (
-    fef_id VARCHAR(255) PRIMARY KEY,
-    fuel_type VARCHAR(255), 
-    ef_eu_region VARCHAR(255),  
-    ef_india_region VARCHAR(255),
-    ef_global_region VARCHAR(255),
-    year VARCHAR(255),
-    unit VARCHAR(255),
-    iso_country_code VARCHAR(255),
-    code VARCHAR(255),
-    created_by VARCHAR(255),
-    updated_by VARCHAR(255),
-    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`,
 
 // Unit Conversion Table.
         `CREATE TABLE IF NOT EXISTS unit_conversion (
@@ -3535,38 +3475,6 @@ ON CONFLICT (uc_id) DO NOTHING;`,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );`,
 
-        `CREATE TABLE IF NOT EXISTS packaging_material_treatment_type_emission_factor (
-    pef_id VARCHAR(255) PRIMARY KEY,
-    material_type VARCHAR(255),
-    ptt_id VARCHAR(255), 
-    ef_eu_region VARCHAR(255),  
-    ef_india_region VARCHAR(255),
-    ef_global_region VARCHAR(255),
-    year VARCHAR(255),
-    unit VARCHAR(255),
-    iso_country_code VARCHAR(255),
-    code VARCHAR(255),
-    created_by VARCHAR(255),
-    updated_by VARCHAR(255),
-    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`,
-
-        `CREATE TABLE IF NOT EXISTS vehicle_type_emission_factor (
-    wtef_id VARCHAR(255) PRIMARY KEY,
-    vehicle_type VARCHAR(255), 
-    ef_eu_region VARCHAR(255),  
-    ef_india_region VARCHAR(255),
-    ef_global_region VARCHAR(255),
-    year VARCHAR(255),
-    unit VARCHAR(255),
-    iso_country_code VARCHAR(255),
-    code VARCHAR(255),
-    created_by VARCHAR(255),
-    updated_by VARCHAR(255),
-    update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`,
         // <=======================END<================
 
         // Reports
@@ -3687,107 +3595,6 @@ ADD COLUMN IF NOT EXISTS drop_lng DECIMAL;
 `,
 
         // ============================================================
-        // EF schema redesign - Step 1: add new columns to 6 EF tables.
-        // Source: Categorized_EF_Database.xlsx (4-layer hierarchy).
-        // Old columns (ef_eu_region, ef_india_region, ef_global_region,
-        // element_name/type_of_energy/fuel_type/material_type/waste_type/
-        // vehicle_type, iso_country_code, code, ptt_id, wtt_id) are kept
-        // until controllers are rewritten to use ef_code lookups.
-        // ef_code is nullable for now (old rows have no Excel ID);
-        // becomes NOT NULL in the cleanup migration after re-import.
-        // ============================================================
-
-        `ALTER TABLE materials_emission_factor
-ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
-ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS region VARCHAR(255),
-ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
-ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
-`,
-        `CREATE UNIQUE INDEX IF NOT EXISTS materials_emission_factor_ef_code_uniq
-ON materials_emission_factor (ef_code);
-`,
-
-        `ALTER TABLE electricity_emission_factor
-ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
-ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS region VARCHAR(255),
-ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
-ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
-`,
-        `CREATE UNIQUE INDEX IF NOT EXISTS electricity_emission_factor_ef_code_uniq
-ON electricity_emission_factor (ef_code);
-`,
-
-        `ALTER TABLE fuel_emission_factor
-ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
-ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS region VARCHAR(255),
-ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
-ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
-`,
-        `CREATE UNIQUE INDEX IF NOT EXISTS fuel_emission_factor_ef_code_uniq
-ON fuel_emission_factor (ef_code);
-`,
-
-        `ALTER TABLE vehicle_type_emission_factor
-ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
-ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS region VARCHAR(255),
-ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
-ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
-`,
-        `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_type_emission_factor_ef_code_uniq
-ON vehicle_type_emission_factor (ef_code);
-`,
-
-        `ALTER TABLE packaging_material_treatment_type_emission_factor
-ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
-ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS region VARCHAR(255),
-ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
-ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
-`,
-        `CREATE UNIQUE INDEX IF NOT EXISTS packaging_mtt_emission_factor_ef_code_uniq
-ON packaging_material_treatment_type_emission_factor (ef_code);
-`,
-
-        `ALTER TABLE waste_material_treatment_type_emission_factor
-ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255),
-ADD COLUMN IF NOT EXISTS scope VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer3 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
-ADD COLUMN IF NOT EXISTS region VARCHAR(255),
-ADD COLUMN IF NOT EXISTS ef_value NUMERIC(20, 10),
-ADD COLUMN IF NOT EXISTS data_source VARCHAR(255);
-`,
-        `CREATE UNIQUE INDEX IF NOT EXISTS waste_mtt_emission_factor_ef_code_uniq
-ON waste_material_treatment_type_emission_factor (ef_code);
-`,
-
-        // ============================================================
         // EF schema redesign - Step 1: add layer fields to 7 supplier
         // questionnaire response tables. Layers stored as text snapshot
         // (point-in-time copy); ef_code is a soft pointer with no FK
@@ -3888,6 +3695,81 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
 
         `CREATE INDEX IF NOT EXISTS idx_quintari_published_pcfs_pcf_submodel_id
             ON quintari_published_pcfs (pcf_submodel_id);`,
+
+        // ==============> BAFU 2025 unified Emission Factor master <================
+        // Replaces the 6 legacy ECOInvent EF tables (materials, electricity, fuel,
+        // packaging, vehicle, waste) with a single flat table sourced from the
+        // BAFU 2025 CSV. ~11k rows. Loaded via admin "Replace from CSV" upload.
+
+        `DROP TABLE IF EXISTS materials_emission_factor CASCADE;`,
+        `DROP TABLE IF EXISTS waste_material_treatment_type_emission_factor CASCADE;`,
+        `DROP TABLE IF EXISTS electricity_emission_factor CASCADE;`,
+        `DROP TABLE IF EXISTS fuel_emission_factor CASCADE;`,
+        `DROP TABLE IF EXISTS packaging_material_treatment_type_emission_factor CASCADE;`,
+        `DROP TABLE IF EXISTS vehicle_type_emission_factor CASCADE;`,
+
+        // NOTE: do NOT add `DROP TABLE emission_factors` here — this migration
+        // runs on every server boot and a drop would wipe the imported BAFU
+        // CSV every restart. The ALTER COLUMN … TYPE TEXT statements below are
+        // the safety net: they fix any legacy VARCHAR-constrained columns
+        // in-place without touching the data.
+
+        `CREATE TABLE IF NOT EXISTS emission_factors (
+            ef_id TEXT PRIMARY KEY,
+            product TEXT NOT NULL,
+            material TEXT,
+            process TEXT,
+            activity_type TEXT,
+            category TEXT,
+            sub_category_1 TEXT,
+            sub_category_2 TEXT,
+            sub_category_3 TEXT,
+            sub_category_4 TEXT,
+            country_code TEXT,
+            country_name TEXT,
+            region TEXT,
+            geo_fallback_chain TEXT,
+            unit TEXT,
+            unit_kind TEXT,
+            recycled_content TEXT,
+            factor_suitability TEXT,
+            kgco2e_per_unit NUMERIC(18, 6),
+            reference_year INTEGER,
+            source_db TEXT,
+            embedding_text TEXT,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+
+        // Belt-and-suspenders: if a previous boot left the table with old
+        // VARCHAR(20) / VARCHAR(50) constraints and the DROP above somehow didn't
+        // take effect, force-convert every text column to TEXT in-place. ALTER
+        // TYPE is a no-op when the column is already TEXT.
+        `ALTER TABLE emission_factors ALTER COLUMN ef_id TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN material TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN process TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN activity_type TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN category TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN sub_category_1 TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN sub_category_2 TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN sub_category_3 TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN sub_category_4 TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN country_code TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN country_name TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN region TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN unit TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN unit_kind TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN recycled_content TYPE TEXT;`,
+        `ALTER TABLE emission_factors ALTER COLUMN source_db TYPE TEXT;`,
+
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_source_db
+            ON emission_factors (source_db);`,
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_country_code
+            ON emission_factors (country_code);`,
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_unit_kind
+            ON emission_factors (unit_kind);`,
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_reference_year
+            ON emission_factors (reference_year);`,
 
     ]
 
