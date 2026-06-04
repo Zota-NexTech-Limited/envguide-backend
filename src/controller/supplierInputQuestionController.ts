@@ -5,7 +5,20 @@ import { updateSupplierSustainabilityService } from '../services/supplierInputQu
 import { assertScopeThreeBomRowsValid } from '../services/scopeThreeBomValidation.js';
 import axios from 'axios';
 import { generateQuestionnairePdfBuffer, type PdfSection } from '../helper/questionnairePdfGenerator.js';
-import { resolveEfCodeForGroup } from './ecoinventEmissionFactorDataSetupController.js';
+// EF auto-resolve from the 4-layer + region + year was wired to the 6 legacy
+// ECOInvent tables. Those tables are gone (replaced by the BAFU 2025 unified
+// emission_factors table). Phase 2 will rebuild this against the new schema
+// using the matching engine. Until then, this stub returns null so questionnaire
+// submissions still save — they just don't auto-populate ef_code anymore.
+async function resolveEfCodeForGroup(
+    _client: any,
+    _group: string,
+    _layers: { layer1?: string; layer2?: string; layer3?: string; layer4?: string },
+    _region: string | null,
+    _year: any
+): Promise<string | null> {
+    return null;
+}
 
 // Map supplier-facing location label ("Europe" / "India" / "Global") to the
 // EF table's region column value ("EU" / "INDIA" / "GLOBAL"). Used when

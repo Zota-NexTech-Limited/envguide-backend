@@ -12,7 +12,7 @@ import supplierDetails from './subRoutes/supplierInfoRoutes.js';
 import product from './subRoutes/productRoutes.js';
 import imageRoutes from './subRoutes/imageRoutes.js';
 import masterDatasetup from './subRoutes/materDataSetupRoutes.js';
-import ecoinventEmissionFactorDataSetup from './subRoutes/ecoinventEmissionFactorDataSetupRoutes.js';
+import emissionFactor from './subRoutes/emissionFactorRoutes.js';
 import componentMaster from './subRoutes/componentMasterRoutes.js';
 import reports from './subRoutes/reportsRoutes.js';
 import dashboard from './subRoutes/dashboardRoutes.js';
@@ -35,7 +35,7 @@ export function routes(app: any) {
     app.use(product);
     app.use(imageRoutes);
     app.use(masterDatasetup);
-    app.use(ecoinventEmissionFactorDataSetup);
+    app.use(emissionFactor);
     app.use(componentMaster);
     app.use(reports);
     app.use(dashboard);
