@@ -6,6 +6,7 @@ import cors from 'cors'
 import bodyParser from 'body-parser';
 import { routes } from './routes/routes.js';
 import { mirgation } from "./models/migrationbatch.js";
+import { startQuintariPcfListenerCron } from "./helper/cron_quintari_pcf_listener.js";
 
 const app = express();
 import { generateResponse } from "./util/genRes.js";
@@ -50,6 +51,7 @@ const port = 8000;
 //   console.log(result)
 // })
 void mirgation().catch((err: unknown) => console.error("Migration failed:", err));
+startQuintariPcfListenerCron();
 
 
 export function getLocalIP(): string {
