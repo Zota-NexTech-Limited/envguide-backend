@@ -3865,6 +3865,30 @@ ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
 ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
 `,
 
+        `CREATE TABLE IF NOT EXISTS quintari_published_pcfs (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_pcf_request_id VARCHAR(255) NOT NULL,
+            product_code VARCHAR(255) NOT NULL,
+            digital_twin_id VARCHAR(255) NOT NULL,
+            part_type_information_submodel_id VARCHAR(255),
+            pcf_submodel_id VARCHAR(255) NOT NULL,
+            catena_x_id VARCHAR(255),
+            pcf_aspect_version VARCHAR(64) DEFAULT '9.0.0',
+            pushed_overall_pcf DOUBLE PRECISION,
+            published_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            last_answered_at TIMESTAMPTZ,
+            answer_count INTEGER DEFAULT 0,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(bom_pcf_request_id)
+        );`,
+
+        `CREATE INDEX IF NOT EXISTS idx_quintari_published_pcfs_product_code
+            ON quintari_published_pcfs (product_code);`,
+
+        `CREATE INDEX IF NOT EXISTS idx_quintari_published_pcfs_pcf_submodel_id
+            ON quintari_published_pcfs (pcf_submodel_id);`,
+
     ]
 
     // try {
