@@ -3771,6 +3771,427 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
         `CREATE INDEX IF NOT EXISTS idx_emission_factors_reference_year
             ON emission_factors (reference_year);`,
 
+        // ============================================================
+        // 28-question supplier questionnaire (Catena-X PCF v9.0.0)
+        // Added 2026-06-15. See FINAL_POSTMAN_JSON.json and the
+        // Final_Catena-x_Reporting_Structure CSV for the source spec.
+        // ============================================================
+
+        // Main response: one row per supplier per PCF request.
+        // Holds every single-row Q answer; multi-row Qs live in sq_qN_* tables.
+        `CREATE TABLE IF NOT EXISTS supplier_questionnaire_response (
+            id VARCHAR(255) PRIMARY KEY,
+            bom_pcf_request_id VARCHAR(255) NOT NULL,
+            supplier_id VARCHAR(255) NOT NULL,
+            status VARCHAR(32) DEFAULT 'draft',
+            submitted_at TIMESTAMPTZ,
+            -- Q1 Company
+            company_name TEXT,
+            company_id_urn TEXT,
+            -- Q2 Product
+            product_name_company TEXT,
+            product_id_urn TEXT,
+            product_description TEXT,
+            product_classification_urn TEXT,
+            -- Q3 Declared unit
+            declared_unit VARCHAR(64),
+            declared_unit_amount DOUBLE PRECISION,
+            product_mass_per_declared_unit DOUBLE PRECISION,
+            -- Q5 Time
+            reference_period_start DATE,
+            reference_period_end DATE,
+            validity_period_start DATE,
+            validity_period_end DATE,
+            -- Q6 PCF type
+            retro_or_prospective_pcf_type VARCHAR(128),
+            -- Q7 System boundary
+            system_boundary VARCHAR(32) DEFAULT 'cradle-to-gate',
+            -- Q9 Co-products
+            co_products_present BOOLEAN DEFAULT FALSE,
+            -- Q15 Packaging include
+            packaging_emissions_included BOOLEAN DEFAULT TRUE,
+            -- Q18 Distribution boundary
+            distribution_stage_included BOOLEAN DEFAULT FALSE,
+            -- Q20 flat (multi-row biomass lives in sq_q20_biomass_feedstock)
+            uses_agricultural_forestry_land BOOLEAN,
+            land_area_hectares DOUBLE PRECISION,
+            forest_converted_y_n BOOLEAN,
+            luc_emission_factor DOUBLE PRECISION,
+            -- Q21 Standards
+            cross_sectoral_standards TEXT,
+            product_or_sector_specific_rules TEXT,
+            ipcc_gwp_version VARCHAR(16) DEFAULT 'AR6',
+            -- Q22 Mass balancing
+            mass_balancing_used BOOLEAN DEFAULT FALSE,
+            mass_balancing_certificate_scheme TEXT,
+            free_attribution_in_mass_balancing BOOLEAN,
+            -- Q23 Allocation
+            allocation_rules_description TEXT,
+            allocation_recycled_carbon VARCHAR(64) DEFAULT 'cut-off',
+            allocation_waste_incineration VARCHAR(64) DEFAULT 'polluter pays principle',
+            -- Q24 Boundary
+            boundary_processes_description TEXT,
+            ccs_co2_capture_included BOOLEAN DEFAULT FALSE,
+            exempted_emissions_description TEXT,
+            exempted_emissions_percent DOUBLE PRECISION DEFAULT 0,
+            -- Q25 DQR
+            primary_data_share_pct DOUBLE PRECISION,
+            secondary_ef_sources TEXT,
+            data_collected_year INTEGER,
+            technological_dqr DOUBLE PRECISION,
+            temporal_dqr DOUBLE PRECISION,
+            geographical_dqr DOUBLE PRECISION,
+            -- Q26 Certification + Verification
+            is_product_certified BOOLEAN,
+            certification_scheme TEXT,
+            certificate_number TEXT,
+            certificate_valid_from DATE,
+            certificate_valid_to DATE,
+            is_pcf_verified BOOLEAN,
+            attestation_type TEXT,
+            attestation_conformant_standards TEXT,
+            attestation_scheme_standard TEXT,
+            attestation_of_conformance_id TEXT,
+            attestation_provider_name TEXT,
+            attestation_provider_id TEXT,
+            attestation_link TEXT,
+            attestation_completed_at TIMESTAMPTZ,
+            -- Q27 Volumes
+            total_production_volume DOUBLE PRECISION,
+            certified_volume DOUBLE PRECISION,
+            verified_volume_1st_party DOUBLE PRECISION,
+            verified_volume_2nd_party DOUBLE PRECISION,
+            verified_volume_3rd_party DOUBLE PRECISION,
+            total_product_volume DOUBLE PRECISION,
+            -- Q28 Comments
+            comments TEXT,
+            -- timestamps
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(bom_pcf_request_id, supplier_id)
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sqr_bom_pcf_request_id
+            ON supplier_questionnaire_response (bom_pcf_request_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_sqr_supplier_id
+            ON supplier_questionnaire_response (supplier_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_sqr_status
+            ON supplier_questionnaire_response (status);`,
+
+        // Q4: manufacturing sites
+        `CREATE TABLE IF NOT EXISTS sq_q4_sites (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            site_name TEXT,
+            site_address TEXT,
+            region TEXT,
+            country VARCHAR(8),
+            country_subdivision VARCHAR(16),
+            is_primary BOOLEAN DEFAULT FALSE,
+            notes TEXT,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q4_response_id ON sq_q4_sites (response_id);`,
+
+        // Q8: BOM components
+        `CREATE TABLE IF NOT EXISTS sq_q8_bom (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            product_id_or_mpn TEXT,
+            component_name TEXT,
+            material TEXT,
+            process TEXT,
+            mass_pct DOUBLE PRECISION,
+            carbon_pct DOUBLE PRECISION,
+            biogenic_y_n BOOLEAN,
+            biogenic_carbon_pct DOUBLE PRECISION,
+            recycled_y_n BOOLEAN,
+            recycled_carbon_pct DOUBLE PRECISION,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q8_response_id ON sq_q8_bom (response_id);`,
+
+        // Q9a: co-products
+        `CREATE TABLE IF NOT EXISTS sq_q9a_coproducts (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            mpn TEXT,
+            component_name TEXT,
+            co_product_name TEXT,
+            co_product_price DOUBLE PRECISION,
+            price_currency VARCHAR(16),
+            is_primary_product BOOLEAN DEFAULT FALSE,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q9a_response_id ON sq_q9a_coproducts (response_id);`,
+
+        // Q10: electricity
+        `CREATE TABLE IF NOT EXISTS sq_q10_electricity (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            electricity_type TEXT,
+            generator_type TEXT,
+            quantity DOUBLE PRECISION,
+            unit VARCHAR(32),
+            renewable_pct DOUBLE PRECISION,
+            renewable_sourcing TEXT,
+            infrastructure_emissions_included BOOLEAN,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q10_response_id ON sq_q10_electricity (response_id);`,
+
+        // Q11: fuels / energy carriers
+        `CREATE TABLE IF NOT EXISTS sq_q11_fuels (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            fuel_carrier TEXT,
+            quantity DOUBLE PRECISION,
+            unit VARCHAR(32),
+            biogenic_y_n BOOLEAN,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q11_response_id ON sq_q11_fuels (response_id);`,
+
+        // Q12: direct process gases
+        `CREATE TABLE IF NOT EXISTS sq_q12_process_gases (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            direct_process_gas TEXT,
+            quantity DOUBLE PRECISION,
+            unit VARCHAR(32),
+            fossil_or_biogenic VARCHAR(16),
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q12_response_id ON sq_q12_process_gases (response_id);`,
+
+        // Q13: QC / IT energy
+        `CREATE TABLE IF NOT EXISTS sq_q13_qc_it_energy (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            item TEXT,
+            value DOUBLE PRECISION,
+            unit VARCHAR(32),
+            already_in_q10 BOOLEAN DEFAULT FALSE,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q13_response_id ON sq_q13_qc_it_energy (response_id);`,
+
+        // Q14: production / QC waste
+        `CREATE TABLE IF NOT EXISTS sq_q14_production_waste (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            product_id_or_mpn TEXT,
+            component_name TEXT,
+            waste_type TEXT,
+            treatment_type TEXT,
+            quantity DOUBLE PRECISION,
+            unit VARCHAR(32),
+            energy_recovered BOOLEAN,
+            polluter_pays_applied BOOLEAN,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q14_response_id ON sq_q14_production_waste (response_id);`,
+
+        // Q16: packaging materials
+        `CREATE TABLE IF NOT EXISTS sq_q16_packaging_materials (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            product_id_or_mpn TEXT,
+            component_name TEXT,
+            packaging_type TEXT,
+            process_type TEXT,
+            packaging_weight DOUBLE PRECISION,
+            unit VARCHAR(32),
+            region TEXT,
+            country VARCHAR(8),
+            recycled_pct DOUBLE PRECISION,
+            carbon_biogenic_pct DOUBLE PRECISION,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q16_response_id ON sq_q16_packaging_materials (response_id);`,
+
+        // Q16a: packaging transport
+        `CREATE TABLE IF NOT EXISTS sq_q16a_packaging_transport (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            packaging_product_id_or_mpn TEXT,
+            component_name TEXT,
+            transport_mode TEXT,
+            weight DOUBLE PRECISION,
+            unit VARCHAR(32),
+            distance_km DOUBLE PRECISION,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q16a_response_id ON sq_q16a_packaging_transport (response_id);`,
+
+        // Q17: packaging waste
+        `CREATE TABLE IF NOT EXISTS sq_q17_packaging_waste (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            mpn_code TEXT,
+            component_name TEXT,
+            packaging_waste_type TEXT,
+            treatment_type TEXT,
+            quantity DOUBLE PRECISION,
+            unit VARCHAR(32),
+            energy_recovered BOOLEAN,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q17_response_id ON sq_q17_packaging_waste (response_id);`,
+
+        // Q19: distribution transport legs
+        `CREATE TABLE IF NOT EXISTS sq_q19_transport_legs (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            product_id_or_mpn TEXT,
+            component_name TEXT,
+            transport_mode TEXT,
+            source TEXT,
+            destination TEXT,
+            weight DOUBLE PRECISION,
+            unit VARCHAR(32),
+            distance_km DOUBLE PRECISION,
+            low_carbon_fuel BOOLEAN,
+            fuel_certificate_ref TEXT,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q19_response_id ON sq_q19_transport_legs (response_id);`,
+
+        // Q20: biomass feedstock (multi-row part; flat fields live on main response)
+        `CREATE TABLE IF NOT EXISTS sq_q20_biomass_feedstock (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            biomass_feedstock_type TEXT,
+            quantity DOUBLE PRECISION,
+            unit VARCHAR(32),
+            biogenic_carbon_content_pct DOUBLE PRECISION,
+            row_order INTEGER DEFAULT 0,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_sq_q20_response_id ON sq_q20_biomass_feedstock (response_id);`,
+
+        // ============================================================
+        // Config + audit tables for EF matching engine and formula engine
+        // ============================================================
+
+        // IPCC GWP characterization factors (AR4/AR5/AR6 ... CH4/N2O/...)
+        // Seeded by a separate seeder when admin first runs the app.
+        `CREATE TABLE IF NOT EXISTS gwp_factors (
+            id VARCHAR(255) PRIMARY KEY,
+            ipcc_version VARCHAR(16) NOT NULL,
+            gas VARCHAR(32) NOT NULL,
+            gwp_100y DOUBLE PRECISION NOT NULL,
+            gwp_20y DOUBLE PRECISION,
+            source TEXT,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(ipcc_version, gas)
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_gwp_factors_version ON gwp_factors (ipcc_version);`,
+
+        // EF scoring weights per activity type (material, packaging, transport, waste, energy, fuels, gases).
+        // criterion examples: material, process, geography, year, unit, recycled.
+        // scoring_rules_json carries graded match rules (exact / region / GLO / RoW etc.).
+        `CREATE TABLE IF NOT EXISTS ef_scoring_config (
+            id VARCHAR(255) PRIMARY KEY,
+            activity_type VARCHAR(64) NOT NULL,
+            criterion VARCHAR(64) NOT NULL,
+            weight INTEGER NOT NULL,
+            scoring_rules_json JSONB,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(activity_type, criterion)
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_ef_scoring_config_activity
+            ON ef_scoring_config (activity_type);`,
+
+        // EF match audit — every EF pick logged (ISO 14067 / Catena-X audit trail).
+        `CREATE TABLE IF NOT EXISTS ef_match_audit (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            source_question VARCHAR(64) NOT NULL,
+            source_row_id VARCHAR(255),
+            activity_type VARCHAR(64) NOT NULL,
+            input_payload_json JSONB,
+            winning_ef_id TEXT,
+            winning_score DOUBLE PRECISION,
+            confidence_band VARCHAR(16),
+            alternatives_json JSONB,
+            scoring_config_version INTEGER DEFAULT 1,
+            matched_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_ef_match_audit_response
+            ON ef_match_audit (response_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ef_match_audit_question
+            ON ef_match_audit (source_question);`,
+
+        // PCF computed field — every calculated v9 field stored for replay/audit.
+        // field_path e.g. "productionStage.fossilGhgEmissions" or "carbonContent.biogenicCarbonContent".
+        `CREATE TABLE IF NOT EXISTS pcf_computed_field (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            field_path TEXT NOT NULL,
+            value DOUBLE PRECISION,
+            formula_used TEXT,
+            inputs_json JSONB,
+            computed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_pcf_computed_field_response
+            ON pcf_computed_field (response_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_pcf_computed_field_path
+            ON pcf_computed_field (field_path);`,
+
+        // ============================================================
+        // Seed: GWP characterization factors (IPCC AR4 / AR5 / AR6, 100-year)
+        // Sources: IPCC AR4 WG1 Ch.2 (2007), AR5 WG1 Ch.8 (2013), AR6 WG1 Ch.7 (2021).
+        // CO2 is always 1 (reference gas). CH4 / N2O are the two we use in our formulas.
+        // SF6, NF3, HFCs included for completeness — useful if process gases (Q12) reports them.
+        // ============================================================
+        `INSERT INTO gwp_factors (id, ipcc_version, gas, gwp_100y, gwp_20y, source) VALUES
+            ('gwp_ar4_co2',  'AR4', 'CO2',  1,    1,    'IPCC AR4 WG1 (2007)'),
+            ('gwp_ar4_ch4',  'AR4', 'CH4',  25,   72,   'IPCC AR4 WG1 (2007)'),
+            ('gwp_ar4_n2o',  'AR4', 'N2O',  298,  289,  'IPCC AR4 WG1 (2007)'),
+            ('gwp_ar4_sf6',  'AR4', 'SF6',  22800,16300,'IPCC AR4 WG1 (2007)'),
+            ('gwp_ar5_co2',  'AR5', 'CO2',  1,    1,    'IPCC AR5 WG1 (2013), no feedbacks'),
+            ('gwp_ar5_ch4',  'AR5', 'CH4',  28,   84,   'IPCC AR5 WG1 (2013), no feedbacks'),
+            ('gwp_ar5_n2o',  'AR5', 'N2O',  265,  264,  'IPCC AR5 WG1 (2013), no feedbacks'),
+            ('gwp_ar5_sf6',  'AR5', 'SF6',  23500,17500,'IPCC AR5 WG1 (2013)'),
+            ('gwp_ar5_nf3',  'AR5', 'NF3',  16100,12800,'IPCC AR5 WG1 (2013)'),
+            ('gwp_ar6_co2',  'AR6', 'CO2',  1,    1,    'IPCC AR6 WG1 Ch.7 (2021)'),
+            ('gwp_ar6_ch4',  'AR6', 'CH4',  27.9, 82.5, 'IPCC AR6 WG1 Ch.7 (2021), non-fossil 27.0 / fossil 29.8 averaged'),
+            ('gwp_ar6_n2o',  'AR6', 'N2O',  273,  273,  'IPCC AR6 WG1 Ch.7 (2021)'),
+            ('gwp_ar6_sf6',  'AR6', 'SF6',  25200,18300,'IPCC AR6 WG1 Ch.7 (2021)'),
+            ('gwp_ar6_nf3',  'AR6', 'NF3',  17400,13400,'IPCC AR6 WG1 Ch.7 (2021)')
+         ON CONFLICT (ipcc_version, gas) DO NOTHING;`,
+
+        // ============================================================
+        // Seed: EF scoring weights — MATERIAL activity type.
+        // Other activity types (packaging / energy / fuels / transport / waste / gases)
+        // will be seeded when team confirms their weights.
+        // ============================================================
+        `INSERT INTO ef_scoring_config (id, activity_type, criterion, weight, scoring_rules_json) VALUES
+            ('efsc_material_material',  'material', 'material',  40,
+                '{"exact": 40, "same_family": 25, "different": 0}'::jsonb),
+            ('efsc_material_process',   'material', 'process',   30,
+                '{"exact": 30, "related": 15, "different": 5, "missing": 0}'::jsonb),
+            ('efsc_material_geography', 'material', 'geography', 15,
+                '{"same_country": 15, "same_region": 10, "GLO": 5, "RoW": 2}'::jsonb),
+            ('efsc_material_unit',      'material', 'unit',      10,
+                '{"exact_unit": 10, "same_unit_family_convertible": 7, "different_family": 0}'::jsonb),
+            ('efsc_material_year',      'material', 'year',      5,
+                '{"exact_year": 5, "within_1y": 4, "within_3y": 2, "older": 0}'::jsonb)
+         ON CONFLICT (activity_type, criterion) DO NOTHING;`,
+
     ]
 
     // try {
