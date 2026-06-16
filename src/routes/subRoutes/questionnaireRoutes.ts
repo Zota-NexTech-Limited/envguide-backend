@@ -31,4 +31,7 @@ Routes.post(
     Controller.publishHandler
 );
 
+// Render branded PDF of the supplier questionnaire.
+Routes.post("/api/questionnaire/pdf", authService.authenticate, Controller.pdfHandler);
+
 export default Routes;

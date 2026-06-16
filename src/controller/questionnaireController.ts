@@ -12,6 +12,10 @@ import {
 import { computePcfFields } from "../services/formulaEngine.js";
 import { buildPayloadFromResponse } from "../services/payloadAssembler.js";
 import { publishPcfRequestToQuintari } from "../services/quintariPublishService.js";
+import {
+    generateQuestionnairePdfBuffer,
+    type PdfSection,
+} from "../helper/questionnairePdfGenerator.js";
 
 // ============================================================
 // Role helpers — single source of truth so swapping roles is one place.
@@ -254,5 +258,65 @@ export async function publishHandler(req: any, res: any) {
             ? `Quintari error: ${JSON.stringify(error.response.data)}`
             : error?.message ?? "publish failed";
         return res.status(500).send(generateResponse(false, msg, 500, null));
+    }
+}
+
+// ============================================================
+// POST /api/questionnaire/pdf
+// Render a branded PDF of the supplier questionnaire. Sections are built on
+// the client (from V3 schema + formData via buildPdfSections.ts) and posted
+// here for branded server-side rendering using the shared pdfkit helper.
+// Body: { sections, supplier_name, submission_date?, reference_id?, bom_pcf_id? }
+// ============================================================
+
+export async function pdfHandler(req: any, res: any) {
+    try {
+        if (!req.user_id) {
+            return res.status(401).send(generateResponse(false, "not authenticated", 401, null));
+        }
+        const { sections, supplier_name, submission_date, reference_id, bom_pcf_id } = req.body || {};
+        if (!Array.isArray(sections)) {
+            return res.status(400).send(generateResponse(false, "sections array is required", 400, null));
+        }
+
+        let clientName: string | undefined;
+        if (bom_pcf_id) {
+            try {
+                await withClient(async (client: any) => {
+                    const r = await client.query(
+                        `SELECT request_organization FROM bom_pcf_request WHERE id = $1 LIMIT 1`,
+                        [bom_pcf_id]
+                    );
+                    if (r.rows.length > 0) clientName = r.rows[0].request_organization || undefined;
+                });
+            } catch (lookupErr) {
+                console.warn("[questionnaire/pdf] could not fetch client name:", lookupErr);
+            }
+        }
+
+        const pdfBuffer = await generateQuestionnairePdfBuffer({
+            sections: sections as PdfSection[],
+            supplierName: supplier_name || "Supplier",
+            clientName,
+            submissionDate: submission_date || new Date().toISOString(),
+            referenceId: reference_id || undefined,
+        });
+
+        const sanitizedName = (supplier_name || "Supplier")
+            .replace(/[^a-zA-Z0-9]/g, "_")
+            .replace(/_+/g, "_")
+            .replace(/^_|_$/g, "");
+        const dateStr = new Date(submission_date || Date.now())
+            .toISOString()
+            .split("T")[0];
+        const filename = `Supplier_Questionnaire_${sanitizedName}_${dateStr}.pdf`;
+
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.setHeader("Content-Length", pdfBuffer.length.toString());
+        return res.end(pdfBuffer);
+    } catch (error: any) {
+        console.error("[questionnaire/pdf] error:", error);
+        return res.status(500).send(generateResponse(false, error?.message ?? "PDF generation failed", 500, null));
     }
 }
