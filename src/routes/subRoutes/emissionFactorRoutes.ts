@@ -31,6 +31,20 @@ Routes.get(
     Controller.getEmissionFactorStats
 );
 
+// Distinct unit values for the Unit filter dropdown on the Settings page.
+Routes.get(
+    "/api/emission-factors/meta/units",
+    authService.authenticate,
+    Controller.getEmissionFactorUnits
+);
+
+// Distinct (country_code, country_name) pairs for the Country filter dropdown.
+Routes.get(
+    "/api/emission-factors/meta/countries",
+    authService.authenticate,
+    Controller.getEmissionFactorCountries
+);
+
 // Replace-all CSV import. Super admin only. Field name in form-data: "file".
 Routes.post(
     "/api/emission-factors/import-csv",

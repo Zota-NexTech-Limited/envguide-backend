@@ -303,6 +303,7 @@ export async function listEmissionFactors(req: any, res: any) {
             const search = String(req.query.search || "").trim();
             const countryCode = String(req.query.country_code || "").trim();
             const unitKind = String(req.query.unit_kind || "").trim();
+            const unit = String(req.query.unit || "").trim();
             const sourceDb = String(req.query.source_db || "").trim();
 
             const conditions: string[] = [];
@@ -340,6 +341,7 @@ export async function listEmissionFactors(req: any, res: any) {
             }
             if (countryCode) { conditions.push(`country_code = $${p++}`); params.push(countryCode); }
             if (unitKind)    { conditions.push(`unit_kind = $${p++}`); params.push(unitKind); }
+            if (unit)        { conditions.push(`unit = $${p++}`); params.push(unit); }
             if (sourceDb)    { conditions.push(`source_db = $${p++}`); params.push(sourceDb); }
 
             const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -385,6 +387,49 @@ export async function getEmissionFactorById(req: any, res: any) {
             return res.status(200).send({ success: true, data: r.rows[0] });
         } catch (err: any) {
             console.error("getEmissionFactorById error:", err);
+            return res.status(500).send({ success: false, message: err.message });
+        }
+    });
+}
+
+export async function getEmissionFactorCountries(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const r = await client.query(
+                `SELECT DISTINCT country_code, country_name
+                 FROM emission_factors
+                 WHERE country_code IS NOT NULL AND country_code <> ''
+                 ORDER BY country_name NULLS LAST, country_code`
+            );
+            return res.status(200).send({
+                success: true,
+                data: r.rows.map((row: any) => ({
+                    country_code: row.country_code,
+                    country_name: row.country_name,
+                })),
+            });
+        } catch (err: any) {
+            console.error("getEmissionFactorCountries error:", err);
+            return res.status(500).send({ success: false, message: err.message });
+        }
+    });
+}
+
+export async function getEmissionFactorUnits(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const r = await client.query(
+                `SELECT DISTINCT unit
+                 FROM emission_factors
+                 WHERE unit IS NOT NULL AND unit <> ''
+                 ORDER BY unit`
+            );
+            return res.status(200).send({
+                success: true,
+                data: r.rows.map((row: any) => row.unit),
+            });
+        } catch (err: any) {
+            console.error("getEmissionFactorUnits error:", err);
             return res.status(500).send({ success: false, message: err.message });
         }
     });
