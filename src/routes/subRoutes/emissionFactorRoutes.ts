@@ -45,6 +45,24 @@ Routes.get(
     Controller.getEmissionFactorCountries
 );
 
+// All distinct (category, sub_category_1, sub_category_2) triples for the
+// 3-layer cascading dropdowns in the supplier questionnaire. PUBLIC (no auth)
+// because suppliers access the questionnaire via a sup_id link without a JWT
+// — they need to be able to populate the dropdowns. The data is reference
+// metadata (BAFU EF categories), no supplier-specific or sensitive info.
+Routes.get(
+    "/api/emission-factors/meta/layer-triples",
+    Controller.getEmissionFactorLayerTriples
+);
+
+// Match an EF row for the supplier's input via the fallback chain
+// (Supplier Region > Country > Nearby > Continent > Global > Europe).
+// Public because supplier preview / submit path also runs unauthenticated.
+Routes.post(
+    "/api/emission-factors/match",
+    Controller.postMatchEmissionFactor
+);
+
 // Replace-all CSV import. Super admin only. Field name in form-data: "file".
 Routes.post(
     "/api/emission-factors/import-csv",

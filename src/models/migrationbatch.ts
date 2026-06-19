@@ -3717,22 +3717,12 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
         `CREATE TABLE IF NOT EXISTS emission_factors (
             ef_id TEXT PRIMARY KEY,
             product TEXT NOT NULL,
-            material TEXT,
-            process TEXT,
-            activity_type TEXT,
             category TEXT,
             sub_category_1 TEXT,
             sub_category_2 TEXT,
-            sub_category_3 TEXT,
-            sub_category_4 TEXT,
             country_code TEXT,
             country_name TEXT,
-            region TEXT,
-            geo_fallback_chain TEXT,
             unit TEXT,
-            unit_kind TEXT,
-            recycled_content TEXT,
-            factor_suitability TEXT,
             kgco2e_per_unit NUMERIC(18, 6),
             reference_year INTEGER,
             source_db TEXT,
@@ -3741,35 +3731,38 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             updated_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`,
 
-        // Belt-and-suspenders: if a previous boot left the table with old
-        // VARCHAR(20) / VARCHAR(50) constraints and the DROP above somehow didn't
-        // take effect, force-convert every text column to TEXT in-place. ALTER
-        // TYPE is a no-op when the column is already TEXT.
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS material;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS process;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS activity_type;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS sub_category_3;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS sub_category_4;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS region;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS geo_fallback_chain;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS unit_kind;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS recycled_content;`,
+        `ALTER TABLE emission_factors DROP COLUMN IF EXISTS factor_suitability;`,
+
+        `DROP INDEX IF EXISTS idx_emission_factors_unit_kind;`,
+
         `ALTER TABLE emission_factors ALTER COLUMN ef_id TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN material TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN process TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN activity_type TYPE TEXT;`,
         `ALTER TABLE emission_factors ALTER COLUMN category TYPE TEXT;`,
         `ALTER TABLE emission_factors ALTER COLUMN sub_category_1 TYPE TEXT;`,
         `ALTER TABLE emission_factors ALTER COLUMN sub_category_2 TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN sub_category_3 TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN sub_category_4 TYPE TEXT;`,
         `ALTER TABLE emission_factors ALTER COLUMN country_code TYPE TEXT;`,
         `ALTER TABLE emission_factors ALTER COLUMN country_name TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN region TYPE TEXT;`,
         `ALTER TABLE emission_factors ALTER COLUMN unit TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN unit_kind TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN recycled_content TYPE TEXT;`,
         `ALTER TABLE emission_factors ALTER COLUMN source_db TYPE TEXT;`,
 
         `CREATE INDEX IF NOT EXISTS idx_emission_factors_source_db
             ON emission_factors (source_db);`,
         `CREATE INDEX IF NOT EXISTS idx_emission_factors_country_code
             ON emission_factors (country_code);`,
-        `CREATE INDEX IF NOT EXISTS idx_emission_factors_unit_kind
-            ON emission_factors (unit_kind);`,
         `CREATE INDEX IF NOT EXISTS idx_emission_factors_reference_year
             ON emission_factors (reference_year);`,
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_category
+            ON emission_factors (category);`,
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_sub_category_1
+            ON emission_factors (sub_category_1);`,
 
     ]
 

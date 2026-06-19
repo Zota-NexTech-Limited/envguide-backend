@@ -1,57 +1,37 @@
 import { withClient } from "../util/database.js";
+import { matchEmissionFactor, type SupplierEfInput } from "../services/efMatchingService.js";
 
-// 22 columns of the BAFU 2025 emission_factors table, in the exact order the CSV
-// must arrive in (column index = position in this array). Header names match the
-// actual BAFU 2025 export exactly (verified against Desktop/2.csv on 2026-06-04).
+// 10 columns of the BAFU 2025 Version 2 (Reversioned) CSV, exact header names.
+// ef_id is auto-generated (BAFU CSV does not include it); source_db is constant.
 const CSV_HEADERS = [
-    "EF_ID",
     "Product",
-    "Material",
-    "Process",
-    "Activity_Type",
     "Category",
-    "Sub_Category_1",
-    "Sub_Category_2",
-    "Sub_Category_3",
-    "Sub_Category_4",
-    "Country_Code",
-    "Country_Name",
-    "Region",
-    "Geo_Fallback_Chain",
+    "Sub-category 1",
+    "Sub-category 2",
+    "Country Code",
+    "Country Name",
+    "Time Period",
     "Unit",
-    "Unit_Kind",
-    "Recycled_Content",
-    "Factor_Suitability",
-    "kgCO2e_per_unit",
-    "Reference_Year",
-    "Source_DB",
-    "Embedding_Text",
+    "GWP 100 [kg CO2 eq]",
+    "Embedded Text Logic",
 ] as const;
 
 const DB_COLUMNS = [
     "ef_id",
     "product",
-    "material",
-    "process",
-    "activity_type",
     "category",
     "sub_category_1",
     "sub_category_2",
-    "sub_category_3",
-    "sub_category_4",
     "country_code",
     "country_name",
-    "region",
-    "geo_fallback_chain",
-    "unit",
-    "unit_kind",
-    "recycled_content",
-    "factor_suitability",
-    "kgco2e_per_unit",
     "reference_year",
+    "unit",
+    "kgco2e_per_unit",
     "source_db",
     "embedding_text",
 ];
+
+const SOURCE_DB_VALUE = "BAFU:2025";
 
 // Minimal RFC-4180 CSV parser. Handles "quoted, fields" and "" escaped quotes.
 function parseCsv(text: string): string[][] {
@@ -128,51 +108,41 @@ function validateRow(
         return { errors, values: null };
     }
 
-    const efId = cells[0]?.trim();
-    if (!efId) errors.push({ row: rowIndex, field: "EF_ID", message: "required" });
-
-    const product = cells[1]?.trim();
+    const product = cells[0]?.trim();
     if (!product) errors.push({ row: rowIndex, field: "Product", message: "required" });
 
-    const kgco2eRaw = cells[18]?.trim();
+    const kgco2eRaw = cells[8]?.trim();
     const kgco2e = parseLocaleNumber(kgco2eRaw);
     if (!Number.isFinite(kgco2e)) {
-        errors.push({ row: rowIndex, field: "kgCO2e_per_unit", message: `not a number: "${kgco2eRaw}"` });
+        errors.push({ row: rowIndex, field: "GWP 100 [kg CO2 eq]", message: `not a number: "${kgco2eRaw}"` });
     }
 
-    const yearRaw = cells[19]?.trim();
+    const yearRaw = cells[6]?.trim();
     const year = parseLocaleNumber(yearRaw);
     if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-        errors.push({ row: rowIndex, field: "Reference_Year", message: `not a valid year: "${yearRaw}"` });
+        errors.push({ row: rowIndex, field: "Time Period", message: `not a valid year: "${yearRaw}"` });
     }
 
     if (errors.length > 0) return { errors, values: null };
+
+    // ef_id auto-generated from row index (deterministic, audit-friendly).
+    const efId = `EF_${String(rowIndex - 1).padStart(5, "0")}`;
 
     return {
         errors: [],
         values: [
             efId,
             product,
+            cells[1]?.trim() || null,
             cells[2]?.trim() || null,
             cells[3]?.trim() || null,
             cells[4]?.trim() || null,
             cells[5]?.trim() || null,
-            cells[6]?.trim() || null,
-            cells[7]?.trim() || null,
-            cells[8]?.trim() || null,
-            cells[9]?.trim() || null,
-            cells[10]?.trim() || null,
-            cells[11]?.trim() || null,
-            cells[12]?.trim() || null,
-            cells[13]?.trim() || null,
-            cells[14]?.trim() || null,
-            cells[15]?.trim() || null,
-            cells[16]?.trim() || null,
-            cells[17]?.trim() || null,
-            kgco2e,
             year,
-            cells[20]?.trim() || null,
-            cells[21]?.trim() || null,
+            cells[7]?.trim() || null,
+            kgco2e,
+            SOURCE_DB_VALUE,
+            cells[9]?.trim() || null,
         ],
     };
 }
@@ -302,37 +272,22 @@ export async function listEmissionFactors(req: any, res: any) {
 
             const search = String(req.query.search || "").trim();
             const countryCode = String(req.query.country_code || "").trim();
-            const unitKind = String(req.query.unit_kind || "").trim();
             const unit = String(req.query.unit || "").trim();
-            const sourceDb = String(req.query.source_db || "").trim();
 
             const conditions: string[] = [];
             const params: any[] = [];
             let p = 1;
 
             if (search) {
-                // Global search hits every text column so users can filter on any
-                // value they see in the table — material name, process, country,
-                // sub-category, unit, source, etc. — without picking a field.
                 conditions.push(`(
                     ef_id              ILIKE $${p} OR
                     product            ILIKE $${p} OR
-                    material           ILIKE $${p} OR
-                    process            ILIKE $${p} OR
-                    activity_type      ILIKE $${p} OR
                     category           ILIKE $${p} OR
                     sub_category_1     ILIKE $${p} OR
                     sub_category_2     ILIKE $${p} OR
-                    sub_category_3     ILIKE $${p} OR
-                    sub_category_4     ILIKE $${p} OR
                     country_code       ILIKE $${p} OR
                     country_name       ILIKE $${p} OR
-                    region             ILIKE $${p} OR
-                    geo_fallback_chain ILIKE $${p} OR
                     unit               ILIKE $${p} OR
-                    unit_kind          ILIKE $${p} OR
-                    recycled_content   ILIKE $${p} OR
-                    factor_suitability ILIKE $${p} OR
                     source_db          ILIKE $${p} OR
                     embedding_text     ILIKE $${p}
                 )`);
@@ -340,9 +295,7 @@ export async function listEmissionFactors(req: any, res: any) {
                 p++;
             }
             if (countryCode) { conditions.push(`country_code = $${p++}`); params.push(countryCode); }
-            if (unitKind)    { conditions.push(`unit_kind = $${p++}`); params.push(unitKind); }
             if (unit)        { conditions.push(`unit = $${p++}`); params.push(unit); }
-            if (sourceDb)    { conditions.push(`source_db = $${p++}`); params.push(sourceDb); }
 
             const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -387,6 +340,63 @@ export async function getEmissionFactorById(req: any, res: any) {
             return res.status(200).send({ success: true, data: r.rows[0] });
         } catch (err: any) {
             console.error("getEmissionFactorById error:", err);
+            return res.status(500).send({ success: false, message: err.message });
+        }
+    });
+}
+
+// Run the boss's fallback chain against the supplier's input and return the
+// matched EF row plus the full audit trail (every step that was tried).
+export async function postMatchEmissionFactor(req: any, res: any) {
+    try {
+        const body = req.body || {};
+        const input: SupplierEfInput = {
+            category: String(body.category || "").trim(),
+            sub_category_1: body.sub_category_1 ? String(body.sub_category_1).trim() : null,
+            sub_category_2: body.sub_category_2 ? String(body.sub_category_2).trim() : null,
+            country_code: String(body.country_code || "").trim(),
+            country_name: body.country_name ? String(body.country_name).trim() : null,
+            year: Number(body.year),
+            unit: String(body.unit || "").trim(),
+        };
+        if (!input.category) return res.status(400).send({ success: false, message: "category required" });
+        if (!input.country_code) return res.status(400).send({ success: false, message: "country_code required" });
+        if (!Number.isInteger(input.year) || input.year < 1900 || input.year > 2100) {
+            return res.status(400).send({ success: false, message: "year required (4-digit integer)" });
+        }
+        if (!input.unit) return res.status(400).send({ success: false, message: "unit required" });
+
+        const result = await matchEmissionFactor(input);
+        return res.status(200).send({ success: true, data: result });
+    } catch (err: any) {
+        console.error("postMatchEmissionFactor error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// All distinct (category, sub_category_1, sub_category_2) triples for the
+// 3-layer cascading dropdowns in supplier questionnaire Q6-Q10. Returned shape
+// matches what DynamicQuestionnaireForm's renderer expects (layer1/2/3).
+export async function getEmissionFactorLayerTriples(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const r = await client.query(
+                `SELECT DISTINCT category, sub_category_1, sub_category_2
+                 FROM emission_factors
+                 WHERE category IS NOT NULL AND category <> ''
+                 ORDER BY category, sub_category_1 NULLS FIRST, sub_category_2 NULLS FIRST`
+            );
+            return res.status(200).send({
+                success: true,
+                data: r.rows.map((row: any, idx: number) => ({
+                    id: String(idx),
+                    layer1: row.category,
+                    layer2: row.sub_category_1,
+                    layer3: row.sub_category_2,
+                })),
+            });
+        } catch (err: any) {
+            console.error("getEmissionFactorLayerTriples error:", err);
             return res.status(500).send({ success: false, message: err.message });
         }
     });
@@ -443,7 +453,7 @@ export async function getEmissionFactorStats(_req: any, res: any) {
                     COUNT(*)::int                                       AS total,
                     COUNT(DISTINCT source_db)::int                       AS source_db_count,
                     COUNT(DISTINCT country_code)::int                    AS country_count,
-                    COUNT(DISTINCT unit_kind)::int                       AS unit_kind_count,
+                    COUNT(DISTINCT unit)::int                            AS unit_count,
                     MAX(updated_date)                                    AS last_updated
                  FROM emission_factors`
             );
