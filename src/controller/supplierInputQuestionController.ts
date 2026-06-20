@@ -15,9 +15,14 @@ import { matchEmissionFactor } from '../services/efMatchingService.js';
 async function resolveEfIdForRow(
     row: { layer1?: string | null; layer2?: string | null; layer3?: string | null; unit?: string | null },
     supplierCountry: { code: string | null; name: string | null },
-    year: number | null
+    year: number | null,
+    // Fallback unit for questions whose EF row carries no unit column
+    // (materials & packaging are always mass-based → "kg"). The row's own
+    // unit, when present, always wins.
+    defaultUnit: string | null = null
 ): Promise<string | null> {
-    if (!row.layer1 || !supplierCountry.code || !year || !row.unit) return null;
+    const unit = row.unit || defaultUnit;
+    if (!row.layer1 || !supplierCountry.code || !year || !unit) return null;
     try {
         const result = await matchEmissionFactor({
             category: row.layer1,
@@ -26,7 +31,7 @@ async function resolveEfIdForRow(
             country_code: supplierCountry.code,
             country_name: supplierCountry.name,
             year,
-            unit: row.unit,
+            unit,
         });
         return result.matched && result.ef_id ? result.ef_id : null;
     } catch (err) {
@@ -2949,7 +2954,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
             const ef_code = m.ef_code || await resolveEfIdForRow(
                 { layer1: m.layer1, layer2: m.layer2, layer3: m.layer3, unit: m.unit },
                 supplierCountry,
-                Number(annual_reporting_period)
+                Number(annual_reporting_period),
+                "kg" // raw materials have no unit column → mass-based
             );
             // composition_percent is the new field name; percentage is the legacy name
             const percentage = m.composition_percent ?? m.percentage ?? null;
@@ -3001,7 +3007,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
             const ef_code = r.ef_code || await resolveEfIdForRow(
                 { layer1: r.layer1, layer2: r.layer2, layer3: r.layer3, unit: r.unit },
                 supplierCountry,
-                Number(annual_reporting_period)
+                Number(annual_reporting_period),
+                "kg" // recycled materials have no unit column → mass-based
             );
             const percentage = r.composition_percent ?? r.percentage ?? null;
 
@@ -3085,7 +3092,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
             const ef_code = p.ef_code || await resolveEfIdForRow(
                 { layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, unit: p.unit },
                 supplierCountry,
-                Number(annual_reporting_period)
+                Number(annual_reporting_period),
+                "kg" // PIR/PCR + packaging materials are mass-based → kg
             );
 
             prepareDQR({
@@ -3131,7 +3139,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
             const ef_code = p.ef_code || await resolveEfIdForRow(
                 { layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, unit: p.unit },
                 supplierCountry,
-                Number(annual_reporting_period)
+                Number(annual_reporting_period),
+                "kg" // PIR/PCR + packaging materials are mass-based → kg
             );
 
             prepareDQR({
@@ -3240,7 +3249,8 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
             const ef_code = w.ef_code || await resolveEfIdForRow(
                 { layer1: w.layer1, layer2: w.layer2, layer3: w.layer3, unit: w.unit },
                 supplierCountry,
-                Number(annual_reporting_period)
+                Number(annual_reporting_period),
+                "kg" // packaging/production waste is weighed → mass-based kg
             );
             // friend's frontend sends `weight` (not `waste_weight`) for Q9; accept both
             const waste_weight = w.waste_weight ?? w.weight ?? null;

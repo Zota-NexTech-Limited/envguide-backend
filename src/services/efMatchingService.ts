@@ -46,6 +46,18 @@ export interface MatchResult {
     tried_steps: string[];      // every step we walked (audit)
 }
 
+// BAFU stores bare unit tokens (kg, t, m3, kWh, MJ, tkm, pkm, p, m2, ...).
+// Supplier unit dropdowns mostly return *formatted* names — "Kilograms (kg)",
+// "Cubic Meters (m3)", "Tonnes (t)" — while a few (energy) return the bare
+// token already ("kWh"). Extract the canonical token: prefer the text inside
+// the trailing parentheses, else use the trimmed string as-is.
+export function normalizeUnit(raw: string | null | undefined): string {
+    const s = (raw || "").trim();
+    if (!s) return "";
+    const m = s.match(/\(([^)]+)\)\s*$/);
+    return (m ? m[1] : s).trim();
+}
+
 // Format a single embedding text from its component fields. Mirrors the
 // friend's CSV population format exactly.
 function formatEmbedding(
@@ -64,7 +76,7 @@ function formatEmbedding(
         (countryCode || "").trim(),                       // keep ISO case (CH not ch)
         (countryName || "").toLowerCase().trim(),
         String(year),
-        (unit || "").trim(),
+        normalizeUnit(unit),
     ];
     return parts.join(", ");
 }
@@ -103,10 +115,14 @@ async function tryCountry(
         input.year,
         input.unit,
     );
+    // Case-insensitive + whitespace-tolerant exact match. The friend's CSV uses
+    // title-case country names ("Switzerland", "Region Europe") while we build
+    // the supplier embedding lowercased, so a plain `=` would miss. Comparing
+    // LOWER() on both sides makes the match robust to casing differences.
     const r = await client.query(
         `SELECT ef_id, kgco2e_per_unit, unit, country_code, country_name, embedding_text
          FROM emission_factors
-         WHERE embedding_text = $1
+         WHERE LOWER(embedding_text) = LOWER($1)
          LIMIT 1`,
         [embedding],
     );

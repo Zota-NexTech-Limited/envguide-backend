@@ -12,28 +12,23 @@ import { D, add, roundDp, truncDp } from '../util/decimalMath.js';
 // so calculation just reads ef_value back by that code. Returns null when
 // ef_code is missing or the row no longer exists; callers fall back to 0.01.
 type EfGroup = 'materials' | 'electricity' | 'fuel' | 'packaging' | 'vehicle' | 'waste';
-const EF_TABLE_BY_GROUP: Record<EfGroup, string> = {
-    materials:   'materials_emission_factor',
-    electricity: 'electricity_emission_factor',
-    fuel:        'fuel_emission_factor',
-    packaging:   'packaging_material_treatment_type_emission_factor',
-    vehicle:     'vehicle_type_emission_factor',
-    waste:       'waste_material_treatment_type_emission_factor',
-};
+// All emission factors now live in the single BAFU 2025 `emission_factors`
+// table (PK = ef_id, value column = kgco2e_per_unit). The legacy per-group
+// tables (materials_emission_factor, etc.) were replaced by this unified table,
+// so every group resolves the same way: by ef_id. The ef_group arg is kept only
+// so call sites stay readable; it no longer selects a table.
 async function fetchEfValueByCode(
     client: any,
-    ef_group: EfGroup,
+    _ef_group: EfGroup,
     ef_code: string | null | undefined,
 ): Promise<{ ef_value: number; unit: string } | null> {
     if (!ef_code) return null;
-    const table = EF_TABLE_BY_GROUP[ef_group];
-    if (!table) return null;
     const result = await client.query(
-        `SELECT ef_value, unit FROM ${table} WHERE ef_code = $1 LIMIT 1;`,
+        `SELECT kgco2e_per_unit, unit FROM emission_factors WHERE ef_id = $1 LIMIT 1;`,
         [ef_code]
     );
     if (!result.rows[0]) return null;
-    const ef_value = parseFloat(result.rows[0].ef_value);
+    const ef_value = parseFloat(result.rows[0].kgco2e_per_unit);
     return {
         ef_value: Number.isFinite(ef_value) ? ef_value : 0,
         unit: result.rows[0].unit || '',
@@ -4735,7 +4730,9 @@ export async function getBomComponentsForSupplier(req: any, res: any) {
             const query = `
                 SELECT id AS bom_id,
                        material_number,
-                       component_name
+                       component_name,
+                       detail_description,
+                       weight_gms
                 FROM bom
                 WHERE bom_pcf_id = $1
                   AND supplier_id = $2

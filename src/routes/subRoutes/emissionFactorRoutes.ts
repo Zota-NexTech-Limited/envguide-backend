@@ -63,6 +63,62 @@ Routes.post(
     Controller.postMatchEmissionFactor
 );
 
+// Packaging types for the Q8 "Packaging Type" dropdown. Public (supplier).
+Routes.get(
+    "/api/emission-factors/meta/packaging-types",
+    Controller.getPackagingTypes
+);
+
+// Resolve a material/alloy description into its constituent materials +
+// weight-% + BAFU layer mapping, to auto-populate Q7 raw materials. Public:
+// suppliers call it from the questionnaire (sup_id link, no JWT).
+Routes.post(
+    "/api/emission-factors/material-composition",
+    Controller.postMaterialComposition
+);
+
+// Preview raw-material emissions calculation (verify against the PCF sheet).
+Routes.post(
+    "/api/emission-factors/raw-materials-preview",
+    Controller.postRawMaterialsPreview
+);
+
+// Preview production/electricity emission calculation.
+Routes.post(
+    "/api/emission-factors/production-preview",
+    Controller.postProductionPreview
+);
+
+// Preview packaging emission calculation.
+Routes.post(
+    "/api/emission-factors/packaging-preview",
+    Controller.postPackagingPreview
+);
+
+// Preview transport emission calculation (per-leg sum).
+Routes.post(
+    "/api/emission-factors/transport-preview",
+    Controller.postTransportPreview
+);
+
+// Preview waste emission calculation (production + packaging waste).
+Routes.post(
+    "/api/emission-factors/waste-preview",
+    Controller.postWastePreview
+);
+
+// Full PCF calculation — all 5 sections + grand total.
+Routes.post(
+    "/api/emission-factors/pcf-calculate",
+    Controller.postPcfCalculate
+);
+
+// Full PCF from the raw supplier-questionnaire data object.
+Routes.post(
+    "/api/emission-factors/pcf-from-questionnaire",
+    Controller.postPcfFromQuestionnaire
+);
+
 // Replace-all CSV import. Super admin only. Field name in form-data: "file".
 Routes.post(
     "/api/emission-factors/import-csv",

@@ -3764,6 +3764,123 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
         `CREATE INDEX IF NOT EXISTS idx_emission_factors_sub_category_1
             ON emission_factors (sub_category_1);`,
 
+        // --- Alloy / material composition cache --------------------------------
+        // Resolves a material description (e.g. "AlSi10Mg(Fe) alloy") into its
+        // constituent elements + weight-% ranges + BAFU layer mapping. Populated
+        // by a seed of common alloys (zero API) and, on a miss, by the free LLM
+        // layer (Gemini -> Groq -> Claude). Keyed by the normalised alloy string
+        // so each unique alloy is resolved at most once, ever.
+        `CREATE TABLE IF NOT EXISTS alloy_composition_cache (
+            alloy_key TEXT PRIMARY KEY,
+            alloy_label TEXT,
+            composition JSONB NOT NULL,
+            source TEXT,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+
+        // Seed of common alloys (auto-parts set). composition is a JSON array of
+        // { element, min_pct, max_pct, bafu_category, bafu_process, bafu_sub2 }.
+        // ON CONFLICT keeps any later LLM/manual refinement intact.
+        // Keys are alphanumeric-normalised (lowercase, no punctuation) to match
+        // alloyCompositionService.normalizeAlloyKey, with aliases so the same
+        // alloy is found whether the description says "AlSi9Cu3(Fe)", "AlSi9Cu3",
+        // or "ADC12".
+        `INSERT INTO alloy_composition_cache (alloy_key, alloy_label, composition, source) VALUES
+            ('alsi10mgfe', 'AlSi10Mg(Fe)', '[
+                {"element":"Aluminium","min_pct":88,"max_pct":91,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Silicon","min_pct":9,"max_pct":11,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Magnesium","min_pct":0.2,"max_pct":0.45,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Iron","min_pct":0,"max_pct":0.55,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""}
+            ]', 'seed'),
+            ('alsi10mg', 'AlSi10Mg(Fe)', '[
+                {"element":"Aluminium","min_pct":88,"max_pct":91,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Silicon","min_pct":9,"max_pct":11,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Magnesium","min_pct":0.2,"max_pct":0.45,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Iron","min_pct":0,"max_pct":0.55,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""}
+            ]', 'seed'),
+            ('alsi9cu3fe', 'AlSi9Cu3(Fe) / ADC12', '[
+                {"element":"Aluminium","min_pct":80,"max_pct":86,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Silicon","min_pct":9.6,"max_pct":12,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Copper","min_pct":1.5,"max_pct":3.5,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Iron","min_pct":0,"max_pct":1.3,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""},
+                {"element":"Zinc","min_pct":0,"max_pct":1,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""}
+            ]', 'seed'),
+            ('alsi9cu3', 'AlSi9Cu3(Fe) / ADC12', '[
+                {"element":"Aluminium","min_pct":80,"max_pct":86,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Silicon","min_pct":9.6,"max_pct":12,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Copper","min_pct":1.5,"max_pct":3.5,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Iron","min_pct":0,"max_pct":1.3,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""},
+                {"element":"Zinc","min_pct":0,"max_pct":1,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""}
+            ]', 'seed'),
+            ('adc12', 'ADC12', '[
+                {"element":"Aluminium","min_pct":80,"max_pct":86,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Silicon","min_pct":9.6,"max_pct":12,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Copper","min_pct":1.5,"max_pct":3.5,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
+                {"element":"Iron","min_pct":0,"max_pct":1.3,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""}
+            ]', 'seed')
+        ON CONFLICT (alloy_key) DO NOTHING;`,
+
+        // --- Material -> BAFU emission-factor product mapping -------------------
+        // For raw-material emissions, each material is matched to ONE specific
+        // BAFU product (e.g. Aluminium -> "production mix, cast alloy"), then the
+        // HIGHEST emission factor across all countries for that product is used
+        // (per the manager's PCF logic sheet). product_pattern is a case-
+        // insensitive ILIKE pattern against emission_factors.product.
+        `CREATE TABLE IF NOT EXISTS material_ef_mapping (
+            material_key TEXT PRIMARY KEY,
+            material_label TEXT,
+            bafu_category TEXT NOT NULL,
+            product_pattern TEXT NOT NULL,
+            note TEXT,
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`,
+
+        `INSERT INTO material_ef_mapping (material_key, material_label, bafu_category, product_pattern, note) VALUES
+            ('aluminium', 'Aluminium', 'metals', 'aluminium, production mix, cast alloy%', 'casting form; highest EF = RER 4.27'),
+            ('silicon',   'Silicon',   'metals', 'mg-silicon%',                            'metallurgical grade; highest EF = CN 12.62'),
+            ('magnesium', 'Magnesium', 'metals', 'magnesium, at plant%',                   'primary; highest EF = RER 76.11'),
+            ('iron',      'Iron',      'metals', 'pig iron, at plant%',                     'primary; highest EF = RER 2.20'),
+            ('copper',    'Copper',    'metals', 'copper, primary, at refinery%',           'primary; highest EF = RAS 3.99'),
+            ('zinc',      'Zinc',      'metals', 'zinc, primary, at regional storage%',     'primary; highest EF = RER 3.02'),
+            ('cardboard corrugated', 'Cardboard Corrugated', 'paper+ board', 'packaging, corrugated board%', 'packaging; highest EF = CH 1.218'),
+            ('cardboard', 'Cardboard', 'paper+ board', 'packaging, corrugated board%', 'packaging; highest EF = CH 1.218'),
+            ('corrugated board', 'Corrugated Board', 'paper+ board', 'packaging, corrugated board%', 'packaging; highest EF = CH 1.218'),
+            ('plastic film ldpe', 'Plastic Film (LDPE)', 'plastics', 'packaging film, ldpe%', 'packaging; LDPE film'),
+            ('wooden pallet', 'Wooden Pallet', 'wood', 'eur-flat pallet%', 'packaging; wooden pallet'),
+            ('road', 'Road (Truck)', 'transport systems', 'transport, freight, lorry, diesel, 32t%', 'transport; per tkm; ~0.22'),
+            ('truck', 'Truck', 'transport systems', 'transport, freight, lorry, diesel, 32t%', 'transport; per tkm; ~0.22'),
+            ('ship', 'Ship', 'transport systems', 'transport, transoceanic container ship%', 'transport; per tkm; ~0.016'),
+            ('train', 'Train (Rail)', 'transport systems', 'transport, freight, rail%', 'transport; per tkm; ~0.017'),
+            ('rail', 'Rail', 'transport systems', 'transport, freight, rail%', 'transport; per tkm; ~0.017'),
+            ('waste:aluminium', 'Aluminium (scrap)', 'metals', 'aluminium scrap, new%', 'production waste; aluminium scrap ~0.0222'),
+            ('waste:cardboard corrugated', 'Cardboard (waste)', 'paper+ board', 'waste paper, sorted%', 'packaging waste; waste paper ~0.091'),
+            ('waste:cardboard', 'Cardboard (waste)', 'paper+ board', 'waste paper, sorted%', 'packaging waste; waste paper ~0.091'),
+            ('waste:corrugated board', 'Corrugated (waste)', 'paper+ board', 'waste paper, sorted%', 'packaging waste; waste paper ~0.091')
+        ON CONFLICT (material_key) DO NOTHING;`,
+
+        // `kind` distinguishes raw-material mappings (Q7), packaging-type
+        // mappings (Q8), and transport-mode mappings (Q10).
+        `ALTER TABLE material_ef_mapping ADD COLUMN IF NOT EXISTS kind TEXT DEFAULT 'material';`,
+        `UPDATE material_ef_mapping SET kind = 'packaging'
+            WHERE material_key IN ('cardboard corrugated','cardboard','corrugated board','plastic film ldpe','wooden pallet');`,
+        `UPDATE material_ef_mapping SET kind = 'transport'
+            WHERE material_key IN ('road','truck','ship','train','rail');`,
+
+        // Transport modes pin the EXACT BAFU row (too many fuel/euro variants for
+        // a pattern + "highest" to land on the representative average).
+        `ALTER TABLE material_ef_mapping ADD COLUMN IF NOT EXISTS bafu_ef_id TEXT;`,
+        // EF_07454 lorry 16-32t fleet avg ~0.22 ; EF_08639 transoceanic ~0.016 ; EF_07830 freight rail ~0.017
+        `UPDATE material_ef_mapping SET bafu_ef_id = 'EF_07454' WHERE material_key IN ('road','truck');`,
+        `UPDATE material_ef_mapping SET bafu_ef_id = 'EF_08639' WHERE material_key = 'ship';`,
+        `UPDATE material_ef_mapping SET bafu_ef_id = 'EF_07830' WHERE material_key IN ('train','rail');`,
+
+        // Waste mappings (Q9): material/packaging -> its scrap/waste BAFU row.
+        `UPDATE material_ef_mapping SET kind = 'waste' WHERE material_key LIKE 'waste:%';`,
+        `UPDATE material_ef_mapping SET bafu_ef_id = 'EF_00078' WHERE material_key = 'waste:aluminium';`,
+        `UPDATE material_ef_mapping SET bafu_ef_id = 'EF_08899' WHERE material_key IN ('waste:cardboard corrugated','waste:cardboard','waste:corrugated board');`,
+
     ]
 
     // try {
