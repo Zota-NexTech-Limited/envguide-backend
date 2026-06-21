@@ -348,3 +348,40 @@ export async function resolveMaterialEfFromDescription(
 ): Promise<MaterialEfResolution> {
     return resolveEfFromText(client, description, RAW_MATERIAL_CATEGORIES, countryInput);
 }
+
+// Packaging categories (cardboard/paper/plastic/etc.) used by the highest-EF picker.
+export const PACKAGING_CATEGORIES = ["paper+ board", "cardboard", "plastics", "glass", "metals", "wood"];
+
+// Manager's "fetch HIGHEST EF" rule (Excel note: "EF matches with multiple rows
+// then fetch highest EF values to calculation"). Pulls all candidate rows that
+// match the description tokens within the given categories, then returns the row
+// with the MAXIMUM emission factor — instead of a single saved ef_code. Used for
+// packaging, where the manager deliberately takes the highest corrugated-board EF.
+export async function resolveHighestEfFromText(
+    client: any,
+    description: string,
+    categories: string[],
+    units: string[] | null,
+): Promise<MaterialEfResolution> {
+    const candidates = await fetchCandidates(client, description, categories, units);
+    if (!candidates.length) return { matched: false, description, candidate_count: 0 };
+
+    let best = candidates[0];
+    let bestEf = Number(best.kgco2e_per_unit) || 0;
+    for (const c of candidates) {
+        const ef = Number(c.kgco2e_per_unit) || 0;
+        if (ef > bestEf) { best = c; bestEf = ef; }
+    }
+
+    return {
+        matched: bestEf > 0,
+        ef_id: best.ef_id,
+        ef_value: bestEf,
+        product: best.product,
+        country_code: best.country_code ?? undefined,
+        unit: best.unit || (units && units[0]) || "kg",
+        matched_step: "highest-ef",
+        candidate_count: candidates.length,
+        description,
+    };
+}

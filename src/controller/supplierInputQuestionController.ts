@@ -1823,8 +1823,9 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
             do_you_perform_destructive_testing, it_system_use_for_production_control,
             total_energy_consumption_of_it_hardware_production, energy_con_included_total_energy_pur_sec_two_qfortythree,
             do_you_use_cloud_based_system_for_production, do_you_use_any_cooling_sysytem_for_server,
-            energy_con_included_total_energy_pur_sec_two_qfifty
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+            energy_con_included_total_energy_pur_sec_two_qfifty,
+            total_weight_of_all_products_produced_kg
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
         [
             stide_id, sgiq_id,
             data.do_you_acquired_standardized_re_certificates ?? false,
@@ -1840,7 +1841,9 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
             data.energy_con_included_total_energy_pur_sec_two_qfortythree ?? false,
             data.do_you_use_cloud_based_system_for_production ?? false,
             data.do_you_use_any_cooling_sysytem_for_server ?? false,
-            data.energy_con_included_total_energy_pur_sec_two_qfifty ?? false
+            data.energy_con_included_total_energy_pur_sec_two_qfifty ?? false,
+            // Q6.1 factory total production weight (denominator for energy allocation)
+            data.total_weight_of_all_products_produced_kg ?? null
         ]
     );
 
