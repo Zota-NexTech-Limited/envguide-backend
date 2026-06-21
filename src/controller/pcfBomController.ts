@@ -9,6 +9,7 @@ import {
     resolveMaterialEfFromDescription,
     resolveEfFromText,
     resolveHighestEfFromText,
+    RAW_MATERIAL_CATEGORIES,
     PACKAGING_CATEGORIES,
     ENERGY_CATEGORIES,
     TRANSPORT_CATEGORIES,
@@ -3123,6 +3124,13 @@ export async function pcfCalculate(req: any, res: any) {
                     console.warn("No composition elements found for bom_id:", BomData.id, "- material emissions = 0");
                 }
 
+                // Manager's rule (confirmed for both demo test cases):
+                //  • Multi-element alloy (e.g. AlSi10Mg → Al/Si/Mg/Fe) → resolve EACH
+                //    element by name match (specific EF). Matches his aluminium sheet.
+                //  • SINGLE 100% material (e.g. "Low Carbon Steel") → pick the HIGHEST
+                //    EF among candidates (his "fetch highest EF" rule). Matches steel.
+                const isSingleMaterial = elementsRes.rows.length === 1;
+
                 for (const elem of elementsRes.rows) {
                     const elementName = (elem.material_name || "").trim();
                     const pct = parseFloat(String(elem.percentage ?? "").replace(/[^0-9.]/g, "")) || 0;
@@ -3136,7 +3144,9 @@ export async function pcfCalculate(req: any, res: any) {
                     // the "Aluminium cast alloy" EF). Element name alone keeps Silicon
                     // → silicon, Iron → iron/steel, etc.
                     const elementSearchText = elementName;
-                    const elemRes = await resolveMaterialEfFromDescription(client, elementSearchText, null);
+                    const elemRes = isSingleMaterial
+                        ? await resolveHighestEfFromText(client, elementSearchText, RAW_MATERIAL_CATEGORIES, null)
+                        : await resolveMaterialEfFromDescription(client, elementSearchText, null);
                     const elementEf = elemRes.matched && elemRes.ef_value ? elemRes.ef_value : 0.01;
                     const elementEmission = elementWeightKg * elementEf;
 
