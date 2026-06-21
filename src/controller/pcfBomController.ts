@@ -2133,6 +2133,7 @@ COALESCE(
                         'distance', mt.distance,
                         'created_date', mt.created_date
                     )
+                    ORDER BY mt.motuft_id
                 )
                 FROM mode_of_transport_used_for_transportation_questions mt
                 WHERE mt.bom_id = b.id

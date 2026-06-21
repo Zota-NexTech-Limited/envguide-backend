@@ -225,6 +225,9 @@ function heuristicPick(description: string, candidates: EfCandidate[]): EfCandid
         // is ultra-high-purity (huge EF); nickel-chromium is a specialty steel
         // alloy — neither is the right default for a plain element composition.
         "photovoltaic", "photovoltaics", "solar", "nickel-chromium", "nickel", "chromium",
+        // Product-specific recycling rows that pollute generic waste resolution
+        // (e.g. "Takeback and recycling, CdTe PV module"). Keep waste EFs generic.
+        "cdte", "pv module", "takeback", "module", "battery", "vehicle",
         // Air freight is never a sensible default transport mode — deprioritise it.
         "aircraft", "air freight", "helicopter", "plane"];
     // Distinctive description words (e.g. "cast", "wrought", "primary",

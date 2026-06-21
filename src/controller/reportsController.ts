@@ -3711,14 +3711,14 @@ export async function generatePcfReportPdf(req: any, res: any) {
                 totalsByScope,
                 components,
                 methodology: {
-                    standard: "ISO 14067:2018 / GHG Protocol Product Standard",
+                    standard: "Catena-X / ISO 14067:2018 / GHG Protocol Product Standard",
                     allocationMethod: "Mass-based allocation across co-products and shared infrastructure",
-                    cutoffCriteria: "Inputs contributing less than 1% of total mass excluded; cumulative excluded inputs do not exceed 5% of total mass.",
+                    cutoffCriteria: "Inputs contributing less than 1% of total mass excluded; cumulative excluded inputs do not exceed 3% of total mass.",
                 },
                 dataSources: {
                     primary: "Supplier-provided questionnaire responses (component composition, packaging, transport, energy, waste)",
-                    secondary: "Ecoinvent v3 emission factor database",
-                    backgroundEf: "Region- and year-matched emission factors from Ecoinvent and IPCC AR6 characterization",
+                    secondary: "BAFU: 2025 Version 2 Emission Factor Database",
+                    backgroundEf: "Region- and year-matched emission factors from BAFU Database and IPCC AR6 characterization",
                 },
                 supplierAppendix,
             });
