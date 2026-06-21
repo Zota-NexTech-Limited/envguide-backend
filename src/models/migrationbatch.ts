@@ -3636,6 +3636,13 @@ ADD COLUMN IF NOT EXISTS layer4 VARCHAR(255),
 ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
 `,
 
+        // Q6.1 / Q22.1 — total weight of ALL products produced at the factory in the
+        // reporting period. The supplier types this manually; it is the denominator
+        // for production-energy allocation (manager's formula). Previously dropped.
+        `ALTER TABLE scope_two_indirect_emissions_questions
+ADD COLUMN IF NOT EXISTS total_weight_of_all_products_produced_kg DOUBLE PRECISION;
+`,
+
         `ALTER TABLE weight_of_packaging_per_unit_product_questions
 ADD COLUMN IF NOT EXISTS layer1 VARCHAR(255),
 ADD COLUMN IF NOT EXISTS layer2 VARCHAR(255),

@@ -8,6 +8,8 @@ import { D, add, roundDp, truncDp } from '../util/decimalMath.js';
 import {
     resolveMaterialEfFromDescription,
     resolveEfFromText,
+    resolveHighestEfFromText,
+    PACKAGING_CATEGORIES,
     ENERGY_CATEGORIES,
     TRANSPORT_CATEGORIES,
     WASTE_CATEGORIES,
@@ -3384,6 +3386,28 @@ export async function pcfCalculate(req: any, res: any) {
 
                     }
 
+                    // Q6.1 OVERRIDE (manager's formula): if the supplier entered a
+                    // manual "total weight of all products at factory" (Q6.1 = 50000),
+                    // use THAT as the allocation denominator instead of the Q5-derived
+                    // sum. The Q5 product list often doesn't contain every factory
+                    // product, so the manual Q6.1 figure is the authoritative total:
+                    //   (component_weight / Q6.1_factory_weight) × factory_energy
+                    try {
+                        const q61Res = await client.query(
+                            `SELECT total_weight_of_all_products_produced_kg
+                             FROM scope_two_indirect_emissions_questions
+                             WHERE stide_id = $1`,
+                            [fetchStideId.stide_id]
+                        );
+                        const q61Weight = parseFloat(q61Res.rows[0]?.total_weight_of_all_products_produced_kg);
+                        if (q61Weight && q61Weight > 0) {
+                            console.log(`Q6.1 factory-weight OVERRIDE: using ${q61Weight} kg (Q5-derived sum was ${Total_weight_produced_at_Factory_level_kg})`);
+                            Total_weight_produced_at_Factory_level_kg = q61Weight;
+                        }
+                    } catch (e) {
+                        console.warn("Q6.1 factory-weight lookup failed (non-fatal):", (e as Error)?.message);
+                    }
+
                     let no_of_products_current_component_produced = 0;
 
                     const partcularProductQuanty = `
@@ -3755,10 +3779,25 @@ export async function pcfCalculate(req: any, res: any) {
                             );
                         }
 
-                        const packagingEf = await fetchEfValueByCode(client, 'packaging', pkgRow.ef_code);
-                        const rowEF = packagingEf?.ef_value ?? 0.01;
-                        if (!packagingEf) {
-                            console.warn(`WARNING: No packaging EF for ef_code='${pkgRow.ef_code}' (layers: ${pkgRow.layer1}/${pkgRow.layer2}/${pkgRow.layer3}/${pkgRow.layer4}) — using 0.01`);
+                        // Manager's method: among ALL BAFU rows matching this packaging
+                        // material (category + type keywords), take the HIGHEST emission
+                        // factor (Excel note: "EF matches with multiple rows then fetch
+                        // highest EF"). e.g. corrugated board → EF_06110 (1.21798), the
+                        // top of the paper+board corrugated rows, not the saved 0.56 row.
+                        let rowEF: number;
+                        const pkgSearch = `${rowType || ""} ${pkgRow.layer2 || ""}`.trim();
+                        const pkgCats = pkgRow.layer1 ? [pkgRow.layer1] : PACKAGING_CATEGORIES;
+                        const highestPkg = await resolveHighestEfFromText(client, pkgSearch, pkgCats, ["kg"]);
+                        if (highestPkg.matched && highestPkg.ef_value) {
+                            rowEF = highestPkg.ef_value;
+                            console.log(`Packaging highest-EF pick: ef_id=${highestPkg.ef_id} "${highestPkg.product}" EF=${highestPkg.ef_value} (${highestPkg.candidate_count} candidates)`);
+                        } else {
+                            // Fallback to the saved ef_code when no candidate matched.
+                            const packagingEf = await fetchEfValueByCode(client, 'packaging', pkgRow.ef_code);
+                            rowEF = packagingEf?.ef_value ?? 0.01;
+                            if (!packagingEf) {
+                                console.warn(`WARNING: No packaging EF for ef_code='${pkgRow.ef_code}' (layers: ${pkgRow.layer1}/${pkgRow.layer2}/${pkgRow.layer3}/${pkgRow.layer4}) — using 0.01`);
+                            }
                         }
 
                         const rowEmission = rowWeightKg * rowEF;
@@ -4297,18 +4336,23 @@ export async function pcfCalculate(req: any, res: any) {
                             let wasteEf = await fetchEfValueByCode(client, 'waste', fetchQ68Data.ef_code);
 
                             // Fallback (manager's method): resolve the waste-treatment EF
-                            // from the waste description when no ef_code was saved.
-                            if (!wasteEf) {
+                            // from the waste description. Triggered when no ef_code was
+                            // saved OR the saved row has a ZERO EF — some BAFU rows (e.g.
+                            // "recycling, unspecified" EF_06623) carry 0, which would make
+                            // the whole waste section read 0. Waste must never be zero, so
+                            // we resolve a real non-zero treatment EF instead.
+                            if (!wasteEf || !wasteEf.ef_value || wasteEf.ef_value <= 0) {
                                 const hint = `${fetchQ68Data.layer1 ?? ""} ${fetchQ68Data.layer2 ?? ""}`.trim();
                                 const res = await resolveEfFromText(client, hint, WASTE_CATEGORIES, BomData.production_location);
                                 if (res.matched && res.ef_value) {
                                     wasteEf = { ef_value: res.ef_value, unit: res.unit || "kg" };
-                                    console.log(`Q68 waste resolved by description: ef_id=${res.ef_id} product="${res.product}" EF=${res.ef_value}`);
+                                    console.log(`Q68 waste resolved by description (ef_code EF was zero/missing): ef_id=${res.ef_id} product="${res.product}" EF=${res.ef_value}`);
                                 } else {
-                                    console.warn("WARNING: Q68 Waste EF not found by ef_code or description:", fetchQ68Data.ef_code);
+                                    console.warn("WARNING: Q68 Waste EF zero/not found by ef_code or description:", fetchQ68Data.ef_code, "— using 0.01 default");
                                 }
                             }
-                            const rowEF = wasteEf?.ef_value ?? 0.01;
+                            // Guard: never let the waste EF be zero — fall back to 0.01.
+                            const rowEF = (wasteEf?.ef_value && wasteEf.ef_value > 0) ? wasteEf.ef_value : 0.01;
 
                             const rowEmission = D(wasteWeightInKg).mul(D(rowEF)).toNumber();
                             waste_disposal_emissions_kg_CO2e += rowEmission;
