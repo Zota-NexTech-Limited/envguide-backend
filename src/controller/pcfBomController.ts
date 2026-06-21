@@ -3100,16 +3100,42 @@ export async function pcfCalculate(req: any, res: any) {
                 const materialDescription = (BomData.detail_description || BomData.component_name || "").trim();
                 const weightInKg = parseFloat(BomData.weight_gms) / 1000;
 
+                // The description is often a chemical formula ("AlSi10Mg(Fe) alloy")
+                // that does NOT contain the plain metal name. So we also pull the
+                // DOMINANT material (highest composition %) from the Q7 composition
+                // and prepend it to the search text — this is the manager's
+                // "take the metal with the highest percentage" step. e.g.
+                //   AlSi10Mg(Fe)  →  dominant = Aluminium  →  "Aluminium ... cast alloy"
+                let dominantMaterialName = "";
+                try {
+                    const domRes = await client.query(
+                        `SELECT material_name, percentage
+                         FROM raw_materials_used_in_component_manufacturing_questions
+                         WHERE bom_id = $1 AND own_emission_id IS NULL
+                           AND material_name IS NOT NULL AND material_name <> ''
+                         ORDER BY NULLIF(regexp_replace(percentage::text, '[^0-9.]', '', 'g'), '')::numeric DESC NULLS LAST
+                         LIMIT 1`,
+                        [BomData.id]
+                    );
+                    dominantMaterialName = (domRes.rows[0]?.material_name || "").trim();
+                } catch (e) {
+                    console.warn("Dominant-material lookup failed (non-fatal):", (e as Error)?.message);
+                }
+
+                const materialSearchText = `${dominantMaterialName} ${materialDescription}`.trim();
+
                 console.log("=== MATERIAL RESOLUTION (description-based) ===");
                 console.log("BOM ID:", BomData.id);
                 console.log("Component Name:", BomData.component_name);
                 console.log("Material Description:", materialDescription);
+                console.log("Dominant material (highest %):", dominantMaterialName || "(none)");
+                console.log("Resolver search text:", materialSearchText);
                 console.log("Weight In KG:", weightInKg);
 
                 // production_location is free-text; pass null so the resolver keeps
                 // the AI-chosen geography (RER/GLO are the right defaults for raw
                 // metals). Country→ISO refinement can be added later.
-                const matRes = await resolveMaterialEfFromDescription(client, materialDescription, null);
+                const matRes = await resolveMaterialEfFromDescription(client, materialSearchText, null);
                 console.log("Material resolution result:", matRes.matched
                     ? `ef_id=${matRes.ef_id} product="${matRes.product}" EF=${matRes.ef_value} (${matRes.matched_step}, ${matRes.candidate_count} candidates)`
                     : `NO MATCH (${matRes.candidate_count ?? 0} candidates) — using default 0.01`);
