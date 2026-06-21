@@ -5,6 +5,13 @@ import { bomService } from "../services/pcfBomService.js";
 import { getProductByCode } from './productController.js';
 import { convertToBaseUnit } from '../util/unitConversion.js';
 import { D, add, roundDp, truncDp } from '../util/decimalMath.js';
+import {
+    resolveMaterialEfFromDescription,
+    resolveEfFromText,
+    ENERGY_CATEGORIES,
+    TRANSPORT_CATEGORIES,
+    WASTE_CATEGORIES,
+} from '../services/materialEfResolver.js';
 
 // Look up an emission factor by ef_code. Each EF table has the same shape
 // (ef_code, ef_value, unit, region, year, layer1..4). The questionnaire saves
@@ -2986,7 +2993,7 @@ export async function pcfCalculate(req: any, res: any) {
             // Temporarily removed is_bom_calculated = FALSE to allow recalculation for testing
             const fetchAllBOM = `
                 SELECT id,bom_pcf_id,material_number,economic_ratio,
-                component_name,qunatity,production_location,
+                component_name,qunatity,production_location,detail_description,
                 weight_gms,total_weight_gms,price,total_price,supplier_id
                 FROM bom
                 WHERE bom_pcf_id = $1;
@@ -3085,134 +3092,47 @@ export async function pcfCalculate(req: any, res: any) {
                 );
                 console.log(`Deleted ${deleteMaterialResult.rowCount} old material calculation rows for bom_id: ${BomData.id}`);
 
-                // FEtching materials For Particular BOM
-                // First, try to find materials with bom_id matching this BOM
-                let fetchQ52 = `
-                SELECT rmuicm_id,stoie_id,bom_id,
-                material_number,material_name,percentage,ef_code,
-                layer1,layer2,layer3,layer4
-                FROM raw_materials_used_in_component_manufacturing_questions
-                WHERE bom_id = $1 AND own_emission_id IS NULL;
-            `;
+                // ====> Manager's method: the raw material is identified from the BOM
+                // detail description (e.g. "Cast Aluminium Alloy (AlSi9Cu3 / ADC12)")
+                // and resolved to a SINGLE BAFU emission_factors product via AI +
+                // geography fallback. No element splitting — one material, one EF:
+                //     PCF_material = component_weight_kg × EF
+                const materialDescription = (BomData.detail_description || BomData.component_name || "").trim();
+                const weightInKg = parseFloat(BomData.weight_gms) / 1000;
 
-                let fetchQ52SupResult = await client.query(fetchQ52, [BomData.id]);
+                console.log("=== MATERIAL RESOLUTION (description-based) ===");
+                console.log("BOM ID:", BomData.id);
+                console.log("Component Name:", BomData.component_name);
+                console.log("Material Description:", materialDescription);
+                console.log("Weight In KG:", weightInKg);
 
-                // If no materials found by bom_id, try to find through bom_pcf_id via supplier questionnaire.
-                // IMPORTANT: Do NOT mix NULL bom_id rows with bom_id-specific rows; it causes cross-component contamination.
-                if (!fetchQ52SupResult.rows || fetchQ52SupResult.rows.length === 0) {
-                    console.log("No materials found by bom_id, trying through bom_pcf_id...");
-                    fetchQ52 = `
-                        SELECT rm.rmuicm_id, rm.stoie_id, rm.bom_id,
-                            rm.material_number, rm.material_name, rm.percentage, rm.ef_code,
-                            rm.layer1, rm.layer2, rm.layer3, rm.layer4
-                        FROM raw_materials_used_in_component_manufacturing_questions rm
-                        JOIN scope_three_other_indirect_emissions_questions stoie
-                            ON rm.stoie_id = stoie.stoie_id
-                        JOIN supplier_general_info_questions sgiq
-                            ON stoie.sgiq_id = sgiq.sgiq_id
-                        WHERE sgiq.bom_pcf_id = $1
-                            AND rm.bom_id = $2
-                            AND rm.own_emission_id IS NULL;
-                    `;
-                    fetchQ52SupResult = await client.query(fetchQ52, [bom_pcf_id, BomData.id]);
-                }
+                // production_location is free-text; pass null so the resolver keeps
+                // the AI-chosen geography (RER/GLO are the right defaults for raw
+                // metals). Country→ISO refinement can be added later.
+                const matRes = await resolveMaterialEfFromDescription(client, materialDescription, null);
+                console.log("Material resolution result:", matRes.matched
+                    ? `ef_id=${matRes.ef_id} product="${matRes.product}" EF=${matRes.ef_value} (${matRes.matched_step}, ${matRes.candidate_count} candidates)`
+                    : `NO MATCH (${matRes.candidate_count ?? 0} candidates) — using default 0.01`);
 
-                console.log("=== Q52 MATERIALS FETCHED ===");
-                console.log("Number of materials found:", fetchQ52SupResult.rows.length);
-                fetchQ52SupResult.rows.forEach((mat: any, idx: number) => {
-                    console.log(`Material ${idx + 1}:`, {
-                        material: mat.material_name || mat.layer4 || mat.layer2 || null,
-                        percentage: mat.percentage,
-                        ef_code: mat.ef_code,
-                        layers: [mat.layer1, mat.layer2, mat.layer3, mat.layer4],
-                        bom_id: mat.bom_id
-                    });
-                });
-                console.log("=== END Q52 MATERIALS ===");
+                const Material_Emission_Factor_kg_CO2E_kg = matRes.matched && matRes.ef_value ? matRes.ef_value : 0.01;
+                const materialDisplayName = matRes.product || materialDescription || BomData.component_name || null;
 
-                // Process every Q52 row for this bom_id (no dedupe by material_name — duplicate names
-                // can be valid distinct rows; collapsing them skewed composition % / emissions).
+                Raw_Material_emissions = weightInKg * Material_Emission_Factor_kg_CO2E_kg;
+                console.log("Material Emission Factor (kg CO₂e/kg):", Material_Emission_Factor_kg_CO2E_kg);
+                console.log("Material emissions (kg CO₂e):", Raw_Material_emissions);
+                console.log("Formula:", weightInKg, "×", Material_Emission_Factor_kg_CO2E_kg, "=", Raw_Material_emissions);
+                console.log("=== END MATERIAL RESOLUTION ===");
 
-                for (let ProductData of fetchQ52SupResult.rows) {
-                    // Resolve EF by the questionnaire row's ef_code. Region/year were
-                    // baked in at save time when the row's layers were matched against
-                    // materials_emission_factor, so no region branching is needed here.
-                    const materialEf = await fetchEfValueByCode(client, 'materials', ProductData.ef_code);
-
-                    console.log("Querying material emission factor by ef_code:", {
-                        ef_code: ProductData.ef_code,
-                        layers: [ProductData.layer1, ProductData.layer2, ProductData.layer3, ProductData.layer4],
-                    });
-                    console.log("Material emission factor query result:", materialEf ?? "NO MATCH FOUND");
-
-                    if (!materialEf) {
-                        console.warn("WARNING: Material emission factor not found by ef_code!");
-                        console.warn("ef_code on questionnaire row:", ProductData.ef_code);
-                        console.warn("Check that supplierInputQuestionController saved an ef_code, and that materials_emission_factor still has that row.");
-                    }
-
-                    const Material_Emission_Factor_kg_CO2E_kg = materialEf?.ef_value ?? 0.01; // 0.01 fallback when ef_code is missing
-                    // Use layer4 (the specific material e.g. "Mild Steel", "Cast Iron")
-                    // so two materials sharing the same layer2 don't look identical.
-                    const materialDisplayName = ProductData.material_name || ProductData.layer4 || ProductData.layer2 || null;
-
-                    console.log("=== MATERIAL CALCULATION DEBUG ===");
-                    console.log("BOM ID:", BomData.id);
-                    console.log("Component Name:", BomData.component_name);
-                    console.log("Raw Weight (gms):", BomData.weight_gms);
-                    console.log("Material:", materialDisplayName);
-                    console.log("Material Percentage (raw):", ProductData.percentage);
-
-                    const weightInKg = parseFloat(BomData.weight_gms) / 1000;
-                    console.log("Weight In KG (converted):", weightInKg);
-
-                    // Parse percentage to ensure it's a number (handle string "30" -> 30)
-                    const material_composition_percentage = parseFloat(ProductData.percentage) || 0;
-                    const material_composition = material_composition_percentage;
-
-                    // Calculate material weight: component_weight * (percentage / 100)
-                    const material_composition_weight = weightInKg * (material_composition_percentage / 100);
-
-                    console.log("Material composition (%):", material_composition_percentage);
-                    console.log("Material composition Weight (Kg):", material_composition_weight);
-                    console.log("Material Emission Factor (kg CO₂e/kg):", Material_Emission_Factor_kg_CO2E_kg);
-                    console.log("Emission Factor Source:", materialEf ? `Database (ef_code=${ProductData.ef_code})` : "DEFAULT (0.01)");
-
-                    // Calculate emissions: material_weight * emission_factor
-                    const Material_emissions_kg_CO_e = material_composition_weight * Material_Emission_Factor_kg_CO2E_kg;
-                    console.log("Material emissions (kg CO₂e):", Material_emissions_kg_CO_e);
-                    console.log("Formula: ", material_composition_weight, " * ", Material_Emission_Factor_kg_CO2E_kg, " = ", Material_emissions_kg_CO_e);
-                    console.log("=== END MATERIAL CALCULATION DEBUG ===");
-
-                    Raw_Material_emissions += Material_emissions_kg_CO_e;
-
-                    // ====> Insert into bom_emission_material_calculation_engine table
-                    const queryMaterial = `
-                        INSERT INTO bom_emission_material_calculation_engine
+                // ====> Insert one whole-component material row (100% composition).
+                await client.query(
+                    `INSERT INTO bom_emission_material_calculation_engine
                         (id,bom_id, material_type, material_composition,
                          material_composition_weight, material_emission_factor,material_emission)
-                        VALUES ($1,$2, $3, $4, $5, $6, $7)
-                        RETURNING *;
-                    `;
+                     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+                    [ulid(), BomData.id, materialDisplayName, 100, weightInKg, Material_Emission_Factor_kg_CO2E_kg, Raw_Material_emissions]
+                );
 
-                    await client.query(queryMaterial, [
-                        ulid(),
-                        BomData.id,
-                        materialDisplayName,
-                        material_composition,
-                        material_composition_weight,
-                        Material_Emission_Factor_kg_CO2E_kg,
-                        Material_emissions_kg_CO_e
-                    ]);
-
-                    // ===> Insert Ends here
-
-                }
-                console.log("========================================");
-                console.log("TOTAL RAW MATERIAL EMISSIONS SUMMARY");
-                console.log("========================================");
                 console.log("Total Raw Material Emissions (kg CO₂e):", Raw_Material_emissions);
-                console.log("========================================");
 
                 Total_Housing_Component_Emissions += Raw_Material_emissions;
                 //========> Phase One END
@@ -3569,13 +3489,25 @@ export async function pcfCalculate(req: any, res: any) {
                         if (!category) continue;
 
                         // Look up EF by the row's ef_code (region+year already baked in
-                        // at save time). 0.01 is the same fallback the old code used.
-                        const energyEf = await fetchEfValueByCode(client, 'electricity', Energy.ef_code);
+                        // at save time).
+                        let energyEf = await fetchEfValueByCode(client, 'electricity', Energy.ef_code);
+
+                        // Fallback (manager's method): when no ef_code was saved, resolve
+                        // the EF from the energy description against the BAFU table. For
+                        // electricity we use the country's grid "production mix".
                         if (!energyEf) {
-                            console.warn(`Q22 ${category} row missing ef_code or EF row not found:`, {
-                                ef_code: Energy.ef_code,
-                                layers: [Energy.layer1, Energy.layer2, Energy.layer3, Energy.layer4],
-                            });
+                            const hint = category === "electricity"
+                                ? "Electricity, production mix"
+                                : `${Energy.layer1 ?? ""} ${Energy.layer2 ?? ""}`.trim();
+                            const res = await resolveEfFromText(client, hint, ENERGY_CATEGORIES, BomData.production_location, ["kWh", "MJ"]);
+                            if (res.matched && res.ef_value) {
+                                energyEf = { ef_value: res.ef_value, unit: res.unit || "kWh" };
+                                console.log(`Q22 ${category} resolved by description: ef_id=${res.ef_id} product="${res.product}" EF=${res.ef_value}`);
+                            } else {
+                                console.warn(`Q22 ${category} row: no ef_code and description match failed`, {
+                                    layers: [Energy.layer1, Energy.layer2, Energy.layer3, Energy.layer4],
+                                });
+                            }
                         }
                         const ef = energyEf?.ef_value ?? 0.01;
 
@@ -4047,7 +3979,19 @@ export async function pcfCalculate(req: any, res: any) {
                         // Look up vehicle EF by the row's ef_code. Region+year were baked
                         // in at save time when layer1..4 were matched against
                         // vehicle_type_emission_factor; no region branching needed.
-                        const vehicleEf = await fetchEfValueByCode(client, 'vehicle', fetchQ74TransportData.ef_code);
+                        let vehicleEf = await fetchEfValueByCode(client, 'vehicle', fetchQ74TransportData.ef_code);
+
+                        // Fallback (manager's method): resolve the transport EF from the
+                        // transport-mode description when no ef_code was saved.
+                        if (!vehicleEf) {
+                            const hint = `${fetchQ74TransportData.layer1 ?? ""} ${fetchQ74TransportData.layer2 ?? ""}`.trim()
+                                || String(modeOfTransport ?? "");
+                            const res = await resolveEfFromText(client, hint, TRANSPORT_CATEGORIES, BomData.production_location, ["tkm", "t*km"]);
+                            if (res.matched && res.ef_value) {
+                                vehicleEf = { ef_value: res.ef_value, unit: res.unit || "tkm" };
+                                console.log(`Transport resolved by description: ef_id=${res.ef_id} product="${res.product}" EF=${res.ef_value}`);
+                            }
+                        }
                         const transport_Mode_Emission_Factor_Value_kg_CO2e_t_km = vehicleEf?.ef_value ?? 0.01;
 
                         console.log("Vehicle emission factor query:");
@@ -4055,7 +3999,7 @@ export async function pcfCalculate(req: any, res: any) {
                         console.log("  - layers:", [fetchQ74TransportData.layer1, fetchQ74TransportData.layer2, fetchQ74TransportData.layer3, fetchQ74TransportData.layer4]);
                         console.log("  - resolved EF:", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km, vehicleEf?.unit || "");
                         if (!vehicleEf) {
-                            console.log("WARNING: No vehicle emission factor found by ef_code! Using default 0.01");
+                            console.log("WARNING: No transport emission factor found by ef_code or description! Using default 0.01");
                         }
 
                         console.log("transport_Mode_Emission_Factor_Value_kg_CO2e_t_km:", transport_Mode_Emission_Factor_Value_kg_CO2e_t_km);
@@ -4330,11 +4274,21 @@ export async function pcfCalculate(req: any, res: any) {
                                 weight_in_kg: wasteWeightInKg,
                             });
 
-                            const wasteEf = await fetchEfValueByCode(client, 'waste', fetchQ68Data.ef_code);
-                            const rowEF = wasteEf?.ef_value ?? 0.01;
+                            let wasteEf = await fetchEfValueByCode(client, 'waste', fetchQ68Data.ef_code);
+
+                            // Fallback (manager's method): resolve the waste-treatment EF
+                            // from the waste description when no ef_code was saved.
                             if (!wasteEf) {
-                                console.warn("WARNING: Q68 Waste emission factor not found for ef_code:", fetchQ68Data.ef_code);
+                                const hint = `${fetchQ68Data.layer1 ?? ""} ${fetchQ68Data.layer2 ?? ""}`.trim();
+                                const res = await resolveEfFromText(client, hint, WASTE_CATEGORIES, BomData.production_location);
+                                if (res.matched && res.ef_value) {
+                                    wasteEf = { ef_value: res.ef_value, unit: res.unit || "kg" };
+                                    console.log(`Q68 waste resolved by description: ef_id=${res.ef_id} product="${res.product}" EF=${res.ef_value}`);
+                                } else {
+                                    console.warn("WARNING: Q68 Waste EF not found by ef_code or description:", fetchQ68Data.ef_code);
+                                }
                             }
+                            const rowEF = wasteEf?.ef_value ?? 0.01;
 
                             const rowEmission = D(wasteWeightInKg).mul(D(rowEF)).toNumber();
                             waste_disposal_emissions_kg_CO2e += rowEmission;
