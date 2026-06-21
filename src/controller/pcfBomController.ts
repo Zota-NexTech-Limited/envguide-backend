@@ -3144,9 +3144,42 @@ export async function pcfCalculate(req: any, res: any) {
                     // the "Aluminium cast alloy" EF). Element name alone keeps Silicon
                     // → silicon, Iron → iron/steel, etc.
                     const elementSearchText = elementName;
-                    const elemRes = isSingleMaterial
-                        ? await resolveHighestEfFromText(client, elementSearchText, RAW_MATERIAL_CATEGORIES, null)
-                        : await resolveMaterialEfFromDescription(client, elementSearchText, null);
+                    let elemRes = await resolveMaterialEfFromDescription(client, elementSearchText, null);
+
+                    // SINGLE 100% material (e.g. "Low Carbon Steel"): apply the
+                    // manager's "highest EF" rule — but ONLY among rows that are
+                    // genuinely this material. We anchor on the name-match's resolved
+                    // product (which is the correct material family, e.g. a steel row),
+                    // then pick the MAX EF among rows whose product shares the material
+                    // keyword. This avoids resolveHighestEfFromText grabbing the single
+                    // highest EF in the whole raw-materials set (e.g. uranium 94.7).
+                    if (isSingleMaterial) {
+                        // keyword = most significant word of the material name
+                        const kw = elementName.trim().split(/\s+/).filter(Boolean).pop() || elementName;
+                        const hi = await client.query(
+                            `SELECT ef_id, product, kgco2e_per_unit, unit
+                             FROM emission_factors
+                             WHERE category = ANY($1)
+                               AND product ILIKE $2
+                               AND kgco2e_per_unit > 0
+                             ORDER BY kgco2e_per_unit DESC
+                             LIMIT 1`,
+                            [RAW_MATERIAL_CATEGORIES, `%${kw}%`]
+                        );
+                        if (hi.rows[0]?.kgco2e_per_unit) {
+                            elemRes = {
+                                matched: true,
+                                ef_id: hi.rows[0].ef_id,
+                                ef_value: parseFloat(hi.rows[0].kgco2e_per_unit),
+                                product: hi.rows[0].product,
+                                unit: hi.rows[0].unit || "kg",
+                                matched_step: "highest-ef-single",
+                                candidate_count: hi.rows.length,
+                                description: elementSearchText,
+                            };
+                        }
+                    }
+
                     const elementEf = elemRes.matched && elemRes.ef_value ? elemRes.ef_value : 0.01;
                     const elementEmission = elementWeightKg * elementEf;
 
