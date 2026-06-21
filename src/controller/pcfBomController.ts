@@ -3155,17 +3155,66 @@ export async function pcfCalculate(req: any, res: any) {
                     // highest EF in the whole raw-materials set (e.g. uranium 94.7).
                     if (isSingleMaterial) {
                         // keyword = most significant word of the material name
+                        const nameLower = elementName.toLowerCase();
                         const kw = elementName.trim().split(/\s+/).filter(Boolean).pop() || elementName;
-                        const hi = await client.query(
+
+                        // Highest EF among rows that GENUINELY match this material, by kg.
+                        // We exclude unrelated alloy families so the MAX doesn't grab a
+                        // stainless / chromium / machining row. For "Low Carbon Steel"
+                        // the manager's number (2.41 = "Steel, converter, unalloyed") is
+                        // the highest UNALLOYED steel row — low carbon == unalloyed/mild
+                        // steel, NOT chromium/stainless (18/8) or turning/machining rows.
+                        let likePat = `%${kw}%`;
+                        const excludeTerms: string[] = [];
+                        if (nameLower.includes("steel")) {
+                            likePat = "%steel%";
+                            // low-carbon steel → unalloyed / low-alloyed only
+                            excludeTerms.push("%chromium%", "%18/8%", "%stainless%",
+                                "%turning%", "%machining%", "%milling%", "%electric%",
+                                "%reinforcing%", "%manufacturing%", "%product manufacturing%");
+                            if (nameLower.includes("low carbon") || nameLower.includes("mild")) {
+                                // prefer unalloyed (true low-carbon); fall through if none
+                                likePat = "%unalloyed%";
+                            }
+                        }
+                        const params: any[] = [RAW_MATERIAL_CATEGORIES, likePat];
+                        let excludeSql = "";
+                        excludeTerms.forEach((t, i) => {
+                            params.push(t);
+                            excludeSql += ` AND product NOT ILIKE $${params.length}`;
+                        });
+                        let hi = await client.query(
                             `SELECT ef_id, product, kgco2e_per_unit, unit
                              FROM emission_factors
                              WHERE category = ANY($1)
                                AND product ILIKE $2
                                AND kgco2e_per_unit > 0
+                               AND lower(btrim(unit)) IN ('kg','kilogram','kilograms')
+                               ${excludeSql}
                              ORDER BY kgco2e_per_unit DESC
                              LIMIT 1`,
-                            [RAW_MATERIAL_CATEGORIES, `%${kw}%`]
+                            params
                         );
+                        // Fallback: if the tight "unalloyed" filter found nothing, retry
+                        // with the broader steel filter (still excluding alloy families).
+                        if (!hi.rows[0]?.kgco2e_per_unit && likePat === "%unalloyed%") {
+                            const p2: any[] = [RAW_MATERIAL_CATEGORIES, "%steel%"];
+                            let ex2 = "";
+                            ["%chromium%", "%18/8%", "%stainless%", "%turning%",
+                             "%machining%", "%milling%"].forEach((t) => {
+                                p2.push(t); ex2 += ` AND product NOT ILIKE $${p2.length}`;
+                            });
+                            hi = await client.query(
+                                `SELECT ef_id, product, kgco2e_per_unit, unit
+                                 FROM emission_factors
+                                 WHERE category = ANY($1) AND product ILIKE $2
+                                   AND kgco2e_per_unit > 0
+                                   AND lower(btrim(unit)) IN ('kg','kilogram','kilograms')
+                                   ${ex2}
+                                 ORDER BY kgco2e_per_unit DESC LIMIT 1`,
+                                p2
+                            );
+                        }
                         if (hi.rows[0]?.kgco2e_per_unit) {
                             elemRes = {
                                 matched: true,
