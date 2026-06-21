@@ -220,6 +220,11 @@ function heuristicPick(description: string, candidates: EfCandidate[]): EfCandid
     if (!candidates.length) return null;
     const PREFER = ["production mix", "at plant", "alloy", "primary"];
     const AVOID = ["coating", "scrap", "cathode", "anode", "welding", "anodising", "gallium", "extrusion", "rolling", "treatment", "obsolete",
+        // Over-specific raw-metal grades that pull element matches away from the
+        // plain metallurgical grade the manager uses. Photovoltaic/solar silicon
+        // is ultra-high-purity (huge EF); nickel-chromium is a specialty steel
+        // alloy — neither is the right default for a plain element composition.
+        "photovoltaic", "photovoltaics", "solar", "nickel-chromium", "nickel", "chromium",
         // Air freight is never a sensible default transport mode — deprioritise it.
         "aircraft", "air freight", "helicopter", "plane"];
     // Distinctive description words (e.g. "cast", "wrought", "primary",

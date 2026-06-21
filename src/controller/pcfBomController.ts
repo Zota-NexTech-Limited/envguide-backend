@@ -3092,73 +3092,67 @@ export async function pcfCalculate(req: any, res: any) {
                 );
                 console.log(`Deleted ${deleteMaterialResult.rowCount} old material calculation rows for bom_id: ${BomData.id}`);
 
-                // ====> Manager's method: the raw material is identified from the BOM
-                // detail description (e.g. "Cast Aluminium Alloy (AlSi9Cu3 / ADC12)")
-                // and resolved to a SINGLE BAFU emission_factors product via AI +
-                // geography fallback. No element splitting — one material, one EF:
-                //     PCF_material = component_weight_kg × EF
+                // ====> Manager's method (ELEMENT-SPLIT): the component is broken into
+                // its constituent materials (Q7 composition). Each element is resolved
+                // to its OWN BAFU emission factor and multiplied by its OWN weight
+                // share, then summed:
+                //     PCF_material = Σ ( component_weight_kg × element_pct% × EF_element )
+                // e.g. Al 90% × 4.26 + Si 9% × 12.62 + Mg 0.5% × 76.11 + Fe 0.5% × 2.2
                 const materialDescription = (BomData.detail_description || BomData.component_name || "").trim();
                 const weightInKg = parseFloat(BomData.weight_gms) / 1000;
 
-                // The description is often a chemical formula ("AlSi10Mg(Fe) alloy")
-                // that does NOT contain the plain metal name. So we also pull the
-                // DOMINANT material (highest composition %) from the Q7 composition
-                // and prepend it to the search text — this is the manager's
-                // "take the metal with the highest percentage" step. e.g.
-                //   AlSi10Mg(Fe)  →  dominant = Aluminium  →  "Aluminium ... cast alloy"
-                let dominantMaterialName = "";
-                try {
-                    const domRes = await client.query(
-                        `SELECT material_name, percentage
-                         FROM raw_materials_used_in_component_manufacturing_questions
-                         WHERE bom_id = $1 AND own_emission_id IS NULL
-                           AND material_name IS NOT NULL AND material_name <> ''
-                         ORDER BY NULLIF(regexp_replace(percentage::text, '[^0-9.]', '', 'g'), '')::numeric DESC NULLS LAST
-                         LIMIT 1`,
-                        [BomData.id]
-                    );
-                    dominantMaterialName = (domRes.rows[0]?.material_name || "").trim();
-                } catch (e) {
-                    console.warn("Dominant-material lookup failed (non-fatal):", (e as Error)?.message);
-                }
-
-                const materialSearchText = `${dominantMaterialName} ${materialDescription}`.trim();
-
-                console.log("=== MATERIAL RESOLUTION (description-based) ===");
+                console.log("=== MATERIAL RESOLUTION (element-split) ===");
                 console.log("BOM ID:", BomData.id);
                 console.log("Component Name:", BomData.component_name);
                 console.log("Material Description:", materialDescription);
-                console.log("Dominant material (highest %):", dominantMaterialName || "(none)");
-                console.log("Resolver search text:", materialSearchText);
-                console.log("Weight In KG:", weightInKg);
+                console.log("Total Weight In KG:", weightInKg);
 
-                // production_location is free-text; pass null so the resolver keeps
-                // the AI-chosen geography (RER/GLO are the right defaults for raw
-                // metals). Country→ISO refinement can be added later.
-                const matRes = await resolveMaterialEfFromDescription(client, materialSearchText, null);
-                console.log("Material resolution result:", matRes.matched
-                    ? `ef_id=${matRes.ef_id} product="${matRes.product}" EF=${matRes.ef_value} (${matRes.matched_step}, ${matRes.candidate_count} candidates)`
-                    : `NO MATCH (${matRes.candidate_count ?? 0} candidates) — using default 0.01`);
-
-                const Material_Emission_Factor_kg_CO2E_kg = matRes.matched && matRes.ef_value ? matRes.ef_value : 0.01;
-                const materialDisplayName = matRes.product || materialDescription || BomData.component_name || null;
-
-                Raw_Material_emissions = weightInKg * Material_Emission_Factor_kg_CO2E_kg;
-                console.log("Material Emission Factor (kg CO₂e/kg):", Material_Emission_Factor_kg_CO2E_kg);
-                console.log("Material emissions (kg CO₂e):", Raw_Material_emissions);
-                console.log("Formula:", weightInKg, "×", Material_Emission_Factor_kg_CO2E_kg, "=", Raw_Material_emissions);
-                console.log("=== END MATERIAL RESOLUTION ===");
-
-                // ====> Insert one whole-component material row (100% composition).
-                await client.query(
-                    `INSERT INTO bom_emission_material_calculation_engine
-                        (id,bom_id, material_type, material_composition,
-                         material_composition_weight, material_emission_factor,material_emission)
-                     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-                    [ulid(), BomData.id, materialDisplayName, 100, weightInKg, Material_Emission_Factor_kg_CO2E_kg, Raw_Material_emissions]
+                // Pull every element of the composition (Aluminium, Silicon, ...)
+                const elementsRes = await client.query(
+                    `SELECT material_name, percentage, ef_code
+                     FROM raw_materials_used_in_component_manufacturing_questions
+                     WHERE bom_id = $1 AND own_emission_id IS NULL
+                       AND material_name IS NOT NULL AND material_name <> ''`,
+                    [BomData.id]
                 );
 
+                if (elementsRes.rows.length === 0) {
+                    console.warn("No composition elements found for bom_id:", BomData.id, "- material emissions = 0");
+                }
+
+                for (const elem of elementsRes.rows) {
+                    const elementName = (elem.material_name || "").trim();
+                    const pct = parseFloat(String(elem.percentage ?? "").replace(/[^0-9.]/g, "")) || 0;
+                    const elementWeightKg = weightInKg * (pct / 100);
+
+                    // Resolve THIS element to its OWN EF by element name ALONE
+                    // (manager's "Detailed Material → Material Cluster" mapping).
+                    // We must NOT append the alloy description here: it is identical
+                    // for every element and is aluminium-dominant, so it biases each
+                    // element's match toward the aluminium row (e.g. Silicon picking
+                    // the "Aluminium cast alloy" EF). Element name alone keeps Silicon
+                    // → silicon, Iron → iron/steel, etc.
+                    const elementSearchText = elementName;
+                    const elemRes = await resolveMaterialEfFromDescription(client, elementSearchText, null);
+                    const elementEf = elemRes.matched && elemRes.ef_value ? elemRes.ef_value : 0.01;
+                    const elementEmission = elementWeightKg * elementEf;
+
+                    console.log(`  Element: ${elementName} | ${pct}% | ${elementWeightKg} kg × EF ${elementEf} = ${elementEmission}` +
+                        (elemRes.matched ? ` (ef_id=${elemRes.ef_id} "${elemRes.product}")` : " (NO MATCH, default 0.01)"));
+
+                    Raw_Material_emissions += elementEmission;
+
+                    await client.query(
+                        `INSERT INTO bom_emission_material_calculation_engine
+                            (id,bom_id, material_type, material_composition,
+                             material_composition_weight, material_emission_factor,material_emission)
+                         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+                        [ulid(), BomData.id, elemRes.product || elementName, pct, elementWeightKg, elementEf, elementEmission]
+                    );
+                }
+
                 console.log("Total Raw Material Emissions (kg CO₂e):", Raw_Material_emissions);
+                console.log("=== END MATERIAL RESOLUTION ===");
 
                 Total_Housing_Component_Emissions += Raw_Material_emissions;
                 //========> Phase One END
