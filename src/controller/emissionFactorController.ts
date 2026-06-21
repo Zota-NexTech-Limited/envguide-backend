@@ -1,57 +1,39 @@
 import { withClient } from "../util/database.js";
+import { matchEmissionFactor, type SupplierEfInput } from "../services/efMatchingService.js";
+import { resolveComposition } from "../services/alloyCompositionService.js";
 
-// 22 columns of the BAFU 2025 emission_factors table, in the exact order the CSV
-// must arrive in (column index = position in this array). Header names match the
-// actual BAFU 2025 export exactly (verified against Desktop/2.csv on 2026-06-04).
+// 11 columns of the BAFU 2025 Version 2 (Reversioned) CSV with EF ID, exact header names.
+// ef_id now comes from the CSV (authoritative); source_db is constant.
 const CSV_HEADERS = [
-    "EF_ID",
+    "EF ID",
     "Product",
-    "Material",
-    "Process",
-    "Activity_Type",
     "Category",
-    "Sub_Category_1",
-    "Sub_Category_2",
-    "Sub_Category_3",
-    "Sub_Category_4",
-    "Country_Code",
-    "Country_Name",
-    "Region",
-    "Geo_Fallback_Chain",
+    "Process",
+    "Sub-category 2",
+    "Country Code",
+    "Country Name",
+    "Time Period",
     "Unit",
-    "Unit_Kind",
-    "Recycled_Content",
-    "Factor_Suitability",
-    "kgCO2e_per_unit",
-    "Reference_Year",
-    "Source_DB",
-    "Embedding_Text",
+    "GWP 100 [kg CO2 eq]",
+    "Embedded Text Logic",
 ] as const;
 
 const DB_COLUMNS = [
     "ef_id",
     "product",
-    "material",
-    "process",
-    "activity_type",
     "category",
     "sub_category_1",
     "sub_category_2",
-    "sub_category_3",
-    "sub_category_4",
     "country_code",
     "country_name",
-    "region",
-    "geo_fallback_chain",
-    "unit",
-    "unit_kind",
-    "recycled_content",
-    "factor_suitability",
-    "kgco2e_per_unit",
     "reference_year",
+    "unit",
+    "kgco2e_per_unit",
     "source_db",
     "embedding_text",
 ];
+
+const SOURCE_DB_VALUE = "BAFU:2025";
 
 // Minimal RFC-4180 CSV parser. Handles "quoted, fields" and "" escaped quotes.
 function parseCsv(text: string): string[][] {
@@ -128,22 +110,22 @@ function validateRow(
         return { errors, values: null };
     }
 
-    const efId = cells[0]?.trim();
-    if (!efId) errors.push({ row: rowIndex, field: "EF_ID", message: "required" });
+    // ef_id from CSV (authoritative); fall back to deterministic row-based id if blank.
+    const efId = cells[0]?.trim() || `EF_${String(rowIndex - 1).padStart(5, "0")}`;
 
     const product = cells[1]?.trim();
     if (!product) errors.push({ row: rowIndex, field: "Product", message: "required" });
 
-    const kgco2eRaw = cells[18]?.trim();
+    const kgco2eRaw = cells[9]?.trim();
     const kgco2e = parseLocaleNumber(kgco2eRaw);
     if (!Number.isFinite(kgco2e)) {
-        errors.push({ row: rowIndex, field: "kgCO2e_per_unit", message: `not a number: "${kgco2eRaw}"` });
+        errors.push({ row: rowIndex, field: "GWP 100 [kg CO2 eq]", message: `not a number: "${kgco2eRaw}"` });
     }
 
-    const yearRaw = cells[19]?.trim();
+    const yearRaw = cells[7]?.trim();
     const year = parseLocaleNumber(yearRaw);
     if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-        errors.push({ row: rowIndex, field: "Reference_Year", message: `not a valid year: "${yearRaw}"` });
+        errors.push({ row: rowIndex, field: "Time Period", message: `not a valid year: "${yearRaw}"` });
     }
 
     if (errors.length > 0) return { errors, values: null };
@@ -158,21 +140,11 @@ function validateRow(
             cells[4]?.trim() || null,
             cells[5]?.trim() || null,
             cells[6]?.trim() || null,
-            cells[7]?.trim() || null,
-            cells[8]?.trim() || null,
-            cells[9]?.trim() || null,
-            cells[10]?.trim() || null,
-            cells[11]?.trim() || null,
-            cells[12]?.trim() || null,
-            cells[13]?.trim() || null,
-            cells[14]?.trim() || null,
-            cells[15]?.trim() || null,
-            cells[16]?.trim() || null,
-            cells[17]?.trim() || null,
-            kgco2e,
             year,
-            cells[20]?.trim() || null,
-            cells[21]?.trim() || null,
+            cells[8]?.trim() || null,
+            kgco2e,
+            SOURCE_DB_VALUE,
+            cells[10]?.trim() || null,
         ],
     };
 }
@@ -302,45 +274,32 @@ export async function listEmissionFactors(req: any, res: any) {
 
             const search = String(req.query.search || "").trim();
             const countryCode = String(req.query.country_code || "").trim();
-            const unitKind = String(req.query.unit_kind || "").trim();
-            const sourceDb = String(req.query.source_db || "").trim();
+            const unit = String(req.query.unit || "").trim();
 
             const conditions: string[] = [];
             const params: any[] = [];
             let p = 1;
 
             if (search) {
-                // Global search hits every text column so users can filter on any
-                // value they see in the table — material name, process, country,
-                // sub-category, unit, source, etc. — without picking a field.
                 conditions.push(`(
                     ef_id              ILIKE $${p} OR
                     product            ILIKE $${p} OR
-                    material           ILIKE $${p} OR
-                    process            ILIKE $${p} OR
-                    activity_type      ILIKE $${p} OR
                     category           ILIKE $${p} OR
                     sub_category_1     ILIKE $${p} OR
                     sub_category_2     ILIKE $${p} OR
-                    sub_category_3     ILIKE $${p} OR
-                    sub_category_4     ILIKE $${p} OR
                     country_code       ILIKE $${p} OR
                     country_name       ILIKE $${p} OR
-                    region             ILIKE $${p} OR
-                    geo_fallback_chain ILIKE $${p} OR
                     unit               ILIKE $${p} OR
-                    unit_kind          ILIKE $${p} OR
-                    recycled_content   ILIKE $${p} OR
-                    factor_suitability ILIKE $${p} OR
                     source_db          ILIKE $${p} OR
-                    embedding_text     ILIKE $${p}
+                    embedding_text     ILIKE $${p} OR
+                    CAST(kgco2e_per_unit AS TEXT) ILIKE $${p} OR
+                    CAST(reference_year AS TEXT)  ILIKE $${p}
                 )`);
                 params.push(`%${search}%`);
                 p++;
             }
             if (countryCode) { conditions.push(`country_code = $${p++}`); params.push(countryCode); }
-            if (unitKind)    { conditions.push(`unit_kind = $${p++}`); params.push(unitKind); }
-            if (sourceDb)    { conditions.push(`source_db = $${p++}`); params.push(sourceDb); }
+            if (unit)        { conditions.push(`unit = $${p++}`); params.push(unit); }
 
             const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -390,6 +349,106 @@ export async function getEmissionFactorById(req: any, res: any) {
     });
 }
 
+// Run the boss's fallback chain against the supplier's input and return the
+// matched EF row plus the full audit trail (every step that was tried).
+export async function postMatchEmissionFactor(req: any, res: any) {
+    try {
+        const body = req.body || {};
+        const input: SupplierEfInput = {
+            category: String(body.category || "").trim(),
+            sub_category_1: body.sub_category_1 ? String(body.sub_category_1).trim() : null,
+            sub_category_2: body.sub_category_2 ? String(body.sub_category_2).trim() : null,
+            country_code: String(body.country_code || "").trim(),
+            country_name: body.country_name ? String(body.country_name).trim() : null,
+            year: Number(body.year),
+            unit: String(body.unit || "").trim(),
+        };
+        if (!input.category) return res.status(400).send({ success: false, message: "category required" });
+        if (!input.country_code) return res.status(400).send({ success: false, message: "country_code required" });
+        if (!Number.isInteger(input.year) || input.year < 1900 || input.year > 2100) {
+            return res.status(400).send({ success: false, message: "year required (4-digit integer)" });
+        }
+        if (!input.unit) return res.status(400).send({ success: false, message: "unit required" });
+
+        const result = await matchEmissionFactor(input);
+        return res.status(200).send({ success: true, data: result });
+    } catch (err: any) {
+        console.error("postMatchEmissionFactor error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// All distinct (category, sub_category_1, sub_category_2) triples for the
+// 3-layer cascading dropdowns in supplier questionnaire Q6-Q10. Returned shape
+// matches what DynamicQuestionnaireForm's renderer expects (layer1/2/3).
+export async function getEmissionFactorLayerTriples(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const r = await client.query(
+                `SELECT DISTINCT category, sub_category_1, sub_category_2
+                 FROM emission_factors
+                 WHERE category IS NOT NULL AND category <> ''
+                 ORDER BY category, sub_category_1 NULLS FIRST, sub_category_2 NULLS FIRST`
+            );
+            return res.status(200).send({
+                success: true,
+                data: r.rows.map((row: any, idx: number) => ({
+                    id: String(idx),
+                    layer1: row.category,
+                    layer2: row.sub_category_1,
+                    layer3: row.sub_category_2,
+                })),
+            });
+        } catch (err: any) {
+            console.error("getEmissionFactorLayerTriples error:", err);
+            return res.status(500).send({ success: false, message: err.message });
+        }
+    });
+}
+
+export async function getEmissionFactorCountries(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const r = await client.query(
+                `SELECT DISTINCT country_code, country_name
+                 FROM emission_factors
+                 WHERE country_code IS NOT NULL AND country_code <> ''
+                 ORDER BY country_name NULLS LAST, country_code`
+            );
+            return res.status(200).send({
+                success: true,
+                data: r.rows.map((row: any) => ({
+                    country_code: row.country_code,
+                    country_name: row.country_name,
+                })),
+            });
+        } catch (err: any) {
+            console.error("getEmissionFactorCountries error:", err);
+            return res.status(500).send({ success: false, message: err.message });
+        }
+    });
+}
+
+export async function getEmissionFactorUnits(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const r = await client.query(
+                `SELECT DISTINCT unit
+                 FROM emission_factors
+                 WHERE unit IS NOT NULL AND unit <> ''
+                 ORDER BY unit`
+            );
+            return res.status(200).send({
+                success: true,
+                data: r.rows.map((row: any) => row.unit),
+            });
+        } catch (err: any) {
+            console.error("getEmissionFactorUnits error:", err);
+            return res.status(500).send({ success: false, message: err.message });
+        }
+    });
+}
+
 export async function getEmissionFactorStats(_req: any, res: any) {
     return withClient(async (client: any) => {
         try {
@@ -398,7 +457,7 @@ export async function getEmissionFactorStats(_req: any, res: any) {
                     COUNT(*)::int                                       AS total,
                     COUNT(DISTINCT source_db)::int                       AS source_db_count,
                     COUNT(DISTINCT country_code)::int                    AS country_count,
-                    COUNT(DISTINCT unit_kind)::int                       AS unit_kind_count,
+                    COUNT(DISTINCT unit)::int                            AS unit_count,
                     MAX(updated_date)                                    AS last_updated
                  FROM emission_factors`
             );
@@ -408,4 +467,198 @@ export async function getEmissionFactorStats(_req: any, res: any) {
             return res.status(500).send({ success: false, message: err.message });
         }
     });
+}
+
+// Resolve a material/alloy description (e.g. "lower housing AlSi10Mg(Fe) alloy")
+// into its constituent materials with weight-% ranges + BAFU layer mapping, used
+// to auto-populate the supplier's raw-materials question. Cache-first, then the
+// free LLM layer. Always 200 with a (possibly empty) rows array so the
+// questionnaire degrades gracefully to manual entry when nothing is resolved.
+export async function postMaterialComposition(req: any, res: any) {
+    try {
+        const description = String(req.body?.description || "").trim();
+        if (!description) {
+            return res.status(400).send({ success: false, message: "description required" });
+        }
+        const result = await resolveComposition(description);
+        return res.status(200).send({ success: true, data: result });
+    } catch (err: any) {
+        console.error("postMaterialComposition error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// Preview the raw-material emissions calculation for a component. Used to verify
+// against the manager's PCF logic sheet. Body:
+//   { component_weight_kg, materials: [{ material, composition_percent }] }
+export async function postRawMaterialsPreview(req: any, res: any) {
+    try {
+        const body = req.body || {};
+        const weight = Number(body.component_weight_kg);
+        if (!Number.isFinite(weight) || weight <= 0) {
+            return res.status(400).send({ success: false, message: "component_weight_kg required (> 0)" });
+        }
+        const materials = Array.isArray(body.materials) ? body.materials : [];
+        if (materials.length === 0) {
+            return res.status(400).send({ success: false, message: "materials[] required" });
+        }
+        const { calculateRawMaterials } = await import("../services/materialEfService.js");
+        const result = await calculateRawMaterials(weight, materials);
+        return res.status(200).send({ success: true, data: result });
+    } catch (err: any) {
+        console.error("postRawMaterialsPreview error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// Preview the production/electricity emission for a component. Body:
+//   { component_weight_kg, factory_weight_kg, factory_energy_kwh, electricity_ef }
+// electricity_ef defaults to the BAFU electricity factor used in the sheet (0.9).
+export async function postProductionPreview(req: any, res: any) {
+    try {
+        const b = req.body || {};
+        const componentWeight = Number(b.component_weight_kg);
+        const factoryWeight = Number(b.factory_weight_kg);
+        const factoryEnergy = Number(b.factory_energy_kwh);
+        const ef = b.electricity_ef != null ? Number(b.electricity_ef) : 0.9;
+        if (!Number.isFinite(componentWeight) || componentWeight <= 0) {
+            return res.status(400).send({ success: false, message: "component_weight_kg required (> 0)" });
+        }
+        if (!Number.isFinite(factoryWeight) || factoryWeight <= 0) {
+            return res.status(400).send({ success: false, message: "factory_weight_kg required (> 0)" });
+        }
+        if (!Number.isFinite(factoryEnergy) || factoryEnergy < 0) {
+            return res.status(400).send({ success: false, message: "factory_energy_kwh required" });
+        }
+        const { calculateProductionEmission } = await import("../services/productionEmissionService.js");
+        const result = calculateProductionEmission(componentWeight, factoryWeight, factoryEnergy, ef);
+        return res.status(200).send({ success: true, data: result });
+    } catch (err: any) {
+        console.error("postProductionPreview error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// Preview packaging emission for one packaging type. Body:
+//   { packaging_weight_kg, packaging_type }
+// emission = packaging_weight × EF (highest EF for the mapped BAFU product).
+export async function postPackagingPreview(req: any, res: any) {
+    try {
+        const b = req.body || {};
+        const weight = Number(b.packaging_weight_kg);
+        const type = String(b.packaging_type || "").trim();
+        if (!Number.isFinite(weight) || weight < 0) {
+            return res.status(400).send({ success: false, message: "packaging_weight_kg required" });
+        }
+        if (!type) {
+            return res.status(400).send({ success: false, message: "packaging_type required" });
+        }
+        const { matchMaterialEf } = await import("../services/materialEfService.js");
+        const ef = await matchMaterialEf(type);
+        const emission = ef.matched && ef.ef != null ? Number((weight * ef.ef).toFixed(6)) : 0;
+        return res.status(200).send({
+            success: true,
+            data: {
+                packaging_type: type,
+                packaging_weight_kg: weight,
+                matched: ef.matched,
+                ef: ef.ef,
+                ef_id: ef.ef_id,
+                ef_product: ef.product,
+                ef_country: ef.country_code,
+                packaging_emission: emission,
+            },
+        });
+    } catch (err: any) {
+        console.error("postPackagingPreview error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// Distinct packaging types for the Q8 "Packaging Type" dropdown. Public (the
+// supplier questionnaire is unauthenticated). Each type maps to a BAFU product.
+export async function getPackagingTypes(_req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const r = await client.query(
+                `SELECT material_key AS id, material_label AS name
+                 FROM material_ef_mapping
+                 WHERE kind = 'packaging'
+                 ORDER BY material_label`
+            );
+            return res.status(200).send({ success: true, data: r.rows });
+        } catch (err: any) {
+            console.error("getPackagingTypes error:", err);
+            return res.status(500).send({ success: false, message: err.message });
+        }
+    });
+}
+
+// Preview transport emission. Body:
+//   { transported_weight, weight_unit, legs: [{ mode, distance_km }] }
+export async function postTransportPreview(req: any, res: any) {
+    try {
+        const b = req.body || {};
+        const weight = Number(b.transported_weight);
+        const unit = String(b.weight_unit || "kg").trim();
+        const legs = Array.isArray(b.legs) ? b.legs : [];
+        if (!Number.isFinite(weight) || weight < 0) {
+            return res.status(400).send({ success: false, message: "transported_weight required" });
+        }
+        if (legs.length === 0) {
+            return res.status(400).send({ success: false, message: "legs[] required" });
+        }
+        const { calculateTransport } = await import("../services/transportEmissionService.js");
+        const result = await calculateTransport(weight, unit, legs);
+        return res.status(200).send({ success: true, data: result });
+    } catch (err: any) {
+        console.error("postTransportPreview error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// Preview waste emission. Body:
+//   { dominant_material, production_waste_weight_kg, packaging_type, packaging_waste_weight_kg }
+export async function postWastePreview(req: any, res: any) {
+    try {
+        const b = req.body || {};
+        const dominantMaterial = String(b.dominant_material || "").trim();
+        const packagingType = String(b.packaging_type || "").trim();
+        const prodW = Number(b.production_waste_weight_kg);
+        const packW = Number(b.packaging_waste_weight_kg);
+        if (!Number.isFinite(prodW) || !Number.isFinite(packW)) {
+            return res.status(400).send({ success: false, message: "production/packaging waste weights required" });
+        }
+        const { calculateWaste } = await import("../services/wasteEmissionService.js");
+        const result = await calculateWaste(dominantMaterial, prodW, packagingType, packW);
+        return res.status(200).send({ success: true, data: result });
+    } catch (err: any) {
+        console.error("postWastePreview error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// Run the full PCF calculation (all 5 sections) for a structured payload.
+export async function postPcfCalculate(req: any, res: any) {
+    try {
+        const { calculatePcf } = await import("../services/pcfCalculationService.js");
+        const result = await calculatePcf(req.body || {});
+        return res.status(200).send({ success: true, data: result });
+    } catch (err: any) {
+        console.error("postPcfCalculate error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
+}
+
+// Run the full PCF from the raw supplier-questionnaire data object.
+export async function postPcfFromQuestionnaire(req: any, res: any) {
+    try {
+        const { extractPcfInput, calculatePcf } = await import("../services/pcfCalculationService.js");
+        const input = extractPcfInput(req.body || {});
+        const result = await calculatePcf(input);
+        return res.status(200).send({ success: true, data: { input, result } });
+    } catch (err: any) {
+        console.error("postPcfFromQuestionnaire error:", err);
+        return res.status(500).send({ success: false, message: err.message });
+    }
 }

@@ -5,32 +5,111 @@ import { updateSupplierSustainabilityService } from '../services/supplierInputQu
 import { assertScopeThreeBomRowsValid } from '../services/scopeThreeBomValidation.js';
 import axios from 'axios';
 import { generateQuestionnairePdfBuffer, type PdfSection } from '../helper/questionnairePdfGenerator.js';
-// EF auto-resolve from the 4-layer + region + year was wired to the 6 legacy
-// ECOInvent tables. Those tables are gone (replaced by the BAFU 2025 unified
-// emission_factors table). Phase 2 will rebuild this against the new schema
-// using the matching engine. Until then, this stub returns null so questionnaire
-// submissions still save — they just don't auto-populate ef_code anymore.
-async function resolveEfCodeForGroup(
-    _client: any,
-    _group: string,
-    _layers: { layer1?: string; layer2?: string; layer3?: string; layer4?: string },
-    _region: string | null,
-    _year: any
+import { matchEmissionFactor } from '../services/efMatchingService.js';
+
+// Resolve the matched ef_id for a single questionnaire row (Q6/Q7/Q8/Q9/Q10)
+// by running the boss's fallback chain in efMatchingService against the
+// 3-layer + country + year + unit input. Returns null when no chain step
+// produced a match (so submissions still save — they just don't carry an
+// ef_id snapshot).
+async function resolveEfIdForRow(
+    row: { layer1?: string | null; layer2?: string | null; layer3?: string | null; unit?: string | null },
+    supplierCountry: { code: string | null; name: string | null },
+    year: number | null,
+    // Fallback unit for questions whose EF row carries no unit column
+    // (materials & packaging are always mass-based → "kg"). The row's own
+    // unit, when present, always wins.
+    defaultUnit: string | null = null
 ): Promise<string | null> {
-    return null;
+    const unit = row.unit || defaultUnit;
+    if (!row.layer1 || !supplierCountry.code || !year || !unit) return null;
+    try {
+        const result = await matchEmissionFactor({
+            category: row.layer1,
+            sub_category_1: row.layer2 ?? null,
+            sub_category_2: row.layer3 ?? null,
+            country_code: supplierCountry.code,
+            country_name: supplierCountry.name,
+            year,
+            unit,
+        });
+        return result.matched && result.ef_id ? result.ef_id : null;
+    } catch (err) {
+        console.error('resolveEfIdForRow error:', err);
+        return null;
+    }
 }
 
-// Map supplier-facing location label ("Europe" / "India" / "Global") to the
-// EF table's region column value ("EU" / "INDIA" / "GLOBAL"). Used when
-// resolving ef_code for a questionnaire row from its 4 layers.
-function deriveSupplierRegion(data: any): string | null {
+// Map the supplier's production-site location string to an ISO alpha-2 country
+// code + canonical name for the EF matcher. The `location` field is free text
+// (e.g. "Switzerland", "CH", "Germany, Bavaria"), so we accept either an ISO
+// code or a country name and fall back to GLO when we can't tell.
+const COUNTRY_NAME_TO_ISO: Record<string, { code: string; name: string }> = {
+    switzerland: { code: "CH", name: "Switzerland" },
+    germany: { code: "DE", name: "Germany" },
+    france: { code: "FR", name: "France" },
+    italy: { code: "IT", name: "Italy" },
+    austria: { code: "AT", name: "Austria" },
+    "united kingdom": { code: "GB", name: "United Kingdom" },
+    uk: { code: "GB", name: "United Kingdom" },
+    ireland: { code: "IE", name: "Ireland" },
+    spain: { code: "ES", name: "Spain" },
+    portugal: { code: "PT", name: "Portugal" },
+    netherlands: { code: "NL", name: "Netherlands" },
+    belgium: { code: "BE", name: "Belgium" },
+    poland: { code: "PL", name: "Poland" },
+    sweden: { code: "SE", name: "Sweden" },
+    norway: { code: "NO", name: "Norway" },
+    denmark: { code: "DK", name: "Denmark" },
+    finland: { code: "FI", name: "Finland" },
+    "united states": { code: "US", name: "United States" },
+    usa: { code: "US", name: "United States" },
+    us: { code: "US", name: "United States" },
+    canada: { code: "CA", name: "Canada" },
+    mexico: { code: "MX", name: "Mexico" },
+    india: { code: "IN", name: "India" },
+    china: { code: "CN", name: "China" },
+    japan: { code: "JP", name: "Japan" },
+    "south korea": { code: "KR", name: "South Korea" },
+    korea: { code: "KR", name: "South Korea" },
+    taiwan: { code: "TW", name: "Taiwan" },
+    thailand: { code: "TH", name: "Thailand" },
+    vietnam: { code: "VN", name: "Vietnam" },
+    malaysia: { code: "MY", name: "Malaysia" },
+    singapore: { code: "SG", name: "Singapore" },
+    indonesia: { code: "ID", name: "Indonesia" },
+    philippines: { code: "PH", name: "Philippines" },
+    pakistan: { code: "PK", name: "Pakistan" },
+    bangladesh: { code: "BD", name: "Bangladesh" },
+    australia: { code: "AU", name: "Australia" },
+    "new zealand": { code: "NZ", name: "New Zealand" },
+    brazil: { code: "BR", name: "Brazil" },
+    argentina: { code: "AR", name: "Argentina" },
+    chile: { code: "CL", name: "Chile" },
+    colombia: { code: "CO", name: "Colombia" },
+    "south africa": { code: "ZA", name: "South Africa" },
+    egypt: { code: "EG", name: "Egypt" },
+    turkey: { code: "TR", name: "Turkey" },
+    "saudi arabia": { code: "SA", name: "Saudi Arabia" },
+    "united arab emirates": { code: "AE", name: "United Arab Emirates" },
+    uae: { code: "AE", name: "United Arab Emirates" },
+    russia: { code: "RU", name: "Russia" },
+    europe: { code: "RER", name: "Region Europe" },
+    global: { code: "GLO", name: "Global" },
+};
+
+function deriveSupplierCountry(data: any): { code: string | null; name: string | null } {
     const loc = data?.production_site_details_questions?.[0]?.location;
-    if (!loc) return null;
-    const v = String(loc).trim().toLowerCase();
-    if (v === "europe" || v === "eu") return "EU";
-    if (v === "india" || v === "in") return "INDIA";
-    if (v === "global") return "GLOBAL";
-    return String(loc).toUpperCase();
+    if (!loc) return { code: null, name: null };
+    const raw = String(loc).trim();
+    // ISO alpha-2 (CH, DE, IN, …) passes straight through.
+    if (/^[A-Z]{2,5}$/.test(raw)) return { code: raw, name: null };
+    // Country-name lookup: take the first token before any comma (handles
+    // "Germany, Bavaria"-style values), lowercase, then map.
+    const key = raw.split(",")[0].trim().toLowerCase();
+    const hit = COUNTRY_NAME_TO_ISO[key];
+    if (hit) return hit;
+    return { code: null, name: raw };
 }
 
 export async function getSupplierSustainabilityDataById(req: any, res: any) {
@@ -789,7 +868,7 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
             // lives under supplier_product_questions, which is not visible inside scope insert
             // functions). Pass this down to scope 2 + 3 so the ef_code resolver can apply
             // the region filter; without it the resolver picks an arbitrary matching row.
-            const supplierRegion = deriveSupplierRegion(supplier_product_questions);
+            const supplierCountry = deriveSupplierCountry(supplier_product_questions);
 
             scope_two_indirect_emissions_questions.sup_id = sup_id;
 
@@ -893,12 +972,12 @@ export async function addSupplierSustainabilityData(req: any, res: any) {
 
             // SCOPE TWO
             if (scope_two_indirect_emissions_questions) {
-                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, annual_reporting_period, supplierRegion));
+                insertPromises.push(insertScopeTwo(client, scope_two_indirect_emissions_questions, sgiq_id, annual_reporting_period, supplierCountry));
             }
 
             // SCOPE THREE
             if (scope_three_other_indirect_emissions_questions) {
-                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, annual_reporting_period, supplierRegion));
+                insertPromises.push(insertScopeThree(client, scope_three_other_indirect_emissions_questions, sgiq_id, annual_reporting_period, supplierCountry));
             }
 
             // SCOPE FOUR
@@ -1730,7 +1809,7 @@ async function insertScopeOne(client: any, data: any, sgiq_id: string) {
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_reporting_period: string, supplierRegion: string | null) {
+async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_reporting_period: string, supplierCountry: { code: string | null; name: string | null }) {
     const stide_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -1942,16 +2021,12 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
         const rows = await Promise.all(data.scope_two_indirect_emissions_from_purchased_energy_questions.map(async (e: any) => {
             const stidefpe_id = ulid();
 
-            // Resolve ef_code from the 4 layers + region (if not already sent by frontend).
-            // supplierRegion is computed at top level from production_site_details_questions
-            // (which lives outside this scope's payload subset).
-            const region = e.region || supplierRegion;
-            const ef_code = e.ef_code || (
-                (e.layer1 || e.layer2 || e.layer3 || e.layer4)
-                    ? await resolveEfCodeForGroup(client, 'electricity',
-                        { layer1: e.layer1, layer2: e.layer2, layer3: e.layer3, layer4: e.layer4 },
-                        region, annual_reporting_period)
-                    : null
+            // Resolve ef_code via the new BAFU matching service (3 layers +
+            // supplier country + year + unit, walking the fallback chain).
+            const ef_code = e.ef_code || await resolveEfIdForRow(
+                { layer1: e.layer1, layer2: e.layer2, layer3: e.layer3, unit: e.unit },
+                supplierCountry,
+                Number(annual_reporting_period)
             );
 
             // e = data.sup_id;
@@ -2611,7 +2686,7 @@ async function insertScopeTwo(client: any, data: any, sgiq_id: string, annual_re
     await createDQRRecords(client, allDQRConfigs);
 }
 
-async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_reporting_period: string, supplierRegion: string | null) {
+async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_reporting_period: string, supplierCountry: { code: string | null; name: string | null }) {
     const stoie_id = ulid();
     const allDQRConfigs: any[] = [];
 
@@ -2876,13 +2951,11 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.raw_materials_used_in_component_manufacturing_questions.map(async (m: any) => {
             const rmuicm_id = ulid();
-            const region = m.region || supplierRegion;
-            const ef_code = m.ef_code || (
-                (m.layer1 || m.layer2 || m.layer3 || m.layer4)
-                    ? await resolveEfCodeForGroup(client, 'materials',
-                        { layer1: m.layer1, layer2: m.layer2, layer3: m.layer3, layer4: m.layer4 },
-                        region, annual_reporting_period)
-                    : null
+            const ef_code = m.ef_code || await resolveEfIdForRow(
+                { layer1: m.layer1, layer2: m.layer2, layer3: m.layer3, unit: m.unit },
+                supplierCountry,
+                Number(annual_reporting_period),
+                "kg" // raw materials have no unit column → mass-based
             );
             // composition_percent is the new field name; percentage is the legacy name
             const percentage = m.composition_percent ?? m.percentage ?? null;
@@ -2931,13 +3004,11 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.recycled_materials_with_percentage_questions.map(async (r: any) => {
             const rmwp_id = ulid();
-            const region = r.region || supplierRegion;
-            const ef_code = r.ef_code || (
-                (r.layer1 || r.layer2 || r.layer3 || r.layer4)
-                    ? await resolveEfCodeForGroup(client, 'materials',
-                        { layer1: r.layer1, layer2: r.layer2, layer3: r.layer3, layer4: r.layer4 },
-                        region, annual_reporting_period)
-                    : null
+            const ef_code = r.ef_code || await resolveEfIdForRow(
+                { layer1: r.layer1, layer2: r.layer2, layer3: r.layer3, unit: r.unit },
+                supplierCountry,
+                Number(annual_reporting_period),
+                "kg" // recycled materials have no unit column → mass-based
             );
             const percentage = r.composition_percent ?? r.percentage ?? null;
 
@@ -3018,13 +3089,11 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.pir_pcr_material_percentage_questions.map(async (p: any) => {
             const ppmp_id = ulid();
-            const region = p.region || supplierRegion;
-            const ef_code = p.ef_code || (
-                (p.layer1 || p.layer2 || p.layer3 || p.layer4)
-                    ? await resolveEfCodeForGroup(client, 'materials',
-                        { layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, layer4: p.layer4 },
-                        region, annual_reporting_period)
-                    : null
+            const ef_code = p.ef_code || await resolveEfIdForRow(
+                { layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, unit: p.unit },
+                supplierCountry,
+                Number(annual_reporting_period),
+                "kg" // PIR/PCR + packaging materials are mass-based → kg
             );
 
             prepareDQR({
@@ -3067,13 +3136,11 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
         const rows = await Promise.all(data.type_of_pack_mat_used_for_delivering_questions.map(async (p: any) => {
             const topmudp_id = ulid();
             const linked = resolveBomLink(p);
-            const region = p.region || supplierRegion;
-            const ef_code = p.ef_code || (
-                (p.layer1 || p.layer2 || p.layer3 || p.layer4)
-                    ? await resolveEfCodeForGroup(client, 'packaging',
-                        { layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, layer4: p.layer4 },
-                        region, annual_reporting_period)
-                    : null
+            const ef_code = p.ef_code || await resolveEfIdForRow(
+                { layer1: p.layer1, layer2: p.layer2, layer3: p.layer3, unit: p.unit },
+                supplierCountry,
+                Number(annual_reporting_period),
+                "kg" // PIR/PCR + packaging materials are mass-based → kg
             );
 
             prepareDQR({
@@ -3179,13 +3246,11 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.weight_of_pro_packaging_waste_questions.map(async (w: any) => {
             const woppw_id = ulid();
-            const region = w.region || supplierRegion;
-            const ef_code = w.ef_code || (
-                (w.layer1 || w.layer2 || w.layer3 || w.layer4)
-                    ? await resolveEfCodeForGroup(client, 'waste',
-                        { layer1: w.layer1, layer2: w.layer2, layer3: w.layer3, layer4: w.layer4 },
-                        region, annual_reporting_period)
-                    : null
+            const ef_code = w.ef_code || await resolveEfIdForRow(
+                { layer1: w.layer1, layer2: w.layer2, layer3: w.layer3, unit: w.unit },
+                supplierCountry,
+                Number(annual_reporting_period),
+                "kg" // packaging/production waste is weighed → mass-based kg
             );
             // friend's frontend sends `weight` (not `waste_weight`) for Q9; accept both
             const waste_weight = w.waste_weight ?? w.weight ?? null;
@@ -3328,13 +3393,10 @@ async function insertScopeThree(client: any, data: any, sgiq_id: string, annual_
 
         const rows = await Promise.all(data.mode_of_transport_used_for_transportation_questions.map(async (t: any) => {
             const motuft_id = ulid();
-            const region = t.region || supplierRegion;
-            const ef_code = t.ef_code || (
-                (t.layer1 || t.layer2 || t.layer3 || t.layer4)
-                    ? await resolveEfCodeForGroup(client, 'vehicle',
-                        { layer1: t.layer1, layer2: t.layer2, layer3: t.layer3, layer4: t.layer4 },
-                        region, annual_reporting_period)
-                    : null
+            const ef_code = t.ef_code || await resolveEfIdForRow(
+                { layer1: t.layer1, layer2: t.layer2, layer3: t.layer3, unit: t.unit },
+                supplierCountry,
+                Number(annual_reporting_period)
             );
             // friend's frontend sends `weight` / `source` / `destination` for Q10; accept both
             const weight_transported = t.weight_transported ?? t.weight ?? null;
