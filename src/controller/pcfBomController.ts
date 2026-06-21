@@ -4334,7 +4334,29 @@ export async function pcfCalculate(req: any, res: any) {
                                 weight_in_kg: wasteWeightInKg,
                             });
 
-                            let wasteEf = await fetchEfValueByCode(client, 'waste', fetchQ68Data.ef_code);
+                            // Manager's rule (same as materials/packaging): among the
+                            // BAFU rows matching this waste row's Category (layer1) +
+                            // Process (layer2), take the HIGHEST emission factor.
+                            //   metals / waste metals     -> Iron scrap 0.040720
+                            //   paper+ board / waste paper -> Waste paper sorted 0.090970
+                            // Scoping by the exact category+sub_category_1 avoids stray
+                            // high rows (e.g. "Precious metals from electric waste" 64.05).
+                            let wasteEf: { ef_value: number; unit: string } | null = null;
+                            if (fetchQ68Data.layer1 && fetchQ68Data.layer2) {
+                                const hi = await client.query(
+                                    `SELECT kgco2e_per_unit FROM emission_factors
+                                     WHERE category = $1 AND sub_category_1 = $2 AND kgco2e_per_unit > 0
+                                     ORDER BY kgco2e_per_unit DESC LIMIT 1`,
+                                    [fetchQ68Data.layer1, fetchQ68Data.layer2]
+                                );
+                                if (hi.rows[0]?.kgco2e_per_unit) {
+                                    wasteEf = { ef_value: parseFloat(hi.rows[0].kgco2e_per_unit), unit: 'kg' };
+                                    console.log(`Q68 waste highest-EF by layers ${fetchQ68Data.layer1}/${fetchQ68Data.layer2} = ${wasteEf.ef_value}`);
+                                }
+                            }
+                            if (!wasteEf) {
+                                wasteEf = await fetchEfValueByCode(client, 'waste', fetchQ68Data.ef_code);
+                            }
 
                             // Fallback (manager's method): resolve the waste-treatment EF
                             // from the waste description. Triggered when no ef_code was
