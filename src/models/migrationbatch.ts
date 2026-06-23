@@ -3805,26 +3805,6 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
                 {"element":"Silicon","min_pct":9,"max_pct":11,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
                 {"element":"Magnesium","min_pct":0.2,"max_pct":0.45,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
                 {"element":"Iron","min_pct":0,"max_pct":0.55,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""}
-            ]', 'seed'),
-            ('alsi9cu3fe', 'AlSi9Cu3(Fe) / ADC12', '[
-                {"element":"Aluminium","min_pct":80,"max_pct":86,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Silicon","min_pct":9.6,"max_pct":12,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Copper","min_pct":1.5,"max_pct":3.5,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Iron","min_pct":0,"max_pct":1.3,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""},
-                {"element":"Zinc","min_pct":0,"max_pct":1,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""}
-            ]', 'seed'),
-            ('alsi9cu3', 'AlSi9Cu3(Fe) / ADC12', '[
-                {"element":"Aluminium","min_pct":80,"max_pct":86,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Silicon","min_pct":9.6,"max_pct":12,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Copper","min_pct":1.5,"max_pct":3.5,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Iron","min_pct":0,"max_pct":1.3,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""},
-                {"element":"Zinc","min_pct":0,"max_pct":1,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""}
-            ]', 'seed'),
-            ('adc12', 'ADC12', '[
-                {"element":"Aluminium","min_pct":80,"max_pct":86,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Silicon","min_pct":9.6,"max_pct":12,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Copper","min_pct":1.5,"max_pct":3.5,"bafu_category":"metals","bafu_process":"non ferro","bafu_sub2":""},
-                {"element":"Iron","min_pct":0,"max_pct":1.3,"bafu_category":"metals","bafu_process":"ferro","bafu_sub2":""}
             ]', 'seed')
         ON CONFLICT (alloy_key) DO NOTHING;`,
 
