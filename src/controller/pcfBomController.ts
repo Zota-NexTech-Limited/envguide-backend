@@ -16,6 +16,32 @@ import {
     WASTE_CATEGORIES,
 } from '../services/materialEfResolver.js';
 
+// Does a BAFU `product` row describe the SAME material the supplier named?
+// Guards the Q7 dropdown ef_code: a coarse Category/Process pick (e.g.
+// metals / non ferro) can resolve to an arbitrary metal row, so we only trust
+// it when the product actually shares the material's name keyword. Otherwise we
+// must NOT report (say) Copper's weight against Aluminium's EF — we fall back to
+// name→product matching. Aluminium/Aluminum spelling is normalized.
+function productMatchesMaterial(materialName: string, product: string): boolean {
+    if (!materialName || !product) return false;
+    const norm = (s: string) => s.toLowerCase().replace(/alumin(?:ium|um)/g, 'alumini');
+    const STOP = new Set([
+        'metal', 'metals', 'ferrous', 'ferro', 'non', 'alloy', 'primary', 'secondary',
+        'light', 'industrial', 'precious', 'specialty', 'speciality', 'rare', 'alkali',
+        'metalloid', 'gas', 'chemical', 'refractory', 'battery', 'pgm', 'and', 'of', 'the',
+        'at', 'plant', 'mix', 'production', 'low', 'high',
+    ]);
+    const words = (s: string) =>
+        norm(s).split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w));
+    // Significant words from the part of the name before "(" or "-"
+    // (e.g. "Copper (Cu) - alloy metal" → "copper"; "Low Carbon Steel" → carbon/steel).
+    let kws = words(norm(materialName).split(/[(\-]/)[0]);
+    if (kws.length === 0) kws = words(materialName); // names that are all stopwords
+    if (kws.length === 0) return false;
+    const prod = norm(product);
+    return kws.some((w) => prod.includes(w));
+}
+
 // Look up an emission factor by ef_code. Each EF table has the same shape
 // (ef_code, ef_value, unit, region, year, layer1..4). The questionnaire saves
 // ef_code per row at submit time (resolved from layer1..4 + region + year),
@@ -3144,7 +3170,49 @@ export async function pcfCalculate(req: any, res: any) {
                     // the "Aluminium cast alloy" EF). Element name alone keeps Silicon
                     // → silicon, Iron → iron/steel, etc.
                     const elementSearchText = elementName;
-                    let elemRes = await resolveMaterialEfFromDescription(client, elementSearchText, null);
+
+                    // PRIORITY 1 — honor the supplier's EXPLICIT BAFU selection.
+                    // When the client picks Category/Process/Sub-category 2 in Q7, the
+                    // save layer resolves those layers to an ef_code on the row. Use that
+                    // exact emission_factors row — consistent with packaging/transport/waste.
+                    // PRIORITY 2 (fallback) — no ef_code (auto-fill case): resolve by the
+                    // material NAME against the BAFU `product` column (token match).
+                    let elemRes: any = null;
+                    const pickedEfCode = (elem.ef_code || "").toString().trim();
+                    if (pickedEfCode) {
+                        const byCode = await client.query(
+                            `SELECT ef_id, product, kgco2e_per_unit, unit
+                             FROM emission_factors
+                             WHERE ef_id = $1 AND kgco2e_per_unit > 0
+                             LIMIT 1`,
+                            [pickedEfCode]
+                        );
+                        const efProduct = (byCode.rows[0]?.product || "").toString();
+                        // SAFETY: trust the dropdown's ef_code ONLY when its product is the
+                        // SAME material the supplier named. A coarse dropdown (metals/non
+                        // ferro) can resolve to an arbitrary metal — never report Copper's
+                        // weight against Aluminium's EF. Otherwise fall through to name match.
+                        if (byCode.rows[0]?.kgco2e_per_unit && productMatchesMaterial(elementName, efProduct)) {
+                            elemRes = {
+                                matched: true,
+                                ef_id: byCode.rows[0].ef_id,
+                                ef_value: parseFloat(byCode.rows[0].kgco2e_per_unit),
+                                product: efProduct,
+                                unit: byCode.rows[0].unit || "kg",
+                                matched_step: "ef_code",
+                                description: elementSearchText,
+                            };
+                        } else if (efProduct) {
+                            console.log(`  ef_code ${pickedEfCode} product "${efProduct}" != material "${elementName}" → using name match`);
+                        }
+                    }
+
+                    // Name → BAFU `product` column match (the anchor that knows
+                    // Copper ≠ Aluminium). Used when no ef_code, or the ef_code's
+                    // product wasn't this material.
+                    if (!elemRes?.matched) {
+                        elemRes = await resolveMaterialEfFromDescription(client, elementSearchText, null);
+                    }
 
                     // SINGLE 100% material (e.g. "Low Carbon Steel"): apply the
                     // manager's "highest EF" rule — but ONLY among rows that are
@@ -3153,7 +3221,7 @@ export async function pcfCalculate(req: any, res: any) {
                     // then pick the MAX EF among rows whose product shares the material
                     // keyword. This avoids resolveHighestEfFromText grabbing the single
                     // highest EF in the whole raw-materials set (e.g. uranium 94.7).
-                    if (isSingleMaterial) {
+                    if (isSingleMaterial && !pickedEfCode) {
                         // keyword = most significant word of the material name
                         const nameLower = elementName.toLowerCase();
                         const kw = elementName.trim().split(/\s+/).filter(Boolean).pop() || elementName;
