@@ -793,39 +793,7 @@ LEFT JOIN LATERAL (
             'created_date', pe.created_date,
 
             /* ---------- EMISSION FACTOR ---------- */
-           'emission_factor',
-COALESCE(
-    CASE
-        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) IN
-             ('electricity', 'heating', 'steam', 'cooling')
-        THEN
-            CASE
-                WHEN lower(loc.location) = 'india' THEN
-                    CASE
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_india_region::numeric
-                    END
-                WHEN lower(loc.location) = 'europe' THEN
-                    CASE
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_eu_region::numeric
-                    END
-                ELSE
-                    CASE
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_global_region::numeric
-                    END
-            END
-        ELSE 0::numeric
-    END,
-0
-)
+           'emission_factor', COALESCE(ef.kgco2e_per_unit::numeric, 0)
         )
     ) AS Q22_energy_type_and_energy_quantity
     FROM supplier_general_info_questions sgiq
@@ -839,11 +807,9 @@ COALESCE(
     LEFT JOIN energy_type et_lookup ON et_lookup.et_id = pe.energy_type
     LEFT JOIN energy_unit eu_lookup ON eu_lookup.eu_id = pe.unit
 
-    /* ---------- ELECTRICITY EMISSION FACTOR JOIN ---------- */
-    LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy = ('Electricity - ' || COALESCE(et_lookup.name, pe.energy_type))
-        AND ef.year = arp.annual_reporting_period
-        AND ef.unit = COALESCE(eu_lookup.name, pe.unit)
+    /* ---------- EMISSION FACTOR JOIN (unified BAFU emission_factors by ef_code) ---------- */
+    LEFT JOIN emission_factors ef
+        ON ef.ef_id = pe.ef_code
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q22 ON TRUE
@@ -862,20 +828,7 @@ LEFT JOIN LATERAL (
             'created_date', ec.created_date,
 
             /* ---------- EMISSION FACTOR ---------- */
-            'emission_factor',
-            COALESCE(
-                CASE
-                    WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                         ('electricity', 'heating', 'steam', 'cooling')
-                    THEN
-                        CASE
-                            WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                            WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                            ELSE ef.ef_global_region::numeric
-                        END
-                    ELSE 0::numeric
-                END,
-            0)
+            'emission_factor', 0::numeric
         )
     ) AS q51_energy_type_and_energy_quantity
     FROM supplier_general_info_questions sgiq
@@ -884,12 +837,7 @@ LEFT JOIN LATERAL (
     JOIN energy_consumption_for_qfiftyone_questions ec
         ON ec.stide_id = stide.stide_id
 
-    /* ---------- EMISSION FACTOR JOIN ---------- */
-    LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy =
-           (initcap(split_part(ec.energy_purchased, ' ', 1)) || ' - ' || ec.energy_type)
-        AND ef.year = arp.annual_reporting_period
-        AND ef.unit = ec.unit
+    /* ---------- EF removed: legacy electricity_emission_factor dropped; q51/q67 EF not displayed ---------- */
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q51 ON TRUE
@@ -908,20 +856,7 @@ LEFT JOIN LATERAL (
             'created_date', ec.created_date,
 
             /* ---------- EMISSION FACTOR ---------- */
-            'emission_factor',
-            COALESCE(
-                CASE
-                    WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                         ('electricity', 'heating', 'steam', 'cooling')
-                    THEN
-                        CASE
-                            WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                            WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                            ELSE ef.ef_global_region::numeric
-                        END
-                    ELSE 0::numeric
-                END,
-            0)
+            'emission_factor', 0::numeric
         )
     ) AS q67_energy_type_and_energy_quantity
     FROM supplier_general_info_questions sgiq
@@ -930,12 +865,7 @@ LEFT JOIN LATERAL (
     JOIN energy_consumption_for_qsixtyseven_questions ec
         ON ec.stoie_id = stoie.stoie_id
 
-    /* ---------- EMISSION FACTOR JOIN ---------- */
-    LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy =
-           (initcap(split_part(ec.energy_purchased, ' ', 1)) || ' - ' || ec.energy_type)
-        AND ef.year = arp.annual_reporting_period
-        AND ef.unit = ec.unit
+    /* ---------- EF removed: legacy electricity_emission_factor dropped; q51/q67 EF not displayed ---------- */
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q67 ON TRUE
@@ -1174,42 +1104,26 @@ LEFT JOIN LATERAL (
                 6
             ),
 
-            'emission_factor_used',
-            COALESCE(
-                CASE
-                    WHEN lower(loc.location) = 'india' THEN mef.ef_india_region::numeric
-                    WHEN lower(loc.location) = 'europe' THEN mef.ef_eu_region::numeric
-                    ELSE mef.ef_global_region::numeric
-                END,
-                0::numeric
-            ),
+            'emission_factor_used', COALESCE(mef.material_emission_factor::numeric, 0),
 
-'emission_in_co2_eq',
-ROUND(
-    (
-        ((b.weight_gms::numeric / 1000)
-         * COALESCE(rm.percentage::numeric, 0) / 100)
-        *
-        COALESCE(
-            CASE
-                WHEN lower(loc.location) = 'india' THEN mef.ef_india_region::numeric
-                WHEN lower(loc.location) = 'europe' THEN mef.ef_eu_region::numeric
-                ELSE mef.ef_global_region::numeric
-            END,
-            0::numeric
-        )
-    ),
-    6
-)
+'emission_in_co2_eq', ROUND(COALESCE(mef.material_emission::numeric, 0), 6)
         )
     ) AS q52_material_type_data
     FROM raw_materials_used_in_component_manufacturing_questions rm
     LEFT JOIN supplier_general_info_questions sgi
         ON sgi.bom_pcf_id = b.bom_pcf_id AND sgi.own_emission_id IS NULL
-    LEFT JOIN materials_emission_factor mef
-        ON mef.year = sgi.annual_reporting_period
-        AND mef.unit = 'KgCo2e/per kg'
-        AND lower(mef.element_name) = lower(rm.material_name)
+    /* ---------- EMISSION FACTOR + EMISSION from the unified PCF calc engine ----------
+       Materials resolve by element NAME at calc time (no per-element ef_code), so the
+       legacy materials_emission_factor table is gone. The real per-element EF + emission
+       already live in bom_emission_material_calculation_engine. Match by bom + composition %. */
+    LEFT JOIN LATERAL (
+        SELECT bmce.material_emission_factor, bmce.material_emission
+        FROM bom_emission_material_calculation_engine bmce
+        WHERE bmce.bom_id = b.id
+          AND bmce.material_composition::numeric = rm.percentage::numeric
+        ORDER BY bmce.material_emission DESC
+        LIMIT 1
+    ) mef ON TRUE
     LEFT JOIN material_type mt_lookup ON mt_lookup.id = rm.material_name
     WHERE rm.bom_id = b.id
 ) q52 ON TRUE
@@ -1627,59 +1541,12 @@ LEFT JOIN LATERAL (
             'created_date', pe.created_date,
 
             /* ---------- EMISSION FACTOR ---------- */
-           'emission_factor',
-COALESCE(
-    CASE
-        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) IN
-             ('electricity', 'heating', 'steam', 'cooling')
-        THEN
-            CASE
-                WHEN lower(loc.location) = 'india' THEN
-                    CASE
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_india_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_india_region::numeric
-                    END
-                WHEN lower(loc.location) = 'europe' THEN
-                    CASE
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_eu_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_eu_region::numeric
-                    END
-                ELSE
-                    CASE
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'electricity' THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'heating'     THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'steam'       THEN ef.ef_global_region::numeric
-                        WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) = 'cooling'     THEN ef.ef_global_region::numeric
-                    END
-            END
-        ELSE 0::numeric
-    END,
-0
-),
+           'emission_factor', COALESCE(ef.kgco2e_per_unit::numeric, 0),
 'calculated_emission',
-  /*----Coverting quantity into KW    ---------- */
 ROUND(
-    COALESCE(pe.quantity::numeric, 0) / 1000
-    *
-    COALESCE(
-        CASE
-            WHEN lower(split_part(COALESCE(es_lookup.name, pe.energy_source), ' ', 1)) IN
-                 ('electricity', 'heating', 'steam', 'cooling')
-            THEN
-                CASE
-                    WHEN lower(loc.location) = 'india' THEN ef.ef_india_region::numeric
-                    WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                    ELSE ef.ef_global_region::numeric
-                END
-            ELSE 0::numeric
-        END,
-    0),
-6
-)
+    COALESCE(pe.quantity::numeric, 0)
+    * COALESCE(ef.kgco2e_per_unit::numeric, 0),
+6)
 
         )
     ) AS Q22_energy_type_and_energy_quantity
@@ -1694,11 +1561,9 @@ ROUND(
     LEFT JOIN energy_type et_lookup ON et_lookup.et_id = pe.energy_type
     LEFT JOIN energy_unit eu_lookup ON eu_lookup.eu_id = pe.unit
 
-    /* ---------- ELECTRICITY EMISSION FACTOR JOIN ---------- */
-    LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy = ('Electricity - ' || COALESCE(et_lookup.name, pe.energy_type))
-        AND ef.year = arp.annual_reporting_period
-        AND ef.unit = COALESCE(eu_lookup.name, pe.unit)
+    /* ---------- EMISSION FACTOR JOIN (unified BAFU emission_factors by ef_code) ---------- */
+    LEFT JOIN emission_factors ef
+        ON ef.ef_id = pe.ef_code
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q22 ON TRUE
@@ -1717,40 +1582,10 @@ LEFT JOIN LATERAL (
             'created_date', ec.created_date,
 
             /* ---------- EMISSION FACTOR ---------- */
-            'emission_factor',
-            COALESCE(
-                CASE
-                    WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                         ('electricity', 'heating', 'steam', 'cooling')
-                    THEN
-                        CASE
-                            WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                            WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                            ELSE ef.ef_global_region::numeric
-                        END
-                    ELSE 0::numeric
-                END,
-            0),
+            'emission_factor', 0::numeric,
            'calculated_emission',
              /*----Coverting quantity into KW    ---------- */
-ROUND(
-    COALESCE(ec.quantity::numeric, 0) / 1000
-    *
-    COALESCE(
-        CASE
-            WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                 ('electricity', 'heating', 'steam', 'cooling')
-            THEN
-                CASE
-                    WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                    WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                    ELSE ef.ef_global_region::numeric
-                END
-            ELSE 0::numeric
-        END,
-    0),
-6
-)
+0::numeric
 
         )
     ) AS q51_energy_type_and_energy_quantity
@@ -1760,12 +1595,7 @@ ROUND(
     JOIN energy_consumption_for_qfiftyone_questions ec
         ON ec.stide_id = stide.stide_id
 
-    /* ---------- EMISSION FACTOR JOIN ---------- */
-    LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy =
-           (initcap(split_part(ec.energy_purchased, ' ', 1)) || ' - ' || ec.energy_type)
-        AND ef.year = arp.annual_reporting_period
-        AND ef.unit = ec.unit
+    /* ---------- EF removed: legacy electricity_emission_factor dropped; q51/q67 EF not displayed ---------- */
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q51 ON TRUE
@@ -1784,40 +1614,10 @@ LEFT JOIN LATERAL (
             'created_date', ec.created_date,
 
             /* ---------- EMISSION FACTOR ---------- */
-            'emission_factor',
-            COALESCE(
-                CASE
-                    WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                         ('electricity', 'heating', 'steam', 'cooling')
-                    THEN
-                        CASE
-                            WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                            WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                            ELSE ef.ef_global_region::numeric
-                        END
-                    ELSE 0::numeric
-                END,
-            0),
+            'emission_factor', 0::numeric,
             'calculated_emission',
         /*----Coverting quantity into KW    ---------- */
-ROUND(
-    COALESCE(ec.quantity::numeric, 0) / 1000
-    *
-    COALESCE(
-        CASE
-            WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                 ('electricity', 'heating', 'steam', 'cooling')
-            THEN
-                CASE
-                    WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                    WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                    ELSE ef.ef_global_region::numeric
-                END
-            ELSE 0::numeric
-        END,
-    0),
-6
-)
+0::numeric
 
         )
     ) AS q67_energy_type_and_energy_quantity
@@ -1827,12 +1627,7 @@ ROUND(
     JOIN energy_consumption_for_qsixtyseven_questions ec
         ON ec.stoie_id = stoie.stoie_id
 
-    /* ---------- EMISSION FACTOR JOIN ---------- */
-    LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy =
-           (initcap(split_part(ec.energy_purchased, ' ', 1)) || ' - ' || ec.energy_type)
-        AND ef.year = arp.annual_reporting_period
-        AND ef.unit = ec.unit
+    /* ---------- EF removed: legacy electricity_emission_factor dropped; q51/q67 EF not displayed ---------- */
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q67 ON TRUE
@@ -2124,14 +1919,7 @@ LEFT JOIN LATERAL (
 
     /* ---------- EMISSION FACTOR ---------- */
     'emission_factor_used',
-    COALESCE(
-        CASE
-            WHEN lower(loc.location) = 'india' THEN mef.ef_india_region::numeric
-            WHEN lower(loc.location) = 'europe' THEN mef.ef_eu_region::numeric
-            ELSE mef.ef_global_region::numeric
-        END,
-        0
-    ),
+    COALESCE(mef.transport_mode_emission_factor_value_kg_co2e_t_km::numeric, 0),
 
     /* ---------- WEIGHT IN TONS (ton-km) ---------- */
     'weight_in_tons',
@@ -2146,25 +1934,7 @@ LEFT JOIN LATERAL (
 
     /* ---------- TRANSPORTED EMISSION ---------- */
     'transported_emission',
-    ROUND(
-        (
-            (
-                COALESCE(regexp_replace(ec.weight_transported, '[^0-9\.]', '', 'g')::numeric, 0) / 1000
-            )
-            *
-            COALESCE(regexp_replace(ec.distance, '[^0-9\.]', '', 'g')::numeric, 0)
-        )
-        *
-        COALESCE(
-            CASE
-                WHEN lower(loc.location) = 'india' THEN mef.ef_india_region::numeric
-                WHEN lower(loc.location) = 'europe' THEN mef.ef_eu_region::numeric
-                ELSE mef.ef_global_region::numeric
-            END,
-            0
-        ),
-        6
-    )
+    ROUND(COALESCE(mef.leg_wise_transport_emissions_per_unit_kg_co2e::numeric, 0), 6)
 )
     ) AS q74_transport 
     FROM supplier_general_info_questions sgiq
@@ -2172,10 +1942,17 @@ LEFT JOIN LATERAL (
         ON stoie.sgiq_id = sgiq.sgiq_id
     JOIN mode_of_transport_used_for_transportation_questions ec
         ON ec.stoie_id = stoie.stoie_id
-    LEFT JOIN vehicle_type_emission_factor mef
-        ON mef.year = arp.annual_reporting_period
-        AND mef.unit = 'Kms'
-        AND lower(mef.vehicle_type) = lower(ec.mode_of_transport)
+    /* ---------- per-leg EF + emission from the unified PCF logistic engine
+       (legacy vehicle_type_emission_factor dropped). Match by bom + distance. ---------- */
+    LEFT JOIN LATERAL (
+        SELECT bl.transport_mode_emission_factor_value_kg_co2e_t_km,
+               bl.leg_wise_transport_emissions_per_unit_kg_co2e
+        FROM bom_emission_logistic_calculation_engine bl
+        WHERE bl.bom_id = b.id
+          AND bl.distance_km = COALESCE(regexp_replace(ec.distance, '[^0-9\.]', '', 'g')::numeric, 0)
+        ORDER BY bl.created_date DESC
+        LIMIT 1
+    ) mef ON TRUE
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q74 ON TRUE
 
@@ -2510,83 +2287,13 @@ LEFT JOIN LATERAL (
             'created_date', ec.created_date,
             'percentage_of_recycled_content_used_in_packaging',stoie.percentage_of_recycled_content_used_in_packaging,
             /* ---------- EMISSION FACTOR ---------- */
-            'emission_factor',
-            COALESCE(
-                CASE
-                    WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                         ('electricity', 'heating', 'steam', 'cooling')
-                    THEN
-                        CASE
-                            WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                            WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                            ELSE ef.ef_global_region::numeric
-                        END
-                    ELSE 0::numeric
-                END,
-            0),
+            'emission_factor', 0::numeric,
             'calculated_emission',
-ROUND(
-    COALESCE(ec.quantity::numeric, 0) / 1000
-    *
-    COALESCE(
-        CASE
-            WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                 ('electricity', 'heating', 'steam', 'cooling')
-            THEN
-                CASE
-                    WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                    WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                    ELSE ef.ef_global_region::numeric
-                END
-            ELSE 0::numeric
-        END,
-    0),
-6
-),
+0::numeric,
 
-'calculated_emission_factor_Point25',
-ROUND(
-    (
-        COALESCE(ec.quantity::numeric, 0) / 1000
-        *
-        COALESCE(
-            CASE
-                WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                     ('electricity', 'heating', 'steam', 'cooling')
-                THEN
-                    CASE
-                        WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                        WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                        ELSE ef.ef_global_region::numeric
-                    END
-                ELSE 0::numeric
-            END,
-        0)
-    ) * 0.25,
-6
-),
+'calculated_emission_factor_Point25', 0::numeric,
 
-'calculated_emission_factor_Point5',
-ROUND(
-    (
-        COALESCE(ec.quantity::numeric, 0) / 1000
-        *
-        COALESCE(
-            CASE
-                WHEN lower(split_part(ec.energy_purchased, ' ', 1)) IN
-                     ('electricity', 'heating', 'steam', 'cooling')
-                THEN
-                    CASE
-                        WHEN lower(loc.location) = 'india'  THEN ef.ef_india_region::numeric
-                        WHEN lower(loc.location) = 'europe' THEN ef.ef_eu_region::numeric
-                        ELSE ef.ef_global_region::numeric
-                    END
-                ELSE 0::numeric
-            END,
-        0)
-    ) * 0.5,
-6
-)       
+'calculated_emission_factor_Point5', 0::numeric
         )
     ) AS q67_energy_type_and_energy_quantity
     FROM supplier_general_info_questions sgiq
@@ -2595,12 +2302,7 @@ ROUND(
     JOIN energy_consumption_for_qsixtyseven_questions ec
         ON ec.stoie_id = stoie.stoie_id
 
-        /* ---------- EMISSION FACTOR JOIN ---------- */
-    LEFT JOIN electricity_emission_factor ef
-        ON ef.type_of_energy =
-           (initcap(split_part(ec.energy_purchased, ' ', 1)) || ' - ' || ec.energy_type)
-        AND ef.year = arp.annual_reporting_period
-        AND ef.unit = ec.unit
+        /* ---------- EF removed: legacy electricity_emission_factor dropped; q51/q67 EF not displayed ---------- */
 
     WHERE sgiq.bom_pcf_id = b.bom_pcf_id AND sgiq.own_emission_id IS NULL
 ) q67 ON TRUE
