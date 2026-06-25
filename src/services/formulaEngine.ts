@@ -246,13 +246,19 @@ function computeCarbonContent(data: SupplierData): ComputedFields["carbonContent
 
     for (const row of data.q8_bom) {
         const componentMass = productMass * (num(row.mass_pct) / 100);
-        const totalCFrac = num(row.carbon_pct) / 100;
-        const biogenicCFrac = num(row.biogenic_carbon_pct) / 100;
-        const recycledCFrac = num(row.recycled_carbon_pct) / 100;
+        const totalCFrac = num(row.carbon_pct) / 100;          // carbon content of the component
+        const biogenicCFrac = num(row.biogenic_carbon_pct) / 100; // biogenic share of that carbon
+        const recycledCFrac = num(row.recycled_carbon_pct) / 100; // recycled share of that carbon
 
-        totalCarbon += componentMass * totalCFrac;
-        if (row.biogenic_y_n) biogenicCarbonContent += componentMass * biogenicCFrac;
-        if (row.recycled_y_n) recycledCarbonContent += componentMass * recycledCFrac;
+        // CSV Revised Formula:
+        //   biogenic = Σ(Material Mass × carbon% × Biogenic Carbon Fraction)
+        // i.e. biogenic/recycled are PORTIONS OF THE CARBON, so each is
+        // multiplied by carbon% as well — keeping Total = Fossil+Biogenic+Recycled
+        // dimensionally consistent (all are carbon masses).
+        const componentCarbon = componentMass * totalCFrac;
+        totalCarbon += componentCarbon;
+        if (row.biogenic_y_n) biogenicCarbonContent += componentCarbon * biogenicCFrac;
+        if (row.recycled_y_n) recycledCarbonContent += componentCarbon * recycledCFrac;
     }
 
     // Per team confirmation: derive fossil so the identity Total = Fossil + Biogenic + Recycled holds.

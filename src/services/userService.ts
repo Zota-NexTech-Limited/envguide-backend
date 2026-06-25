@@ -18,6 +18,21 @@ export async function finduser(user_email: any) {
     })
 }
 
+// Suppliers live in `supplier_details`, not `users_table`. Supplier-facing
+// flows (e.g. the supplier questionnaire) carry a JWT whose email is the
+// supplier_email, so the auth middleware needs a way to resolve it here.
+export async function findSupplier(supplier_email: any) {
+    return withClient(async (client: any) => {
+        try {
+            const query = 'SELECT * FROM supplier_details WHERE LOWER(supplier_email) = LOWER($1)';
+            const result = await client.query(query, [supplier_email]);
+            return result;
+        } catch (error: any) {
+            throw new Error(error)
+        }
+    })
+}
+
 
 export async function findUserByMultiple(user_email: any) {
     return withClient(async (client: any) => {

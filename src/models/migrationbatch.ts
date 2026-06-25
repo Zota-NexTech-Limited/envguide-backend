@@ -3804,8 +3804,8 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             validity_period_end DATE,
             -- Q6 PCF type
             retro_or_prospective_pcf_type VARCHAR(128),
-            -- Q7 System boundary
-            system_boundary VARCHAR(32) DEFAULT 'cradle-to-gate',
+            -- Q7 System boundary (stores the full descriptive label from the UI)
+            system_boundary TEXT DEFAULT 'cradle-to-gate',
             -- Q9 Co-products
             co_products_present BOOLEAN DEFAULT FALSE,
             -- Q15 Packaging include
@@ -3820,15 +3820,15 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             -- Q21 Standards
             cross_sectoral_standards TEXT,
             product_or_sector_specific_rules TEXT,
-            ipcc_gwp_version VARCHAR(16) DEFAULT 'AR6',
+            ipcc_gwp_version TEXT DEFAULT 'AR6',
             -- Q22 Mass balancing
             mass_balancing_used BOOLEAN DEFAULT FALSE,
             mass_balancing_certificate_scheme TEXT,
             free_attribution_in_mass_balancing BOOLEAN,
             -- Q23 Allocation
             allocation_rules_description TEXT,
-            allocation_recycled_carbon VARCHAR(64) DEFAULT 'cut-off',
-            allocation_waste_incineration VARCHAR(64) DEFAULT 'polluter pays principle',
+            allocation_recycled_carbon TEXT DEFAULT 'cut-off',
+            allocation_waste_incineration TEXT DEFAULT 'polluter pays principle',
             -- Q24 Boundary
             boundary_processes_description TEXT,
             ccs_co2_capture_included BOOLEAN DEFAULT FALSE,
@@ -4190,6 +4190,50 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
                 '{"exact_unit": 10, "same_unit_family_convertible": 7, "different_family": 0}'::jsonb),
             ('efsc_material_year',      'material', 'year',      5,
                 '{"exact_year": 5, "within_1y": 4, "within_3y": 2, "older": 0}'::jsonb)
+         ON CONFLICT (activity_type, criterion) DO NOTHING;`,
+
+        // ============================================================
+        // Seed: EF scoring weights — the remaining 6 activity types.
+        // Same criteria/weights as material (40/30/15/10/5). Matchers map onto
+        // the real BAFU columns (product/category/sub_category_1/sub_category_2,
+        // country_code/country_name, unit, reference_year). Tune per-type later.
+        // ============================================================
+        `INSERT INTO ef_scoring_config (id, activity_type, criterion, weight, scoring_rules_json) VALUES
+            ('efsc_packaging_material',  'packaging', 'material',  40, '{"exact": 40, "same_family": 25, "different": 0}'::jsonb),
+            ('efsc_packaging_process',   'packaging', 'process',   30, '{"exact": 30, "related": 15, "different": 5, "missing": 0}'::jsonb),
+            ('efsc_packaging_geography', 'packaging', 'geography', 15, '{"same_country": 15, "same_region": 10, "GLO": 5, "RoW": 2}'::jsonb),
+            ('efsc_packaging_unit',      'packaging', 'unit',      10, '{"exact_unit": 10, "different_family": 0}'::jsonb),
+            ('efsc_packaging_year',      'packaging', 'year',      5,  '{"exact_year": 5, "within_1y": 4, "within_3y": 2, "older": 0}'::jsonb),
+
+            ('efsc_transport_material',  'transport', 'material',  40, '{"exact": 40, "same_family": 25, "different": 0}'::jsonb),
+            ('efsc_transport_process',   'transport', 'process',   30, '{"exact": 30, "related": 15, "different": 5, "missing": 0}'::jsonb),
+            ('efsc_transport_geography', 'transport', 'geography', 15, '{"same_country": 15, "same_region": 10, "GLO": 5, "RoW": 2}'::jsonb),
+            ('efsc_transport_unit',      'transport', 'unit',      10, '{"exact_unit": 10, "different_family": 0}'::jsonb),
+            ('efsc_transport_year',      'transport', 'year',      5,  '{"exact_year": 5, "within_1y": 4, "within_3y": 2, "older": 0}'::jsonb),
+
+            ('efsc_waste_material',      'waste', 'material',  40, '{"exact": 40, "same_family": 25, "different": 0}'::jsonb),
+            ('efsc_waste_process',       'waste', 'process',   30, '{"exact": 30, "related": 15, "different": 5, "missing": 0}'::jsonb),
+            ('efsc_waste_geography',     'waste', 'geography', 15, '{"same_country": 15, "same_region": 10, "GLO": 5, "RoW": 2}'::jsonb),
+            ('efsc_waste_unit',          'waste', 'unit',      10, '{"exact_unit": 10, "different_family": 0}'::jsonb),
+            ('efsc_waste_year',          'waste', 'year',      5,  '{"exact_year": 5, "within_1y": 4, "within_3y": 2, "older": 0}'::jsonb),
+
+            ('efsc_energy_material',     'energy', 'material',  40, '{"exact": 40, "same_family": 25, "different": 0}'::jsonb),
+            ('efsc_energy_process',      'energy', 'process',   30, '{"exact": 30, "related": 15, "different": 5, "missing": 0}'::jsonb),
+            ('efsc_energy_geography',    'energy', 'geography', 15, '{"same_country": 15, "same_region": 10, "GLO": 5, "RoW": 2}'::jsonb),
+            ('efsc_energy_unit',         'energy', 'unit',      10, '{"exact_unit": 10, "different_family": 0}'::jsonb),
+            ('efsc_energy_year',         'energy', 'year',      5,  '{"exact_year": 5, "within_1y": 4, "within_3y": 2, "older": 0}'::jsonb),
+
+            ('efsc_fuels_material',      'fuels', 'material',  40, '{"exact": 40, "same_family": 25, "different": 0}'::jsonb),
+            ('efsc_fuels_process',       'fuels', 'process',   30, '{"exact": 30, "related": 15, "different": 5, "missing": 0}'::jsonb),
+            ('efsc_fuels_geography',     'fuels', 'geography', 15, '{"same_country": 15, "same_region": 10, "GLO": 5, "RoW": 2}'::jsonb),
+            ('efsc_fuels_unit',          'fuels', 'unit',      10, '{"exact_unit": 10, "different_family": 0}'::jsonb),
+            ('efsc_fuels_year',          'fuels', 'year',      5,  '{"exact_year": 5, "within_1y": 4, "within_3y": 2, "older": 0}'::jsonb),
+
+            ('efsc_gas_material',        'process_gas', 'material',  40, '{"exact": 40, "same_family": 25, "different": 0}'::jsonb),
+            ('efsc_gas_process',         'process_gas', 'process',   30, '{"exact": 30, "related": 15, "different": 5, "missing": 0}'::jsonb),
+            ('efsc_gas_geography',       'process_gas', 'geography', 15, '{"same_country": 15, "same_region": 10, "GLO": 5, "RoW": 2}'::jsonb),
+            ('efsc_gas_unit',            'process_gas', 'unit',      10, '{"exact_unit": 10, "different_family": 0}'::jsonb),
+            ('efsc_gas_year',            'process_gas', 'year',      5,  '{"exact_year": 5, "within_1y": 4, "within_3y": 2, "older": 0}'::jsonb)
          ON CONFLICT (activity_type, criterion) DO NOTHING;`,
 
     ]

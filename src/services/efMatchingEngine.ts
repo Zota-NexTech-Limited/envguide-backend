@@ -120,9 +120,21 @@ export async function findBestEf(input: EfMatchInput): Promise<EfMatchResult> {
         }
 
         // 3. Layer 3 — score every surviving candidate.
+        //    Tie-break: for stocks/streams (material/packaging/waste) prefer the
+        //    HIGHEST factor — conservative and matches the manager's rule. For
+        //    energy/transport/fuels/gases a "highest EF" tie-break would pick the
+        //    dirtiest source (coal over grid mix, worst lorry), so keep them on a
+        //    stable newest-first order and let geography/exactness decide instead.
+        const preferHighestEf = ["material", "packaging", "waste"].includes(input.activityType);
         const scored = candidates
             .map((row) => scoreRow(row, input, cfg))
-            .sort((a, b) => b.score - a.score);
+            .sort(
+                (a, b) =>
+                    b.score - a.score ||
+                    (preferHighestEf
+                        ? parseFloat(b.row.kgco2e_per_unit ?? "0") - parseFloat(a.row.kgco2e_per_unit ?? "0")
+                        : 0)
+            );
 
         const winner = scored[0];
         const confidence = bandOf(winner.score);
@@ -160,86 +172,98 @@ export async function findBestEf(input: EfMatchInput): Promise<EfMatchResult> {
 
 interface CandidateRow {
     ef_id: string;
-    material: string | null;
-    process: string | null;
+    product: string | null;
+    category: string | null;
+    sub_category_1: string | null;
+    sub_category_2: string | null;
     country_code: string | null;
-    region: string | null;
+    country_name: string | null;
     unit: string | null;
-    unit_kind: string | null;
-    recycled_content: string | null;
     reference_year: number | null;
     kgco2e_per_unit: string;
     [k: string]: any;
 }
 
 async function layer1Filter(client: any, input: EfMatchInput): Promise<CandidateRow[]> {
-    // Hard gates first:
-    //  - unit family must match if supplier provided one.
-    //  - excluded factor_suitability values (e.g. capital goods) are dropped.
-    // Then progressive narrowing on material/process/geography.
+    // The live BAFU `emission_factors` table has columns:
+    //   product, category, sub_category_1, sub_category_2,
+    //   country_code, country_name, unit, kgco2e_per_unit, reference_year.
+    // It has NO material/process/region/unit_kind/factor_suitability columns,
+    // so the supplier's taxonomy is mapped onto the real columns:
+    //   material  -> substring across product/category/sub_category_1/sub_category_2 (hard gate)
+    //   unit      -> exact unit match (soft gate: dropped if it starves the pool)
+    //   geography -> country_code, then country_name, then GLO/RoW, then none.
 
-    const params: any[] = [];
-    const where: string[] = [
-        // Exclude rows clearly not safe for "use directly" mapping.
-        `factor_suitability IS NULL OR factor_suitability ILIKE '%use directly%'`,
-    ];
+    const seen = new Set<string>();
 
-    // Unit family is a hard gate when supplied — can't pull a kg EF when supplier
-    // reported kWh.
-    if (input.unitKind) {
-        params.push(input.unitKind);
-        where.push(`unit_kind ILIKE $${params.length}`);
-    }
+    const run = async (useUnit: boolean): Promise<CandidateRow[]> => {
+        const params: any[] = [];
+        // Always drop zero/placeholder factors — BAFU has many 0.0 rows
+        // (e.g. battery-recycling intermediates) that must never win.
+        const where: string[] = ["kgco2e_per_unit > 0"];
 
-    if (input.material) {
-        params.push(input.material);
-        where.push(`material ILIKE $${params.length}`);
-    }
-    if (input.process) {
-        params.push(input.process);
-        where.push(`process ILIKE $${params.length}`);
-    }
+        // Material is the primary hard gate — must appear in one of the
+        // descriptive columns (substring, case-insensitive).
+        if (input.material) {
+            params.push(`%${input.material.trim()}%`);
+            const p = `$${params.length}`;
+            where.push(
+                `(product ILIKE ${p} OR category ILIKE ${p} OR sub_category_1 ILIKE ${p} OR sub_category_2 ILIKE ${p})`
+            );
+        }
 
-    // Geography fallback chain: try strict (country), then loosen.
-    const tryGeo = async (geoClause: string | null): Promise<CandidateRow[]> => {
-        const localParams = [...params];
-        const localWhere = [...where];
-        if (geoClause) localWhere.push(geoClause);
-        const sql = `
-            SELECT *
-              FROM emission_factors
-             WHERE ${localWhere.join(" AND ")}
-             ORDER BY reference_year DESC NULLS LAST
-             LIMIT ${MAX_CANDIDATES};
-        `;
-        const r = await client.query(sql, localParams);
-        return r.rows;
+        // Unit hard gate (only on the first pass + when supplied) — a kg EF
+        // must not be pulled for a kWh activity.
+        if (useUnit && input.unit) {
+            params.push(input.unit.trim());
+            where.push(`unit ILIKE $${params.length}`);
+        }
+
+        const baseWhere = where.length ? where.join(" AND ") : "TRUE";
+
+        const tryGeo = async (geoClause: string | null): Promise<CandidateRow[]> => {
+            const sql = `
+                SELECT *
+                  FROM emission_factors
+                 WHERE ${baseWhere}${geoClause ? ` AND (${geoClause})` : ""}
+                 ORDER BY reference_year DESC NULLS LAST
+                 LIMIT ${MAX_CANDIDATES};
+            `;
+            const r = await client.query(sql, params);
+            return r.rows;
+        };
+
+        // Geography fallback ladder: strict country, then loosen.
+        const country = input.country?.trim();
+        const region = input.region?.trim();
+        const ladder: Array<string | null> = [];
+        if (country) ladder.push(`country_code ILIKE '${country.replace(/'/g, "''")}'`);
+        if (region)  ladder.push(`country_name ILIKE '${region.replace(/'/g, "''")}'`);
+        ladder.push(`country_code ILIKE 'GLO' OR country_name ILIKE 'Global'`);
+        ladder.push(`country_code ILIKE 'RoW' OR country_name ILIKE 'Rest of%'`);
+        ladder.push(null); // last resort: no geo filter
+
+        const merged: CandidateRow[] = [];
+        for (const clause of ladder) {
+            const rows = await tryGeo(clause);
+            for (const r of rows) {
+                if (!seen.has(r.ef_id)) {
+                    seen.add(r.ef_id);
+                    merged.push(r);
+                }
+            }
+            if (merged.length >= MIN_CANDIDATES_BEFORE_FALLBACK) break;
+        }
+        return merged;
     };
 
-    // Build the fallback ladder.
-    const country = input.country?.trim();
-    const region = input.region?.trim();
-    const ladder: Array<{ label: string; clause: string | null }> = [];
-
-    if (country) ladder.push({ label: "country", clause: `country_code ILIKE '${country.replace(/'/g, "''")}'` });
-    if (region)  ladder.push({ label: "region", clause: `region ILIKE '${region.replace(/'/g, "''")}'` });
-    ladder.push({ label: "GLO", clause: `country_code ILIKE 'GLO' OR region ILIKE 'Global'` });
-    ladder.push({ label: "RoW", clause: `country_code ILIKE 'RoW' OR region ILIKE 'Rest of%'` });
-    ladder.push({ label: "none", clause: null }); // last resort: no geo filter
-
-    let merged: CandidateRow[] = [];
-    const seen = new Set<string>();
-    for (const step of ladder) {
-        const rows = await tryGeo(step.clause);
-        for (const r of rows) {
-            if (!seen.has(r.ef_id)) {
-                seen.add(r.ef_id);
-                merged.push(r);
-            }
-        }
-        if (merged.length >= MIN_CANDIDATES_BEFORE_FALLBACK) break;
+    // First pass with the unit gate; if it starved the candidate pool, retry
+    // without it (a unit-mismatched EF flagged for review beats no EF at all).
+    let merged = await run(true);
+    if (merged.length < MIN_CANDIDATES_BEFORE_FALLBACK) {
+        seen.clear();
+        merged = await run(false);
     }
-
     return merged;
 }
 
@@ -308,41 +332,50 @@ function ieq(a: string | null | undefined, b: string | null | undefined): boolea
 }
 
 function matchMaterial(row: CandidateRow, input: EfMatchInput, r: Record<string, number>): number {
-    if (ieq(row.material, input.material ?? null)) return r["exact"] ?? 0;
-    // "same_family" left for a future material-family lookup. For v1 we
-    // treat partial overlap heuristically (one contains the other).
-    if (row.material && input.material) {
-        const a = row.material.toLowerCase();
-        const b = input.material.toLowerCase();
-        if (a.includes(b) || b.includes(a)) return r["same_family"] ?? 0;
+    const m = input.material;
+    if (!m) return r["different"] ?? 0;
+    const needle = m.trim().toLowerCase();
+    // Exact product-name hit is the strongest signal.
+    if (ieq(row.product, m)) return r["exact"] ?? 0;
+    // BAFU products name the PRIMARY material as the leading token
+    // ("Steel, converter, unalloyed"; "Aluminium alloy, AlMg3"). Anchoring on
+    // the first token keeps a real steel ahead of "...processing ... steel".
+    const prod = (row.product ?? "").trim().toLowerCase();
+    const firstTok = prod.split(/[\s,]+/)[0] ?? "";
+    if (firstTok === needle || prod.startsWith(needle + " ") || prod.startsWith(needle + ",")) {
+        return r["exact"] ?? 0;
     }
+    // Otherwise reward partial overlap against any descriptive column.
+    const hay = [row.product, row.category, row.sub_category_1, row.sub_category_2]
+        .filter((s): s is string => !!s)
+        .map((s) => s.toLowerCase());
+    if (hay.some((h) => h.includes(needle) || needle.includes(h))) return r["same_family"] ?? 0;
     return r["different"] ?? 0;
 }
 
 function matchProcess(row: CandidateRow, input: EfMatchInput, r: Record<string, number>): number {
     if (!input.process) return r["missing"] ?? 0;
-    if (ieq(row.process, input.process)) return r["exact"] ?? 0;
-    if (row.process) {
-        const a = row.process.toLowerCase();
-        const b = input.process.toLowerCase();
-        if (a.includes(b) || b.includes(a)) return r["related"] ?? 0;
+    if (ieq(row.sub_category_1, input.process) || ieq(row.sub_category_2, input.process)) {
+        return r["exact"] ?? 0;
     }
+    const needle = input.process.trim().toLowerCase();
+    const hay = [row.sub_category_1, row.sub_category_2, row.category]
+        .filter((s): s is string => !!s)
+        .map((s) => s.toLowerCase());
+    if (hay.some((h) => h.includes(needle) || needle.includes(h))) return r["related"] ?? 0;
     return r["different"] ?? 0;
 }
 
 function matchGeography(row: CandidateRow, input: EfMatchInput, r: Record<string, number>): number {
     if (input.country && ieq(row.country_code, input.country)) return r["same_country"] ?? 0;
-    if (input.region && ieq(row.region, input.region)) return r["same_region"] ?? 0;
-    if (ieq(row.country_code, "GLO") || ieq(row.region, "Global")) return r["GLO"] ?? 0;
+    if (input.region && ieq(row.country_name, input.region)) return r["same_region"] ?? 0;
+    if (ieq(row.country_code, "GLO") || ieq(row.country_name, "Global")) return r["GLO"] ?? 0;
     if (ieq(row.country_code, "RoW")) return r["RoW"] ?? 0;
     return 0;
 }
 
 function matchUnit(row: CandidateRow, input: EfMatchInput, r: Record<string, number>): number {
     if (input.unit && ieq(row.unit, input.unit)) return r["exact_unit"] ?? 0;
-    if (input.unitKind && ieq(row.unit_kind, input.unitKind)) {
-        return r["same_unit_family_convertible"] ?? 0;
-    }
     return r["different_family"] ?? 0;
 }
 
