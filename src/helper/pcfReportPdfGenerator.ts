@@ -371,7 +371,7 @@ function drawCover(
 
   fontRegular();
   doc.fillColor(COLORS.lightText).fontSize(13)
-    .text("Independent assessment per ISO 14067 / GHG Protocol",
+    .text("As per Catena-X PCF calculation / ISO 14067 / GHG Protocol",
       PAGE_MARGIN + 24, heroTop + 78,
       { width: contentWidth - 48, align: "left" });
 
