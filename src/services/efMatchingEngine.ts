@@ -184,23 +184,69 @@ interface CandidateRow {
     [k: string]: any;
 }
 
-async function layer1Filter(client: any, input: EfMatchInput): Promise<CandidateRow[]> {
-    // The live BAFU `emission_factors` table has columns:
-    //   product, category, sub_category_1, sub_category_2,
-    //   country_code, country_name, unit, kgco2e_per_unit, reference_year.
-    // It has NO material/process/region/unit_kind/factor_suitability columns,
-    // so the supplier's taxonomy is mapped onto the real columns:
-    //   material  -> substring across product/category/sub_category_1/sub_category_2 (hard gate)
-    //   unit      -> exact unit match (soft gate: dropped if it starves the pool)
-    //   geography -> country_code, then country_name, then GLO/RoW, then none.
+// Maps the supplier-facing activity type onto the `domain` column of the
+// unified emission_factors table. Domains: material, manufacturing, transport,
+// waste, packaging. Energy/fuels/process_gas live under manufacturing.
+function domainForActivity(activityType: ActivityType): string | null {
+    switch (activityType) {
+        case "material":   return "material";
+        case "packaging":  return "packaging";
+        case "transport":  return "transport";
+        case "waste":      return "waste";
+        case "energy":
+        case "fuels":
+        case "process_gas":
+            return "manufacturing";
+        default:           return null;
+    }
+}
 
+async function layer1Filter(client: any, input: EfMatchInput): Promise<CandidateRow[]> {
+    // The unified BAFU 2025 `emission_factors` table has columns:
+    //   domain, category, sub_category, group_name, specific_type,
+    //   dataset_name, geography, unit, gwp_100.
+    // It has NO material/process/region/unit_kind/year columns, so the
+    // supplier's taxonomy is mapped onto the real columns. To keep the scoring
+    // matchers (and formulaEngine) unchanged, the SELECT aliases the new
+    // columns back to the legacy shape the rest of the engine expects:
+    //   specific_type -> product       gwp_100   -> kgco2e_per_unit
+    //   sub_category  -> sub_category_1 group_name-> sub_category_2
+    //   geography     -> country_code / country_name
+    // Filtering uses the REAL column names:
+    //   domain    -> hard gate by activity type (dropped if it starves the pool)
+    //   material  -> substring across specific_type/dataset_name/category/sub_category/group_name
+    //   unit      -> exact unit match (soft gate: dropped if it starves the pool)
+    //   geography -> country, then region, then GLO/RoW, then none.
+
+    const SELECT_COLS = `
+        ef_id,
+        domain,
+        specific_type  AS product,
+        dataset_name,
+        category,
+        sub_category   AS sub_category_1,
+        group_name     AS sub_category_2,
+        geography      AS country_code,
+        geography      AS country_name,
+        unit,
+        NULL::int      AS reference_year,
+        gwp_100        AS kgco2e_per_unit`;
+
+    const domain = domainForActivity(input.activityType);
     const seen = new Set<string>();
 
-    const run = async (useUnit: boolean): Promise<CandidateRow[]> => {
+    const run = async (useUnit: boolean, useDomain: boolean): Promise<CandidateRow[]> => {
         const params: any[] = [];
         // Always drop zero/placeholder factors — BAFU has many 0.0 rows
         // (e.g. battery-recycling intermediates) that must never win.
-        const where: string[] = ["kgco2e_per_unit > 0"];
+        const where: string[] = ["gwp_100 > 0"];
+
+        // Domain hard gate — a material lookup must not pull a manufacturing or
+        // transport row. Dropped on the fallback pass if it starves the pool.
+        if (useDomain && domain) {
+            params.push(domain);
+            where.push(`domain = $${params.length}`);
+        }
 
         // Material is the primary hard gate — must appear in one of the
         // descriptive columns (substring, case-insensitive).
@@ -208,7 +254,7 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
             params.push(`%${input.material.trim()}%`);
             const p = `$${params.length}`;
             where.push(
-                `(product ILIKE ${p} OR category ILIKE ${p} OR sub_category_1 ILIKE ${p} OR sub_category_2 ILIKE ${p})`
+                `(specific_type ILIKE ${p} OR dataset_name ILIKE ${p} OR category ILIKE ${p} OR sub_category ILIKE ${p} OR group_name ILIKE ${p})`
             );
         }
 
@@ -223,24 +269,25 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
 
         const tryGeo = async (geoClause: string | null): Promise<CandidateRow[]> => {
             const sql = `
-                SELECT *
+                SELECT ${SELECT_COLS}
                   FROM emission_factors
                  WHERE ${baseWhere}${geoClause ? ` AND (${geoClause})` : ""}
-                 ORDER BY reference_year DESC NULLS LAST
+                 ORDER BY ef_id
                  LIMIT ${MAX_CANDIDATES};
             `;
             const r = await client.query(sql, params);
             return r.rows;
         };
 
-        // Geography fallback ladder: strict country, then loosen.
+        // Geography fallback ladder: strict country, then loosen. `geography`
+        // holds ecoinvent codes (RER, GLO, RoW, CH, …).
         const country = input.country?.trim();
         const region = input.region?.trim();
         const ladder: Array<string | null> = [];
-        if (country) ladder.push(`country_code ILIKE '${country.replace(/'/g, "''")}'`);
-        if (region)  ladder.push(`country_name ILIKE '${region.replace(/'/g, "''")}'`);
-        ladder.push(`country_code ILIKE 'GLO' OR country_name ILIKE 'Global'`);
-        ladder.push(`country_code ILIKE 'RoW' OR country_name ILIKE 'Rest of%'`);
+        if (country) ladder.push(`geography ILIKE '${country.replace(/'/g, "''")}'`);
+        if (region)  ladder.push(`geography ILIKE '${region.replace(/'/g, "''")}'`);
+        ladder.push(`geography ILIKE 'GLO' OR geography ILIKE 'Global'`);
+        ladder.push(`geography ILIKE 'RoW' OR geography ILIKE 'Rest of%'`);
         ladder.push(null); // last resort: no geo filter
 
         const merged: CandidateRow[] = [];
@@ -257,12 +304,17 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
         return merged;
     };
 
-    // First pass with the unit gate; if it starved the candidate pool, retry
-    // without it (a unit-mismatched EF flagged for review beats no EF at all).
-    let merged = await run(true);
+    // Pass 1: domain + unit gates. If that starves the pool, drop the unit gate;
+    // if still starved, drop the domain gate too (a flagged-for-review EF beats
+    // no EF at all).
+    let merged = await run(true, true);
     if (merged.length < MIN_CANDIDATES_BEFORE_FALLBACK) {
         seen.clear();
-        merged = await run(false);
+        merged = await run(false, true);
+    }
+    if (merged.length < MIN_CANDIDATES_BEFORE_FALLBACK) {
+        seen.clear();
+        merged = await run(false, false);
     }
     return merged;
 }

@@ -3193,7 +3193,10 @@ export async function getBomComponentsForSupplier(req: any, res: any) {
             const query = `
                 SELECT id AS bom_id,
                        material_number,
-                       component_name
+                       component_name,
+                       detail_description,
+                       qunatity      AS quantity,
+                       price
                 FROM bom
                 WHERE bom_pcf_id = $1
                   AND supplier_id = $2

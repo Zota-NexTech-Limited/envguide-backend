@@ -3708,68 +3708,60 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
         `DROP TABLE IF EXISTS packaging_material_treatment_type_emission_factor CASCADE;`,
         `DROP TABLE IF EXISTS vehicle_type_emission_factor CASCADE;`,
 
-        // NOTE: do NOT add `DROP TABLE emission_factors` here — this migration
-        // runs on every server boot and a drop would wipe the imported BAFU
-        // CSV every restart. The ALTER COLUMN … TYPE TEXT statements below are
-        // the safety net: they fix any legacy VARCHAR-constrained columns
-        // in-place without touching the data.
+        // NOTE: this migration runs on EVERY server boot, so it uses
+        // CREATE TABLE IF NOT EXISTS and never bare-DROPs emission_factors
+        // (a drop here would wipe the imported BAFU data on every restart).
+        // To convert an EXISTING old-schema table to the new shape below, run
+        // ONCE in pgAdmin:  DROP TABLE IF EXISTS emission_factors CASCADE;
+        // then reboot - the CREATE below recreates it with the new columns.
 
+        // Columns map 1:1 to the 8 BAFU CSV columns, plus `domain` (stamped per
+        // source file), `is_legacy`, `search_text` and audit timestamps.
+        //   CSV col 1 Category          -> category
+        //   CSV col 2 Sub-category      -> sub_category
+        //   CSV col 3 Group             -> group_name   (`group` is reserved)
+        //   CSV col 4 Specific Type     -> specific_type (human dropdown label)
+        //   CSV col 5 Dataset Name      -> dataset_name  (technical BAFU name)
+        //   CSV col 6 Geography         -> geography
+        //   CSV col 7 Unit              -> unit
+        //   CSV col 8 GWP 100 [kgCO2e]  -> gwp_100
         `CREATE TABLE IF NOT EXISTS emission_factors (
-            ef_id TEXT PRIMARY KEY,
-            product TEXT NOT NULL,
-            material TEXT,
-            process TEXT,
-            activity_type TEXT,
-            category TEXT,
-            sub_category_1 TEXT,
-            sub_category_2 TEXT,
-            sub_category_3 TEXT,
-            sub_category_4 TEXT,
-            country_code TEXT,
-            country_name TEXT,
-            region TEXT,
-            geo_fallback_chain TEXT,
-            unit TEXT,
-            unit_kind TEXT,
-            recycled_content TEXT,
-            factor_suitability TEXT,
-            kgco2e_per_unit NUMERIC(18, 6),
-            reference_year INTEGER,
-            source_db TEXT,
-            embedding_text TEXT,
-            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            updated_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            ef_id          BIGSERIAL PRIMARY KEY,
+            domain         TEXT NOT NULL,
+            category       TEXT NOT NULL,
+            sub_category   TEXT,
+            group_name     TEXT,
+            specific_type  TEXT NOT NULL,
+            dataset_name   TEXT NOT NULL,
+            geography      TEXT NOT NULL,
+            unit           TEXT NOT NULL,
+            gwp_100        NUMERIC(20, 6) NOT NULL,
+            is_legacy      BOOLEAN NOT NULL DEFAULT false,
+            search_text    TEXT,
+            source_db      TEXT DEFAULT 'BAFU 2025',
+            created_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_emission_factors_dedup
+                UNIQUE (domain, dataset_name, geography, unit)
         );`,
 
-        // Belt-and-suspenders: if a previous boot left the table with old
-        // VARCHAR(20) / VARCHAR(50) constraints and the DROP above somehow didn't
-        // take effect, force-convert every text column to TEXT in-place. ALTER
-        // TYPE is a no-op when the column is already TEXT.
-        `ALTER TABLE emission_factors ALTER COLUMN ef_id TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN material TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN process TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN activity_type TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN category TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN sub_category_1 TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN sub_category_2 TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN sub_category_3 TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN sub_category_4 TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN country_code TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN country_name TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN region TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN unit TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN unit_kind TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN recycled_content TYPE TEXT;`,
-        `ALTER TABLE emission_factors ALTER COLUMN source_db TYPE TEXT;`,
-
-        `CREATE INDEX IF NOT EXISTS idx_emission_factors_source_db
-            ON emission_factors (source_db);`,
-        `CREATE INDEX IF NOT EXISTS idx_emission_factors_country_code
-            ON emission_factors (country_code);`,
-        `CREATE INDEX IF NOT EXISTS idx_emission_factors_unit_kind
-            ON emission_factors (unit_kind);`,
-        `CREATE INDEX IF NOT EXISTS idx_emission_factors_reference_year
-            ON emission_factors (reference_year);`,
+        // --- Indexes ---
+        // Unit hard-gate lookup (domain + unit) — the primary access path.
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_domain_unit
+            ON emission_factors (domain, unit);`,
+        // Cascade dropdown / taxonomy navigation.
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_taxonomy
+            ON emission_factors (domain, category, sub_category, group_name);`,
+        // Geography filtering / fallback.
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_geography
+            ON emission_factors (geography);`,
+        // Fast path over live (non-legacy) rows only.
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_active
+            ON emission_factors (domain, unit) WHERE is_legacy = false;`,
+        // Fuzzy text matching for the semantic layer (requires pg_trgm).
+        `CREATE EXTENSION IF NOT EXISTS pg_trgm;`,
+        `CREATE INDEX IF NOT EXISTS idx_emission_factors_search_trgm
+            ON emission_factors USING gin (search_text gin_trgm_ops);`,
 
         // ============================================================
         // 28-question supplier questionnaire (Catena-X PCF v9.0.0)
