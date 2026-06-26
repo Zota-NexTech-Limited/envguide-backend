@@ -793,7 +793,7 @@ LEFT JOIN LATERAL (
             'created_date', pe.created_date,
 
             /* ---------- EMISSION FACTOR ---------- */
-           'emission_factor', COALESCE(ef.kgco2e_per_unit::numeric, 0)
+           'emission_factor', COALESCE(ef.gwp_100::numeric, 0)
         )
     ) AS Q22_energy_type_and_energy_quantity
     FROM supplier_general_info_questions sgiq
@@ -1541,11 +1541,11 @@ LEFT JOIN LATERAL (
             'created_date', pe.created_date,
 
             /* ---------- EMISSION FACTOR ---------- */
-           'emission_factor', COALESCE(ef.kgco2e_per_unit::numeric, 0),
+           'emission_factor', COALESCE(ef.gwp_100::numeric, 0),
 'calculated_emission',
 ROUND(
     COALESCE(pe.quantity::numeric, 0)
-    * COALESCE(ef.kgco2e_per_unit::numeric, 0),
+    * COALESCE(ef.gwp_100::numeric, 0),
 6)
 
         )
