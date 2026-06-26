@@ -1,0 +1,425 @@
+[2026-06-25T09:19:52.591Z] ---- POST /api/questionnaire/save | token present=true
+[2026-06-25T09:19:52.594Z] verified payload={"email":"saisanjanreddy5@gmail.com","role":"Admin-D","iat":1779704744}
+[2026-06-25T09:19:52.775Z] tokenEmail=saisanjanreddy5@gmail.com | finduser rows=0
+[2026-06-25T09:19:52.957Z] findSupplier rows=0
+[2026-06-25T09:20:08.598Z] ---- POST /api/questionnaire/save | token present=true
+[2026-06-25T09:20:08.600Z] verified payload={"email":"saisanjanreddy5@gmail.com","role":"Admin-D","iat":1779704744}
+[2026-06-25T09:20:08.778Z] tokenEmail=saisanjanreddy5@gmail.com | finduser rows=0
+[2026-06-25T09:20:08.954Z] findSupplier rows=0
+[2026-06-25T09:21:49.727Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-25T09:21:49.738Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T09:21:49.740Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-25T09:21:49.740Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T09:21:49.914Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:21:50.719Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:38:50.394Z] ---- GET /api/dashboard/clients-dropdown | token present=true
+[2026-06-25T09:38:50.395Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:38:50.583Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:38:50.703Z] ---- GET /api/dashboard/platform-stats | token present=true
+[2026-06-25T09:38:50.704Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:38:50.706Z] ---- GET /api/dashboard/client-status-distribution | token present=true
+[2026-06-25T09:38:50.708Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:38:50.710Z] ---- GET /api/dashboard/request-status-distribution | token present=true
+[2026-06-25T09:38:50.711Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:38:50.713Z] ---- GET /api/dashboard/top-emitters | token present=true
+[2026-06-25T09:38:50.713Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:38:50.715Z] ---- GET /api/dashboard/recent-activities | token present=true
+[2026-06-25T09:38:50.717Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:38:51.638Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:38:51.649Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:38:51.677Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:38:51.712Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:38:51.783Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:39:02.983Z] ---- GET /api/pcf-bom/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-25T09:39:02.985Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:39:03.187Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:41:42.693Z] ---- POST /api/questionnaire/save | token present=true
+[2026-06-25T09:41:42.694Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:41:42.886Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:46:19.171Z] ---- GET /api/pcf-bom/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-25T09:46:19.176Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:46:19.384Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:46:28.141Z] ---- POST /api/questionnaire/save | token present=true
+[2026-06-25T09:46:28.142Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:46:28.373Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:46:32.979Z] ---- POST /api/questionnaire/submit/01KVZ2RZ0TT3CWFYE8Q0DRVZQS | token present=true
+[2026-06-25T09:46:32.980Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:46:33.169Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:51:19.132Z] ---- POST /api/questionnaire/save | token present=true
+[2026-06-25T09:51:19.133Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:51:19.326Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:51:23.782Z] ---- POST /api/questionnaire/submit/01KVZ2RZ0TT3CWFYE8Q0DRVZQS | token present=true
+[2026-06-25T09:51:23.783Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:51:23.985Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:51:58.440Z] ---- POST /api/questionnaire/save | token present=true
+[2026-06-25T09:51:58.441Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:51:58.638Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:52:03.174Z] ---- POST /api/questionnaire/submit/01KVZ2RZ0TT3CWFYE8Q0DRVZQS | token present=true
+[2026-06-25T09:52:03.175Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:52:03.372Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:54:24.647Z] ---- POST /api/questionnaire/save | token present=true
+[2026-06-25T09:54:24.648Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:54:24.844Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T09:54:29.755Z] ---- POST /api/questionnaire/submit/01KVZ2RZ0TT3CWFYE8Q0DRVZQS | token present=true
+[2026-06-25T09:54:29.757Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T09:54:29.950Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T10:06:04.191Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-25T10:06:04.192Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T10:06:04.193Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-25T10:06:04.194Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T10:06:04.386Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T10:06:05.110Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T10:06:40.010Z] ---- POST /api/questionnaire/save | token present=true
+[2026-06-25T10:06:40.012Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T10:06:40.183Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T10:06:44.044Z] ---- POST /api/questionnaire/submit/01KVZ2RZ0TT3CWFYE8Q0DRVZQS | token present=true
+[2026-06-25T10:06:44.045Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T10:06:44.210Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T10:07:10.490Z] ---- POST /api/questionnaire/pdf | token present=true
+[2026-06-25T10:07:10.492Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1782380328}
+[2026-06-25T10:07:10.648Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:02.401Z] ---- GET /api/dashboard/clients-dropdown | token present=true
+[2026-06-25T13:38:02.403Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:02.690Z] ---- GET /api/dashboard/platform-stats | token present=true
+[2026-06-25T13:38:02.691Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:02.696Z] ---- GET /api/dashboard/client-status-distribution | token present=true
+[2026-06-25T13:38:02.697Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:02.699Z] ---- GET /api/dashboard/request-status-distribution | token present=true
+[2026-06-25T13:38:02.701Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:02.703Z] ---- GET /api/dashboard/top-emitters | token present=true
+[2026-06-25T13:38:02.704Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:03.798Z] ---- GET /api/dashboard/clients-dropdown | token present=true
+[2026-06-25T13:38:03.802Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:03.805Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:03.912Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:03.940Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:03.960Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:04.039Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:04.101Z] ---- GET /api/dashboard/platform-stats | token present=true
+[2026-06-25T13:38:04.102Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:04.104Z] ---- GET /api/dashboard/client-status-distribution | token present=true
+[2026-06-25T13:38:04.106Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:04.108Z] ---- GET /api/dashboard/request-status-distribution | token present=true
+[2026-06-25T13:38:04.110Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:04.113Z] ---- GET /api/dashboard/top-emitters | token present=true
+[2026-06-25T13:38:04.115Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:04.118Z] ---- GET /api/dashboard/recent-activities | token present=true
+[2026-06-25T13:38:04.120Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:38:04.382Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:04.637Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:04.928Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:05.307Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:05.461Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:38:05.474Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:39:55.022Z] ---- GET /api/pcf-bom/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-25T13:39:55.025Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:39:56.333Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:40:12.812Z] ---- GET /api/data-setup/product-category/list | token present=true
+[2026-06-25T13:40:12.813Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:40:13.069Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:40:13.119Z] ---- GET /api/data-setup/component-category/list | token present=true
+[2026-06-25T13:40:13.120Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:40:13.122Z] ---- GET /api/data-setup/component-type/list | token present=true
+[2026-06-25T13:40:13.123Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:40:13.125Z] ---- GET /api/data-setup/manufacturer/list | token present=true
+[2026-06-25T13:40:13.126Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:40:13.127Z] ---- GET /api/product/drop-down | token present=true
+[2026-06-25T13:40:13.128Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:40:14.002Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:40:14.317Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:40:14.384Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:40:14.404Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:40:57.523Z] ---- POST /api/pcf-bom/create | token present=true
+[2026-06-25T13:40:57.524Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:40:58.727Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:00.376Z] ---- GET /api/pcf-bom/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-25T13:41:00.377Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:00.610Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:04.860Z] ---- GET /api/pcf-bom/get-by-id?bom_pcf_id=01KVZG6BK5QDZKMGJFVYSXH1JE | token present=true
+[2026-06-25T13:41:04.861Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:05.161Z] ---- GET /api/pcf-bom/list-comment?bom_pcf_id=01KVZG6BK5QDZKMGJFVYSXH1JE&pageNumber=1&pageSize=40 | token present=true
+[2026-06-25T13:41:05.162Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:05.550Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:06.446Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:09.949Z] ---- POST /api/pcf-bom/verify | token present=true
+[2026-06-25T13:41:09.952Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:10.207Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:10.984Z] ---- GET /api/pcf-bom/get-by-id?bom_pcf_id=01KVZG6BK5QDZKMGJFVYSXH1JE | token present=true
+[2026-06-25T13:41:10.985Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:10.986Z] ---- GET /api/pcf-bom/list-comment?bom_pcf_id=01KVZG6BK5QDZKMGJFVYSXH1JE&pageNumber=1&pageSize=40 | token present=true
+[2026-06-25T13:41:10.987Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:11.222Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:11.240Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:11.824Z] ---- GET /api/task-management/list?pageNumber=1&pageSize=1000 | token present=true
+[2026-06-25T13:41:11.825Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:12.055Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:20.008Z] ---- GET /api/data-setup/category/list | token present=true
+[2026-06-25T13:41:20.008Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:20.219Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:20.469Z] ---- GET /api/task-management/get-pcf-dropdown | token present=true
+[2026-06-25T13:41:20.471Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:20.719Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:20.971Z] ---- GET /api/product/drop-down | token present=true
+[2026-06-25T13:41:20.972Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:21.204Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:22.893Z] ---- GET /api/task-management/get-bom-suppier-list-dropdown?bom_pcf_id=01KVZG6BK5QDZKMGJFVYSXH1JE | token present=true
+[2026-06-25T13:41:22.893Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:23.129Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:29.267Z] ---- POST /api/task-management/create | token present=true
+[2026-06-25T13:41:29.268Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:29.512Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:31.469Z] ---- GET /api/data-setup/category/list | token present=true
+[2026-06-25T13:41:31.471Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:31.473Z] ---- GET /api/task-management/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-25T13:41:31.474Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-25T13:41:31.704Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-25T13:41:31.730Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:37.661Z] ---- GET /api/dashboard/clients-dropdown | token present=true
+[2026-06-26T07:39:37.664Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:37.979Z] ---- GET /api/dashboard/platform-stats | token present=true
+[2026-06-26T07:39:37.981Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:37.987Z] ---- GET /api/dashboard/client-status-distribution | token present=true
+[2026-06-26T07:39:37.988Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:37.992Z] ---- GET /api/dashboard/request-status-distribution | token present=true
+[2026-06-26T07:39:37.994Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:37.999Z] ---- GET /api/dashboard/top-emitters | token present=true
+[2026-06-26T07:39:38.001Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:38.912Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:38.929Z] ---- GET /api/dashboard/recent-activities | token present=true
+[2026-06-26T07:39:38.932Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:39.203Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:39.224Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:39.227Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:39.245Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:39.253Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:42.251Z] ---- GET /api/report/fetch-favorite-report?user_id=01KGS9Y2HDVY38DXTX8HM8T07Z | token present=true
+[2026-06-26T07:39:42.252Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:42.529Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:47.717Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T07:39:47.718Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:47.986Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T07:39:48.038Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T07:39:48.040Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T07:39:48.288Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T08:06:37.572Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T08:06:37.573Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T08:06:37.575Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T08:06:37.575Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T08:06:37.821Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T08:06:38.860Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T09:38:59.712Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T09:38:59.713Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T09:38:59.715Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T09:38:59.716Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T09:38:59.969Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T09:39:01.943Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T09:50:11.219Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T09:50:11.222Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T09:50:11.230Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T09:50:11.231Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T09:50:11.468Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T09:50:12.613Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:03:07.316Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:03:07.317Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:03:07.319Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:03:07.320Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:03:09.076Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:03:09.156Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:03:31.051Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:03:31.052Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:03:31.288Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:03:31.363Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:03:31.363Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:03:31.595Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:03:50.018Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:03:50.018Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:03:50.020Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:03:50.021Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:03:50.255Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:03:50.257Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:03:56.971Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:03:56.972Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:03:57.276Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:03:57.277Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:03:57.341Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:03:57.516Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:04:02.997Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:04:02.998Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:04:02.999Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:04:03.000Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:04:03.230Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:04:03.236Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:04:07.874Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:04:07.875Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:04:07.877Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:04:07.878Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:04:08.114Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:04:08.115Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:11:02.136Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:11:02.137Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:11:02.145Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:11:02.146Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:11:03.419Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:11:04.496Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:15:05.291Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:15:05.292Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:15:05.293Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:15:05.294Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:15:06.756Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:15:07.560Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:16:05.474Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:16:05.476Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:16:05.484Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:16:05.485Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:16:05.724Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:16:06.720Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:16:16.878Z] ---- GET /api/emission-factors/list?page=207&limit=50 | token present=true
+[2026-06-26T10:16:16.879Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:16:17.121Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:16:19.021Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:16:19.022Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:16:19.760Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:16:29.937Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:16:29.937Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:16:30.178Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:16:43.056Z] ---- GET /api/emission-factors/list?page=5&limit=50 | token present=true
+[2026-06-26T10:16:43.058Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:16:43.759Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:17:49.863Z] ---- POST /api/emission-factors/import-csv | token present=true
+[2026-06-26T10:17:49.864Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:17:50.123Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:21:16.298Z] ---- POST /api/emission-factors/import-csv | token present=true
+[2026-06-26T10:21:16.300Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:21:17.674Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:21:33.646Z] ---- GET /api/emission-factors/list?page=5&limit=50 | token present=true
+[2026-06-26T10:21:33.648Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:21:33.650Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:21:33.651Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:21:33.931Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:21:35.715Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:21:50.640Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:21:50.642Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:21:50.901Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:24:52.196Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:24:52.197Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:24:52.199Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:24:52.200Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:24:54.555Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:24:55.448Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:25:11.887Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:25:11.888Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:25:12.174Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:25:12.195Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:25:12.196Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:25:12.830Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:29:46.750Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:29:46.752Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:29:46.761Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:29:46.762Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:29:47.011Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:29:48.744Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:29:56.937Z] ---- POST /api/emission-factors/import-csv | token present=true
+[2026-06-26T10:29:56.938Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:29:57.176Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:30:08.943Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:30:08.944Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:30:08.946Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:30:08.947Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:30:09.188Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:30:09.806Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:30:42.556Z] ---- GET /api/emission-factors/list?page=207&limit=50 | token present=true
+[2026-06-26T10:30:42.557Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:30:46.593Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:30:55.778Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:30:55.779Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:30:56.060Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:31:07.536Z] ---- GET /api/emission-factors/list?page=1&limit=50&search=Chemicals | token present=true
+[2026-06-26T10:31:07.538Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:31:07.737Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:31:18.388Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:31:18.389Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:31:18.680Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:40:24.723Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T10:40:24.727Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:40:24.747Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T10:40:24.749Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:40:24.998Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:40:26.001Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:40:32.588Z] ---- GET /api/pcf-bom/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-26T10:40:32.588Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:40:32.858Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:40:53.538Z] ---- GET /api/data-setup/product-category/list | token present=true
+[2026-06-26T10:40:53.539Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:40:53.540Z] ---- GET /api/data-setup/component-category/list | token present=true
+[2026-06-26T10:40:53.540Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:40:53.541Z] ---- GET /api/data-setup/component-type/list | token present=true
+[2026-06-26T10:40:53.542Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:40:53.543Z] ---- GET /api/product/drop-down | token present=true
+[2026-06-26T10:40:53.544Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:40:53.546Z] ---- GET /api/data-setup/manufacturer/list | token present=true
+[2026-06-26T10:40:53.548Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:40:53.825Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:40:54.299Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:40:54.856Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:40:54.858Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:40:54.880Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:41:34.022Z] ---- POST /api/pcf-bom/create | token present=true
+[2026-06-26T10:41:34.024Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:41:35.243Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:41:37.029Z] ---- GET /api/pcf-bom/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-26T10:41:37.030Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:41:37.266Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:41:46.241Z] ---- GET /api/pcf-bom/get-by-id?bom_pcf_id=01KW1RAKFCMS21EJW82PX037QE | token present=true
+[2026-06-26T10:41:46.243Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:41:46.244Z] ---- GET /api/pcf-bom/list-comment?bom_pcf_id=01KW1RAKFCMS21EJW82PX037QE&pageNumber=1&pageSize=40 | token present=true
+[2026-06-26T10:41:46.245Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:41:46.480Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:41:47.598Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:41:52.442Z] ---- POST /api/pcf-bom/verify | token present=true
+[2026-06-26T10:41:52.444Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:41:52.712Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:41:53.518Z] ---- GET /api/pcf-bom/get-by-id?bom_pcf_id=01KW1RAKFCMS21EJW82PX037QE | token present=true
+[2026-06-26T10:41:53.519Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:41:53.521Z] ---- GET /api/pcf-bom/list-comment?bom_pcf_id=01KW1RAKFCMS21EJW82PX037QE&pageNumber=1&pageSize=40 | token present=true
+[2026-06-26T10:41:53.522Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:41:53.792Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:41:53.797Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:41:54.817Z] ---- GET /api/task-management/list?pageNumber=1&pageSize=1000 | token present=true
+[2026-06-26T10:41:54.818Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:41:55.059Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:42:06.210Z] ---- GET /api/data-setup/category/list | token present=true
+[2026-06-26T10:42:06.210Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:42:06.448Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:42:06.706Z] ---- GET /api/task-management/get-pcf-dropdown | token present=true
+[2026-06-26T10:42:06.708Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:42:06.948Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:42:07.203Z] ---- GET /api/product/drop-down | token present=true
+[2026-06-26T10:42:07.204Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:42:07.440Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:42:09.352Z] ---- GET /api/task-management/get-bom-suppier-list-dropdown?bom_pcf_id=01KW1RAKFCMS21EJW82PX037QE | token present=true
+[2026-06-26T10:42:09.354Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:42:09.592Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:42:16.935Z] ---- POST /api/task-management/create | token present=true
+[2026-06-26T10:42:16.937Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:42:17.206Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:42:19.314Z] ---- GET /api/data-setup/category/list | token present=true
+[2026-06-26T10:42:19.316Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:42:19.317Z] ---- GET /api/task-management/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-26T10:42:19.317Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:42:19.554Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:42:19.605Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T10:42:20.963Z] ---- GET /api/pcf-bom/list?pageNumber=1&pageSize=10 | token present=true
+[2026-06-26T10:42:20.963Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T10:42:21.236Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T11:44:38.086Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T11:44:38.087Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T11:44:38.090Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T11:44:38.091Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T11:44:39.287Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T11:44:40.150Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T13:14:33.728Z] ---- GET /api/emission-factors/list?page=1&limit=50 | token present=true
+[2026-06-26T13:14:33.734Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T13:14:33.740Z] ---- GET /api/emission-factors/meta/stats | token present=true
+[2026-06-26T13:14:33.740Z] verified payload={"email":"ksaisanjanreddy@gmail.com","role":"superadmin","iat":1781594571}
+[2026-06-26T13:14:34.002Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
+[2026-06-26T13:14:35.037Z] tokenEmail=ksaisanjanreddy@gmail.com | finduser rows=1
