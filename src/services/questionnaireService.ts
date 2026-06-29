@@ -118,8 +118,19 @@ export interface QuestionnaireInput {
     verifiedVolume3rdParty?: number;
     totalProductVolume?: number;
 
+    // Q10 electricity factory-allocation inputs (per-unit production electricity
+    // = (component_weight / factory_weight) × factory_energy / num_products).
+    factoryTotalEnergyKwh?: number;
+    factoryTotalWeightKg?: number;
+    componentTotalWeightKg?: number;
+    componentNumProducts?: number;
+
     // Q28
     comments?: string;
+
+    // Raw V3 form snapshot — the exact form state the supplier had, stored
+    // verbatim so the form can reload it losslessly (no reverse mapping needed).
+    formSnapshot?: any;
 
     // Child arrays
     sites?: SiteRow[];
@@ -138,17 +149,17 @@ export interface QuestionnaireInput {
 }
 
 export interface SiteRow { siteName?: string; siteAddress?: string; region?: string; country?: string; countrySubdivision?: string; isPrimary?: boolean; notes?: string; }
-export interface BomRow { productIdOrMpn?: string; componentName?: string; material?: string; process?: string; massPct?: number; carbonPct?: number; biogenicYN?: boolean; biogenicCarbonPct?: number; recycledYN?: boolean; recycledCarbonPct?: number; }
+export interface BomRow { productIdOrMpn?: string; componentName?: string; material?: string; subCategory?: string; materialGroup?: string; specificType?: string; process?: string; massPct?: number; carbonPct?: number; biogenicYN?: boolean; biogenicCarbonPct?: number; recycledYN?: boolean; recycledCarbonPct?: number; }
 export interface CoProductRow { mpn?: string; componentName?: string; coProductName?: string; coProductPrice?: number; priceCurrency?: string; isPrimaryProduct?: boolean; }
-export interface ElectricityRow { electricityType?: string; generatorType?: string; quantity?: number; unit?: string; renewablePct?: number; renewableSourcing?: string; infrastructureEmissionsIncluded?: boolean; }
-export interface FuelRow { fuelCarrier?: string; quantity?: number; unit?: string; biogenicYN?: boolean; }
+export interface ElectricityRow { electricityType?: string; generatorType?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; quantity?: number; unit?: string; renewablePct?: number; renewableSourcing?: string; infrastructureEmissionsIncluded?: boolean; }
+export interface FuelRow { fuelCarrier?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; quantity?: number; unit?: string; biogenicYN?: boolean; }
 export interface ProcessGasRow { directProcessGas?: string; quantity?: number; unit?: string; fossilOrBiogenic?: string; }
-export interface QcItRow { item?: string; value?: number; unit?: string; alreadyInQ10?: boolean; }
-export interface WasteRow { productIdOrMpn?: string; componentName?: string; wasteType?: string; treatmentType?: string; quantity?: number; unit?: string; energyRecovered?: boolean; polluterPaysApplied?: boolean; }
-export interface PackagingMaterialRow { productIdOrMpn?: string; componentName?: string; packagingType?: string; processType?: string; packagingWeight?: number; unit?: string; region?: string; country?: string; recycledPct?: number; carbonBiogenicPct?: number; }
-export interface PackagingTransportRow { packagingProductIdOrMpn?: string; componentName?: string; transportMode?: string; weight?: number; unit?: string; distanceKm?: number; }
-export interface PackagingWasteRow { mpnCode?: string; componentName?: string; packagingWasteType?: string; treatmentType?: string; quantity?: number; unit?: string; energyRecovered?: boolean; }
-export interface TransportLegRow { productIdOrMpn?: string; componentName?: string; transportMode?: string; source?: string; destination?: string; weight?: number; unit?: string; distanceKm?: number; lowCarbonFuel?: boolean; fuelCertificateRef?: string; }
+export interface QcItRow { item?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; value?: number; unit?: string; alreadyInQ10?: boolean; }
+export interface WasteRow { productIdOrMpn?: string; componentName?: string; wasteType?: string; treatmentType?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; quantity?: number; unit?: string; energyRecovered?: boolean; polluterPaysApplied?: boolean; }
+export interface PackagingMaterialRow { productIdOrMpn?: string; componentName?: string; packagingType?: string; processType?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; packagingWeight?: number; unit?: string; region?: string; country?: string; recycledPct?: number; carbonBiogenicPct?: number; }
+export interface PackagingTransportRow { packagingProductIdOrMpn?: string; componentName?: string; transportMode?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; weight?: number; unit?: string; distanceKm?: number; }
+export interface PackagingWasteRow { mpnCode?: string; componentName?: string; packagingWasteType?: string; treatmentType?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; quantity?: number; unit?: string; energyRecovered?: boolean; }
+export interface TransportLegRow { productIdOrMpn?: string; componentName?: string; transportMode?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; source?: string; destination?: string; weight?: number; unit?: string; distanceKm?: number; lowCarbonFuel?: boolean; fuelCertificateRef?: string; }
 export interface BiomassRow { biomassFeedstockType?: string; quantity?: number; unit?: string; biogenicCarbonContentPct?: number; }
 
 export interface ValidationError {
@@ -178,11 +189,15 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
     return withClient(async (client: any) => {
         await client.query("BEGIN");
         try {
-            const responseId = input.responseId ?? ulid();
+            // NOTE: `let` not `const` — on an ON CONFLICT update the existing row
+            // keeps its original id, so we must overwrite this with the id the DB
+            // actually returns (RETURNING id) before touching child tables, or the
+            // children get orphaned to a non-existent parent and submit 404s.
+            let responseId = input.responseId ?? ulid();
             const now = new Date().toISOString();
 
             // Upsert main row.
-            await client.query(
+            const mainRes = await client.query(
                 `INSERT INTO supplier_questionnaire_response (
                     id, bom_pcf_request_id, supplier_id, status,
                     company_name, company_id_urn,
@@ -206,7 +221,9 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
                     attestation_provider_name, attestation_provider_id, attestation_link, attestation_completed_at,
                     total_production_volume, certified_volume,
                     verified_volume_1st_party, verified_volume_2nd_party, verified_volume_3rd_party,
-                    total_product_volume, comments
+                    total_product_volume, comments,
+                    factory_total_energy_kwh, factory_total_weight_kg,
+                    component_total_weight_kg, component_num_products
                 ) VALUES (
                     $1, $2, $3, $4,
                     $5, $6,
@@ -230,7 +247,8 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
                     $56, $57, $58, $59,
                     $60, $61,
                     $62, $63, $64,
-                    $65, $66
+                    $65, $66,
+                    $67, $68, $69, $70
                 )
                 ON CONFLICT (bom_pcf_request_id, supplier_id) DO UPDATE SET
                     status = EXCLUDED.status,
@@ -296,7 +314,12 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
                     verified_volume_3rd_party = EXCLUDED.verified_volume_3rd_party,
                     total_product_volume = EXCLUDED.total_product_volume,
                     comments = EXCLUDED.comments,
-                    update_date = CURRENT_TIMESTAMP`,
+                    factory_total_energy_kwh = EXCLUDED.factory_total_energy_kwh,
+                    factory_total_weight_kg = EXCLUDED.factory_total_weight_kg,
+                    component_total_weight_kg = EXCLUDED.component_total_weight_kg,
+                    component_num_products = EXCLUDED.component_num_products,
+                    update_date = CURRENT_TIMESTAMP
+                RETURNING id`,
                 [
                     responseId, input.bomPcfRequestId, input.supplierId, input.status ?? "draft",
                     input.companyName ?? null, input.companyIdUrn ?? null,
@@ -321,8 +344,24 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
                     input.totalProductionVolume ?? null, input.certifiedVolume ?? null,
                     input.verifiedVolume1stParty ?? null, input.verifiedVolume2ndParty ?? null, input.verifiedVolume3rdParty ?? null,
                     input.totalProductVolume ?? null, input.comments ?? null,
+                    input.factoryTotalEnergyKwh ?? null, input.factoryTotalWeightKg ?? null,
+                    input.componentTotalWeightKg ?? null, input.componentNumProducts ?? null,
                 ]
             );
+
+            // Use the id the DB actually persisted. On a conflict (same
+            // bom_pcf_request_id + supplier_id) the existing row's id is kept, so
+            // the locally-generated ulid above may differ from reality. Children
+            // and the returned id must use this, not the generated one.
+            responseId = mainRes.rows[0].id;
+
+            // Store the raw V3 form snapshot so the form can reload losslessly.
+            if (input.formSnapshot !== undefined) {
+                await client.query(
+                    `UPDATE supplier_questionnaire_response SET form_snapshot = $1 WHERE id = $2`,
+                    [JSON.stringify(input.formSnapshot), responseId]
+                );
+            }
 
             // Wipe child tables for this response and re-insert.
             // Simple, correct, and matches frontend behaviour ("save whole form").
@@ -335,11 +374,13 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
             await replaceChildTable(client, "sq_q8_bom", responseId, input.bom ?? [], (row, i) => [
                 row.productIdOrMpn ?? null, row.componentName ?? null, row.material ?? null, row.process ?? null,
                 row.massPct ?? null, row.carbonPct ?? null, row.biogenicYN ?? null, row.biogenicCarbonPct ?? null,
-                row.recycledYN ?? null, row.recycledCarbonPct ?? null, i,
+                row.recycledYN ?? null, row.recycledCarbonPct ?? null,
+                row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null, i,
             ], [
                 "product_id_or_mpn", "component_name", "material", "process",
                 "mass_pct", "carbon_pct", "biogenic_y_n", "biogenic_carbon_pct",
-                "recycled_y_n", "recycled_carbon_pct", "row_order",
+                "recycled_y_n", "recycled_carbon_pct",
+                "sub_category", "group_name", "specific_type", "row_order",
             ]);
 
             await replaceChildTable(client, "sq_q9a_coproducts", responseId, input.coProducts ?? [], (row, i) => [
@@ -351,64 +392,82 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
             ]);
 
             await replaceChildTable(client, "sq_q10_electricity", responseId, input.electricity ?? [], (row, i) => [
-                row.electricityType ?? null, row.generatorType ?? null, row.quantity ?? null, row.unit ?? null,
+                row.electricityType ?? null, row.generatorType ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
+                row.quantity ?? null, row.unit ?? null,
                 row.renewablePct ?? null, row.renewableSourcing ?? null, row.infrastructureEmissionsIncluded ?? null, i,
             ], [
-                "electricity_type", "generator_type", "quantity", "unit",
+                "electricity_type", "generator_type",
+                "category", "sub_category", "group_name", "specific_type",
+                "quantity", "unit",
                 "renewable_pct", "renewable_sourcing", "infrastructure_emissions_included", "row_order",
             ]);
 
             await replaceChildTable(client, "sq_q11_fuels", responseId, input.fuels ?? [], (row, i) => [
-                row.fuelCarrier ?? null, row.quantity ?? null, row.unit ?? null, row.biogenicYN ?? null, i,
-            ], ["fuel_carrier", "quantity", "unit", "biogenic_y_n", "row_order"]);
+                row.fuelCarrier ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
+                row.quantity ?? null, row.unit ?? null, row.biogenicYN ?? null, i,
+            ], ["fuel_carrier", "category", "sub_category", "group_name", "specific_type", "quantity", "unit", "biogenic_y_n", "row_order"]);
 
             await replaceChildTable(client, "sq_q12_process_gases", responseId, input.processGases ?? [], (row, i) => [
                 row.directProcessGas ?? null, row.quantity ?? null, row.unit ?? null, row.fossilOrBiogenic ?? null, i,
             ], ["direct_process_gas", "quantity", "unit", "fossil_or_biogenic", "row_order"]);
 
             await replaceChildTable(client, "sq_q13_qc_it_energy", responseId, input.qcItEnergy ?? [], (row, i) => [
-                row.item ?? null, row.value ?? null, row.unit ?? null, row.alreadyInQ10 ?? false, i,
-            ], ["item", "value", "unit", "already_in_q10", "row_order"]);
+                row.item ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
+                row.value ?? null, row.unit ?? null, row.alreadyInQ10 ?? false, i,
+            ], ["item", "category", "sub_category", "group_name", "specific_type", "value", "unit", "already_in_q10", "row_order"]);
 
             await replaceChildTable(client, "sq_q14_production_waste", responseId, input.productionWaste ?? [], (row, i) => [
                 row.productIdOrMpn ?? null, row.componentName ?? null, row.wasteType ?? null, row.treatmentType ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
                 row.quantity ?? null, row.unit ?? null, row.energyRecovered ?? null, row.polluterPaysApplied ?? null, i,
             ], [
                 "product_id_or_mpn", "component_name", "waste_type", "treatment_type",
+                "category", "sub_category", "group_name", "specific_type",
                 "quantity", "unit", "energy_recovered", "polluter_pays_applied", "row_order",
             ]);
 
             await replaceChildTable(client, "sq_q16_packaging_materials", responseId, input.packagingMaterials ?? [], (row, i) => [
                 row.productIdOrMpn ?? null, row.componentName ?? null, row.packagingType ?? null, row.processType ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
                 row.packagingWeight ?? null, row.unit ?? null, row.region ?? null, row.country ?? null,
                 row.recycledPct ?? null, row.carbonBiogenicPct ?? null, i,
             ], [
                 "product_id_or_mpn", "component_name", "packaging_type", "process_type",
+                "category", "sub_category", "group_name", "specific_type",
                 "packaging_weight", "unit", "region", "country",
                 "recycled_pct", "carbon_biogenic_pct", "row_order",
             ]);
 
             await replaceChildTable(client, "sq_q16a_packaging_transport", responseId, input.packagingTransport ?? [], (row, i) => [
                 row.packagingProductIdOrMpn ?? null, row.componentName ?? null, row.transportMode ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
                 row.weight ?? null, row.unit ?? null, row.distanceKm ?? null, i,
             ], [
                 "packaging_product_id_or_mpn", "component_name", "transport_mode",
+                "category", "sub_category", "group_name", "specific_type",
                 "weight", "unit", "distance_km", "row_order",
             ]);
 
             await replaceChildTable(client, "sq_q17_packaging_waste", responseId, input.packagingWaste ?? [], (row, i) => [
                 row.mpnCode ?? null, row.componentName ?? null, row.packagingWasteType ?? null, row.treatmentType ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
                 row.quantity ?? null, row.unit ?? null, row.energyRecovered ?? null, i,
             ], [
                 "mpn_code", "component_name", "packaging_waste_type", "treatment_type",
+                "category", "sub_category", "group_name", "specific_type",
                 "quantity", "unit", "energy_recovered", "row_order",
             ]);
 
             await replaceChildTable(client, "sq_q19_transport_legs", responseId, input.transportLegs ?? [], (row, i) => [
                 row.productIdOrMpn ?? null, row.componentName ?? null, row.transportMode ?? null, row.source ?? null, row.destination ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
                 row.weight ?? null, row.unit ?? null, row.distanceKm ?? null, row.lowCarbonFuel ?? null, row.fuelCertificateRef ?? null, i,
             ], [
                 "product_id_or_mpn", "component_name", "transport_mode", "source", "destination",
+                "category", "sub_category", "group_name", "specific_type",
                 "weight", "unit", "distance_km", "low_carbon_fuel", "fuel_certificate_ref", "row_order",
             ]);
 
@@ -484,6 +543,7 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
             bomPcfRequestId: main.bom_pcf_request_id,
             supplierId: main.supplier_id,
             status: main.status,
+            formSnapshot: main.form_snapshot ?? null,
             companyName: main.company_name,
             companyIdUrn: main.company_id_urn,
             productNameCompany: main.product_name_company,
@@ -545,6 +605,10 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
             verifiedVolume2ndParty: numOrUndef(main.verified_volume_2nd_party),
             verifiedVolume3rdParty: numOrUndef(main.verified_volume_3rd_party),
             totalProductVolume: numOrUndef(main.total_product_volume),
+            factoryTotalEnergyKwh: numOrUndef(main.factory_total_energy_kwh),
+            factoryTotalWeightKg: numOrUndef(main.factory_total_weight_kg),
+            componentTotalWeightKg: numOrUndef(main.component_total_weight_kg),
+            componentNumProducts: numOrUndef(main.component_num_products),
             comments: main.comments,
 
             sites: (await loadChild("sq_q4_sites")).map((r) => ({
@@ -554,7 +618,8 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
             })),
             bom: (await loadChild("sq_q8_bom")).map((r) => ({
                 productIdOrMpn: r.product_id_or_mpn, componentName: r.component_name,
-                material: r.material, process: r.process,
+                material: r.material, subCategory: r.sub_category,
+                materialGroup: r.group_name, specificType: r.specific_type, process: r.process,
                 massPct: numOrUndef(r.mass_pct), carbonPct: numOrUndef(r.carbon_pct),
                 biogenicYN: r.biogenic_y_n, biogenicCarbonPct: numOrUndef(r.biogenic_carbon_pct),
                 recycledYN: r.recycled_y_n, recycledCarbonPct: numOrUndef(r.recycled_carbon_pct),
@@ -566,12 +631,15 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
             })),
             electricity: (await loadChild("sq_q10_electricity")).map((r) => ({
                 electricityType: r.electricity_type, generatorType: r.generator_type,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
                 quantity: numOrUndef(r.quantity), unit: r.unit,
                 renewablePct: numOrUndef(r.renewable_pct), renewableSourcing: r.renewable_sourcing,
                 infrastructureEmissionsIncluded: r.infrastructure_emissions_included,
             })),
             fuels: (await loadChild("sq_q11_fuels")).map((r) => ({
-                fuelCarrier: r.fuel_carrier, quantity: numOrUndef(r.quantity),
+                fuelCarrier: r.fuel_carrier,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
+                quantity: numOrUndef(r.quantity),
                 unit: r.unit, biogenicYN: r.biogenic_y_n,
             })),
             processGases: (await loadChild("sq_q12_process_gases")).map((r) => ({
@@ -579,17 +647,21 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
                 unit: r.unit, fossilOrBiogenic: r.fossil_or_biogenic,
             })),
             qcItEnergy: (await loadChild("sq_q13_qc_it_energy")).map((r) => ({
-                item: r.item, value: numOrUndef(r.value), unit: r.unit, alreadyInQ10: r.already_in_q10,
+                item: r.item,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
+                value: numOrUndef(r.value), unit: r.unit, alreadyInQ10: r.already_in_q10,
             })),
             productionWaste: (await loadChild("sq_q14_production_waste")).map((r) => ({
                 productIdOrMpn: r.product_id_or_mpn, componentName: r.component_name,
                 wasteType: r.waste_type, treatmentType: r.treatment_type,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
                 quantity: numOrUndef(r.quantity), unit: r.unit,
                 energyRecovered: r.energy_recovered, polluterPaysApplied: r.polluter_pays_applied,
             })),
             packagingMaterials: (await loadChild("sq_q16_packaging_materials")).map((r) => ({
                 productIdOrMpn: r.product_id_or_mpn, componentName: r.component_name,
                 packagingType: r.packaging_type, processType: r.process_type,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
                 packagingWeight: numOrUndef(r.packaging_weight), unit: r.unit,
                 region: r.region, country: r.country,
                 recycledPct: numOrUndef(r.recycled_pct),
@@ -597,17 +669,21 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
             })),
             packagingTransport: (await loadChild("sq_q16a_packaging_transport")).map((r) => ({
                 packagingProductIdOrMpn: r.packaging_product_id_or_mpn, componentName: r.component_name,
-                transportMode: r.transport_mode, weight: numOrUndef(r.weight),
+                transportMode: r.transport_mode,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
+                weight: numOrUndef(r.weight),
                 unit: r.unit, distanceKm: numOrUndef(r.distance_km),
             })),
             packagingWaste: (await loadChild("sq_q17_packaging_waste")).map((r) => ({
                 mpnCode: r.mpn_code, componentName: r.component_name,
                 packagingWasteType: r.packaging_waste_type, treatmentType: r.treatment_type,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
                 quantity: numOrUndef(r.quantity), unit: r.unit, energyRecovered: r.energy_recovered,
             })),
             transportLegs: (await loadChild("sq_q19_transport_legs")).map((r) => ({
                 productIdOrMpn: r.product_id_or_mpn, componentName: r.component_name,
                 transportMode: r.transport_mode, source: r.source, destination: r.destination,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
                 weight: numOrUndef(r.weight), unit: r.unit, distanceKm: numOrUndef(r.distance_km),
                 lowCarbonFuel: r.low_carbon_fuel, fuelCertificateRef: r.fuel_certificate_ref,
             })),
@@ -615,6 +691,29 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
                 biomassFeedstockType: r.biomass_feedstock_type, quantity: numOrUndef(r.quantity),
                 unit: r.unit, biogenicCarbonContentPct: numOrUndef(r.biogenic_carbon_content_pct),
             })),
+        };
+    });
+}
+
+// Find a supplier's own response (id + status + raw form snapshot) for a PCF
+// request, so the form can reload exactly what they last saved/submitted.
+export async function findMyResponse(
+    bomPcfRequestId: string,
+    supplierId: string
+): Promise<{ responseId: string; status: string; formSnapshot: any } | null> {
+    return withClient(async (client: any) => {
+        const r = await client.query(
+            `SELECT id, status, form_snapshot
+               FROM supplier_questionnaire_response
+              WHERE bom_pcf_request_id = $1 AND supplier_id = $2
+              LIMIT 1`,
+            [bomPcfRequestId, supplierId]
+        );
+        if (!r.rows.length) return null;
+        return {
+            responseId: r.rows[0].id,
+            status: r.rows[0].status,
+            formSnapshot: r.rows[0].form_snapshot ?? null,
         };
     });
 }
@@ -645,10 +744,57 @@ export async function markSubmitted(responseId: string): Promise<void> {
         const r = await client.query(
             `UPDATE supplier_questionnaire_response
                 SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP, update_date = CURRENT_TIMESTAMP
-              WHERE id = $1`,
+              WHERE id = $1
+              RETURNING bom_pcf_request_id, supplier_id`,
             [responseId]
         );
         if (r.rowCount === 0) throw new Error(`Response not found: ${responseId}`);
+
+        // Bridge to the legacy PCF-request workflow: the stage tracker and DQR
+        // page read pcf_request_data_collection_stage.is_submitted (keyed by
+        // bom_pcf_id + sup_id), NOT supplier_questionnaire_response. Flip it here
+        // so the request shows the supplier as submitted and advances to DQR.
+        const { bom_pcf_request_id, supplier_id } = r.rows[0];
+        if (bom_pcf_request_id && supplier_id) {
+            await client.query(
+                `UPDATE pcf_request_data_collection_stage
+                    SET is_submitted = true, completed_date = NOW()
+                  WHERE bom_pcf_id = $1 AND sup_id = $2`,
+                [bom_pcf_request_id, supplier_id]
+            );
+
+            // Surface this supplier on the DQR page: that page lists suppliers
+            // from supplier_general_info_questions (sgiq). V3 doesn't create an
+            // sgiq row, so without this the submitted supplier never appears in
+            // DQR. Create a minimal sgiq row (idempotent) carrying the company
+            // name + reporting period from the V3 response.
+            const exists = await client.query(
+                `SELECT 1 FROM supplier_general_info_questions
+                  WHERE bom_pcf_id = $1 AND sup_id = $2 LIMIT 1`,
+                [bom_pcf_request_id, supplier_id]
+            );
+            if (exists.rowCount === 0) {
+                const meta = await client.query(
+                    `SELECT company_name, reference_period_start
+                       FROM supplier_questionnaire_response WHERE id = $1`,
+                    [responseId]
+                );
+                const orgName = meta.rows[0]?.company_name ?? null;
+                const rp = meta.rows[0]?.reference_period_start;
+                // pg returns timestamps as Date; pull the 4-digit year safely.
+                const period = rp
+                    ? (rp instanceof Date ? String(rp.getFullYear()) : String(rp).slice(0, 4))
+                    : null;
+                await client.query(
+                    `INSERT INTO supplier_general_info_questions (
+                        sgiq_id, bom_pcf_id, sup_id, organization_name,
+                        annual_reporting_period, ere_acknowledge, repm_acknowledge,
+                        dc_acknowledge, availability_of_scope_one_two_three_emissions_data
+                     ) VALUES ($1, $2, $3, $4, $5, true, true, true, false)`,
+                    [ulid(), bom_pcf_request_id, supplier_id, orgName, period]
+                );
+            }
+        }
     });
 }
 
@@ -712,8 +858,11 @@ export function validateForSubmit(input: QuestionnaireInput): ValidationError[] 
         errors.push({ field: "bom", message: "Q8 — at least one BOM component is required" });
     } else {
         input.bom.forEach((b, i) => {
-            if (!b.material) errors.push({ field: `bom[${i}].material`, message: "Q8 — material required" });
-            if (!b.process) errors.push({ field: `bom[${i}].process`, message: "Q8 — process required" });
+            // The Q8 cascade (category→sub→group→specific type) replaced the old
+            // free-text "process" field. Require the category (stored in `material`)
+            // and the specific type, since those pin the exact EF row.
+            if (!b.material) errors.push({ field: `bom[${i}].material`, message: "Q8 — category required" });
+            if (!b.specificType) errors.push({ field: `bom[${i}].specificType`, message: "Q8 — specific type required" });
             if (b.massPct == null) errors.push({ field: `bom[${i}].massPct`, message: "Q8 — mass % required" });
         });
     }
@@ -738,9 +887,9 @@ export function validateForSubmit(input: QuestionnaireInput): ValidationError[] 
         if (!input.packagingMaterials || input.packagingMaterials.length === 0) {
             errors.push({ field: "packagingMaterials", message: "Q16 — packaging materials required when Q15 = Yes" });
         }
-        if (!input.packagingTransport || input.packagingTransport.length === 0) {
-            errors.push({ field: "packagingTransport", message: "Q16a — packaging transport required when Q15 = Yes" });
-        }
+        // Q16a (packaging transport) is optional: packaging may be sourced on-site
+        // or its inbound transport may be negligible/unknown. Not all included
+        // packaging has a separate transport leg, so we don't force a row here.
         if (!input.packagingWaste || input.packagingWaste.length === 0) {
             errors.push({ field: "packagingWaste", message: "Q17 — packaging waste required when Q15 = Yes" });
         }

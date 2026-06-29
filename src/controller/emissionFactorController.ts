@@ -528,3 +528,66 @@ export async function getEmissionFactorStats(_req: any, res: any) {
         }
     });
 }
+
+// Cascading taxonomy for the supplier-questionnaire EF dropdowns:
+//   level=category                          → distinct categories
+//   level=sub_category  (+category)         → distinct sub-categories in it
+//   level=group         (+category,+sub)    → distinct group_name
+//   level=specific_type (+category,+sub,+group) → specific types, each with its
+//                                                ef_id / gwp_100 / unit / geography
+// Optional ?q= filters by ILIKE substring. Returns up to 50, sorted. The 4
+// levels together identify exactly one EF row.
+export async function getEfTaxonomy(req: any, res: any) {
+    return withClient(async (client: any) => {
+        try {
+            const level = String(req.query.level || "category").trim();
+            const q = String(req.query.q || "").trim();
+            const category = String(req.query.category || "").trim();
+            const subCategory = String(req.query.sub_category || "").trim();
+            const group = String(req.query.group || "").trim();
+
+            // Include EF=0 rows: a zero emission factor is valid real data (many
+            // legitimate waste/recycling treatments are ~0). Only require the EF
+            // to be present, so the supplier can pick the exact DB row.
+            const conds: string[] = ["gwp_100 IS NOT NULL"];
+            const params: any[] = [];
+            let p = 1;
+            const addParentEq = (col: string, val: string) => {
+                if (val) { conds.push(`${col} = $${p++}`); params.push(val); }
+            };
+
+            const col =
+                level === "category" ? "category" :
+                level === "sub_category" ? "sub_category" :
+                level === "group" ? "group_name" :
+                level === "specific_type" ? "specific_type" : "";
+            if (!col) return res.status(400).send({ success: false, message: `invalid level: ${level}` });
+
+            if (level !== "category") addParentEq("category", category);
+            if (level === "group" || level === "specific_type") addParentEq("sub_category", subCategory);
+            if (level === "specific_type") addParentEq("group_name", group);
+
+            if (q) { conds.push(`${col} ILIKE $${p++}`); params.push(`%${q}%`); }
+            const where = `WHERE ${conds.join(" AND ")} AND ${col} IS NOT NULL AND ${col} <> ''`;
+
+            if (level === "specific_type") {
+                // Specific type pins down the exact EF row → return its details.
+                const r = await client.query(
+                    `SELECT specific_type, ef_id, gwp_100, unit, geography
+                       FROM emission_factors ${where}
+                      ORDER BY specific_type LIMIT 50`,
+                    params
+                );
+                return res.status(200).send({ success: true, data: r.rows });
+            }
+            const r = await client.query(
+                `SELECT DISTINCT ${col} AS value FROM emission_factors ${where} ORDER BY ${col} LIMIT 50`,
+                params
+            );
+            return res.status(200).send({ success: true, data: r.rows.map((x: any) => x.value) });
+        } catch (err: any) {
+            console.error("getEfTaxonomy error:", err);
+            return res.status(500).send({ success: false, message: err.message });
+        }
+    });
+}

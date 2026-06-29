@@ -3195,8 +3195,9 @@ export async function getBomComponentsForSupplier(req: any, res: any) {
                        material_number,
                        component_name,
                        detail_description,
-                       qunatity      AS quantity,
-                       price
+                       qunatity        AS quantity,
+                       price,
+                       weight_gms / 1000.0 AS weight_kg
                 FROM bom
                 WHERE bom_pcf_id = $1
                   AND supplier_id = $2

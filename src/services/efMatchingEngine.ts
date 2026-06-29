@@ -38,6 +38,13 @@ export interface EfMatchInput {
     unitKind?: string | null;        // e.g. "mass", "energy", "freight"
     year?: number | null;
     recycledContent?: number | null; // %, 0-100
+    // Exact EF taxonomy from the supplier's cascade dropdowns (Category →
+    // Sub-category → Group → Specific Type). When specificType is present the
+    // engine does an EXACT lookup on these (one EF row) instead of fuzzy match.
+    category?: string | null;
+    subCategory?: string | null;
+    group?: string | null;
+    specificType?: string | null;
     // Optional free-text — kept for future Layer 2 (semantic) hook.
     description?: string | null;
     // Source attribution for the audit row.
@@ -233,7 +240,32 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
         gwp_100        AS kgco2e_per_unit`;
 
     const domain = domainForActivity(input.activityType);
-    const seen = new Set<string>();
+
+    // EXACT taxonomy lookup — when the supplier picked the full cascade
+    // (Category → Sub-category → Group → Specific Type), those 4 identify one
+    // EF row. Match exactly and skip the fuzzy path entirely. Dash-normalized so
+    // hyphen/em-dash differences don't matter.
+    if (input.specificType && input.specificType.trim()) {
+        const conds: string[] = ["gwp_100 > 0"];
+        const params: any[] = [];
+        let p = 1;
+        const nd = (col: string) => `translate(${col}, '—–', '--')`;
+        const eqNorm = (col: string, val?: string | null) => {
+            if (val && val.trim()) { conds.push(`${nd(col)} = translate($${p++}, '—–', '--')`); params.push(val.trim()); }
+        };
+        eqNorm("specific_type", input.specificType);
+        eqNorm("category", input.category);
+        eqNorm("sub_category", input.subCategory);
+        eqNorm("group_name", input.group);
+        const r = await client.query(
+            `SELECT ${SELECT_COLS} FROM emission_factors
+              WHERE ${conds.join(" AND ")}
+              ORDER BY gwp_100 DESC LIMIT ${MAX_CANDIDATES}`,
+            params
+        );
+        if (r.rows.length > 0) return r.rows;
+        // No exact hit → fall through to the fuzzy match below (safety net).
+    }
 
     const run = async (useUnit: boolean, useDomain: boolean): Promise<CandidateRow[]> => {
         const params: any[] = [];
@@ -249,12 +281,18 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
         }
 
         // Material is the primary hard gate — must appear in one of the
-        // descriptive columns (substring, case-insensitive).
+        // descriptive columns (substring, case-insensitive). Dashes are
+        // normalized on BOTH sides (em "—" / en "–" → hyphen "-") because the
+        // BAFU dataset names use em-dashes while suppliers type plain hyphens —
+        // without this, "Welding - Arc" never matches "Welding — Arc".
         if (input.material) {
             params.push(`%${input.material.trim()}%`);
             const p = `$${params.length}`;
+            const nd = (col: string) => `translate(${col}, '—–', '--')`;
+            const np = `translate(${p}, '—–', '--')`;
             where.push(
-                `(specific_type ILIKE ${p} OR dataset_name ILIKE ${p} OR category ILIKE ${p} OR sub_category ILIKE ${p} OR group_name ILIKE ${p})`
+                `(${nd("specific_type")} ILIKE ${np} OR ${nd("dataset_name")} ILIKE ${np} ` +
+                `OR ${nd("category")} ILIKE ${np} OR ${nd("sub_category")} ILIKE ${np} OR ${nd("group_name")} ILIKE ${np})`
             );
         }
 
@@ -267,41 +305,29 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
 
         const baseWhere = where.length ? where.join(" AND ") : "TRUE";
 
-        const tryGeo = async (geoClause: string | null): Promise<CandidateRow[]> => {
-            const sql = `
-                SELECT ${SELECT_COLS}
-                  FROM emission_factors
-                 WHERE ${baseWhere}${geoClause ? ` AND (${geoClause})` : ""}
-                 ORDER BY ef_id
-                 LIMIT ${MAX_CANDIDATES};
-            `;
-            const r = await client.query(sql, params);
-            return r.rows;
-        };
+        // Single query: all material-matching candidates, ORDERED by geography
+        // preference (exact country > region > GLO > RoW > other). Replaces the
+        // old 5-query geography ladder — one query per (unit, domain) combo
+        // instead of ~15, keeping matching fast and the DB connection stable.
+        const country = input.country?.trim()?.replace(/'/g, "''");
+        const region = input.region?.trim()?.replace(/'/g, "''");
+        const geoRank =
+            "CASE " +
+            (country ? `WHEN geography ILIKE '${country}' THEN 5 ` : "") +
+            (region ? `WHEN geography ILIKE '${region}' THEN 4 ` : "") +
+            "WHEN geography ILIKE 'GLO' OR geography ILIKE 'Global' THEN 3 " +
+            "WHEN geography ILIKE 'RoW' OR geography ILIKE 'Rest of%' THEN 2 " +
+            "ELSE 1 END";
 
-        // Geography fallback ladder: strict country, then loosen. `geography`
-        // holds ecoinvent codes (RER, GLO, RoW, CH, …).
-        const country = input.country?.trim();
-        const region = input.region?.trim();
-        const ladder: Array<string | null> = [];
-        if (country) ladder.push(`geography ILIKE '${country.replace(/'/g, "''")}'`);
-        if (region)  ladder.push(`geography ILIKE '${region.replace(/'/g, "''")}'`);
-        ladder.push(`geography ILIKE 'GLO' OR geography ILIKE 'Global'`);
-        ladder.push(`geography ILIKE 'RoW' OR geography ILIKE 'Rest of%'`);
-        ladder.push(null); // last resort: no geo filter
-
-        const merged: CandidateRow[] = [];
-        for (const clause of ladder) {
-            const rows = await tryGeo(clause);
-            for (const r of rows) {
-                if (!seen.has(r.ef_id)) {
-                    seen.add(r.ef_id);
-                    merged.push(r);
-                }
-            }
-            if (merged.length >= MIN_CANDIDATES_BEFORE_FALLBACK) break;
-        }
-        return merged;
+        const sql = `
+            SELECT ${SELECT_COLS}
+              FROM emission_factors
+             WHERE ${baseWhere}
+             ORDER BY (${geoRank}) DESC, ef_id
+             LIMIT ${MAX_CANDIDATES};
+        `;
+        const r = await client.query(sql, params);
+        return r.rows;
     };
 
     // Pass 1: domain + unit gates. If that starves the pool, drop the unit gate;
@@ -309,11 +335,9 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
     // no EF at all).
     let merged = await run(true, true);
     if (merged.length < MIN_CANDIDATES_BEFORE_FALLBACK) {
-        seen.clear();
         merged = await run(false, true);
     }
     if (merged.length < MIN_CANDIDATES_BEFORE_FALLBACK) {
-        seen.clear();
         merged = await run(false, false);
     }
     return merged;

@@ -91,6 +91,53 @@ interface SupplierData {
 // (kg C) into biogenic CO2 uptake (kg CO2e). Catena-X PCF Rulebook §5.2.6.
 const CO2_PER_C = 44 / 12;
 
+// Verbose calculation trace — set PCF_DEBUG=1 to print every EF match,
+// contribution and running total to the terminal (for local testing).
+const DEBUG = process.env.PCF_DEBUG === "1" || process.env.PCF_DEBUG === "true";
+function dbg(...args: any[]): void {
+    if (DEBUG) console.log(...args);
+}
+
+// AR6 100-year GWP factors for direct process gases (IPCC AR6 / Catena-X).
+// Process emissions = Σ(gas quantity × GWP) — NOT a BAFU EF lookup. Values
+// match the manager's reference sheet: CO2=1, CH4=27.9, N2O=273.
+const GWP_AR6: Record<string, number> = {
+    co2: 1,
+    carbondioxide: 1,
+    ch4: 27.9,
+    methane: 27.9,
+    n2o: 273,
+    nitrousoxide: 273,
+    sf6: 25200,
+    sulfurhexafluoride: 25200,
+    nf3: 17400,
+};
+function gwpForGas(gas?: string | null): number {
+    // The questionnaire uses subscripts ("CO₂", "CH₄", "N₂O", "SF₆", "NF₃").
+    // Convert subscript digits → ASCII before normalizing, else "CO₂" would
+    // strip to "co" and miss the map.
+    const subs: Record<string, string> = {
+        "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4",
+        "₅": "5", "₆": "6", "₇": "7", "₈": "8", "₉": "9",
+    };
+    const ascii = (gas ?? "").replace(/[₀-₉]/g, (c) => subs[c] ?? c);
+    const key = ascii.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return GWP_AR6[key] ?? 0;
+}
+function isBiogenicOrigin(v?: string | null): boolean {
+    return `${v ?? ""}`.toLowerCase().startsWith("bio");
+}
+
+// Transport/aircraft emission factors are per TONNE-km (t·km). The supplier
+// enters weight with a unit (usually kg), so convert to tonnes before
+// multiplying by distance × EF — otherwise a kg weight is 1000× too large.
+function weightToTonnes(weight: number, unit?: string | null): number {
+    const u = (unit ?? "kg").toLowerCase().trim();
+    if (u === "t" || u === "ton" || u === "tonne" || u === "tonnes" || u === "mt") return weight;
+    if (u === "g" || u === "gram" || u === "grams") return weight / 1e6;
+    return weight / 1000; // default: kg → tonnes
+}
+
 const ZERO_STAGE: StageEmissions = {
     fossilGhgEmissions: 0,
     biogenicNonCO2Emissions: 0,
@@ -151,6 +198,25 @@ export async function computePcfFields(responseId: string): Promise<ComputedFiel
         distributionStage,
         verificationShares,
     };
+
+    dbg(`\n══════════ FINAL PCF (declared unit) ══════════`);
+    dbg(`  production  excl=${productionStage.pcfExcludingBiogenicUptake}  incl=${productionStage.pcfIncludingBiogenicUptake}`);
+    dbg(`  packaging   excl=${packagingStage.pcfExcludingBiogenicUptake}  incl=${packagingStage.pcfIncludingBiogenicUptake}  (included=${packagingStage.packagingEmissionsIncluded})`);
+    dbg(`  distribution excl=${distributionStage.pcfExcludingBiogenicUptake}  incl=${distributionStage.pcfIncludingBiogenicUptake}  (included=${distributionStage.distributionStageIncluded})`);
+    const grandExcl = round6(
+        productionStage.pcfExcludingBiogenicUptake +
+        packagingStage.pcfExcludingBiogenicUptake +
+        distributionStage.pcfExcludingBiogenicUptake
+    );
+    const grandIncl = round6(
+        productionStage.pcfIncludingBiogenicUptake +
+        packagingStage.pcfIncludingBiogenicUptake +
+        distributionStage.pcfIncludingBiogenicUptake
+    );
+    dbg(`  ─────────────────────────────────────────────`);
+    dbg(`  TOTAL PCF  excl biogenic uptake = ${grandExcl} kgCO2e`);
+    dbg(`  TOTAL PCF  incl biogenic uptake = ${grandIncl} kgCO2e`);
+    dbg(`══════════════════════════════════════════════\n`);
 
     await persistComputedFields(responseId, computed);
     return computed;
@@ -259,6 +325,8 @@ function computeCarbonContent(data: SupplierData): ComputedFields["carbonContent
         totalCarbon += componentCarbon;
         if (row.biogenic_y_n) biogenicCarbonContent += componentCarbon * biogenicCFrac;
         if (row.recycled_y_n) recycledCarbonContent += componentCarbon * recycledCFrac;
+        dbg(`   [carbon] ${row.material}: mass=${componentMass}kg carbon%=${num(row.carbon_pct)} → C=${componentCarbon.toFixed(6)} ` +
+            `(bio=${row.biogenic_y_n ? (componentCarbon * biogenicCFrac).toFixed(6) : 0}, rec=${row.recycled_y_n ? (componentCarbon * recycledCFrac).toFixed(6) : 0})`);
     }
 
     // Per team confirmation: derive fossil so the identity Total = Fossil + Biogenic + Recycled holds.
@@ -266,6 +334,8 @@ function computeCarbonContent(data: SupplierData): ComputedFields["carbonContent
         0,
         totalCarbon - biogenicCarbonContent - recycledCarbonContent
     );
+    dbg(`\n━━━ CARBON CONTENT ━━━  total=${round6(totalCarbon)} fossil=${round6(fossilCarbonContent)} ` +
+        `biogenic=${round6(biogenicCarbonContent)} recycled=${round6(recycledCarbonContent)}`);
 
     // Packaging biogenic carbon: Q16 material weight + Q16a transport weight × biogenic %.
     let packagingBiogenicCarbonContent = 0;
@@ -299,6 +369,8 @@ async function computeProductionStage(
     const country = primarySite?.country ?? null;
     const region = primarySite?.region ?? null;
 
+    dbg(`\n━━━ PRODUCTION STAGE ━━━  productMass=${productMass}kg  geo=${country}/${region}  year=${year}`);
+
     // --- Q8 materials × EF (fossil)
     let fossil = 0;
     for (const row of data.q8_bom) {
@@ -309,6 +381,12 @@ async function computeProductionStage(
                 activityType: "material",
                 material: row.material,
                 process: row.process,
+                // Exact EF taxonomy from the cascade dropdowns (material column
+                // = Category; plus sub_category / group_name / specific_type).
+                category: row.material,
+                subCategory: row.sub_category,
+                group: row.group_name,
+                specificType: row.specific_type,
                 country, region,
                 unit: "kg", unitKind: "mass",
                 year,
@@ -317,26 +395,68 @@ async function computeProductionStage(
                 responseId,
             }
         );
-        fossil += componentMass * ef_;
+        const contrib = componentMass * ef_;
+        fossil += contrib;
+        dbg(`   [Q8] ${row.material}: ${num(row.mass_pct)}% × ${productMass}kg = ${componentMass}kg × ${ef_} = ${contrib.toFixed(6)} kgCO2e (fossil=${fossil.toFixed(6)})`);
     }
 
-    // --- Q10 electricity
-    for (const row of data.q10_electricity) {
-        const qty = num(row.quantity);
-        if (qty <= 0) continue;
+    // --- Q10 electricity.
+    // Manager's model — mass-based factory allocation. The per-unit share of
+    // factory electricity is just the product's mass divided by the total mass
+    // the factory produced, times the factory's total energy:
+    //   perUnitKwh = product_mass × factory_energy / factory_weight
+    //   emission   = perUnitKwh × electricity EF × (1 − renewable share)
+    // (This is the algebraic reduction of the old
+    //  (component_total_weight / factory_weight) × factory_energy / num_products,
+    //  since component_total_weight / num_products = product_mass. So the supplier
+    //  only needs to give the two factory totals — both in kWh / kg.)
+    // Guards: product_mass and factory_weight must be > 0 (same kg unit on both
+    // sides); otherwise fall back to per-row entered quantity.
+    const factoryEnergy = num(data.main.factory_total_energy_kwh);
+    const factoryWeight = num(data.main.factory_total_weight_kg);
+    // productMass (declared above) is the component's per-unit mass from Q3c.
+    const useFactoryAllocation = factoryEnergy > 0 && factoryWeight > 0 && productMass > 0;
+
+    if (useFactoryAllocation && data.q10_electricity.length > 0) {
+        const perUnitKwh = (productMass * factoryEnergy) / factoryWeight;
+        const elecRow = data.q10_electricity[0]; // primary electricity source → EF
         const ef_ = await ef({
             activityType: "energy",
-            material: row.electricity_type,
-            process: row.generator_type,
+            material: elecRow.electricity_type,
+            process: elecRow.generator_type,
+            category: elecRow.category, subCategory: elecRow.sub_category, group: elecRow.group_name, specificType: elecRow.specific_type,
             country, region,
-            unit: row.unit, unitKind: "energy",
+            unit: elecRow.unit, unitKind: "energy",
             year,
             sourceQuestion: "q10_electricity",
-            sourceRowId: row.id,
+            sourceRowId: elecRow.id,
             responseId,
         });
-        const renewableShare = (num(row.renewable_pct) / 100) || 0;
-        fossil += qty * ef_ * (1 - renewableShare);
+        const renewableShare = (num(elecRow.renewable_pct) / 100) || 0;
+        const contrib = perUnitKwh * ef_ * (1 - renewableShare);
+        fossil += contrib;
+        dbg(`   [Q10-alloc] perUnit=${productMass}×${factoryEnergy}/${factoryWeight}=${perUnitKwh.toFixed(6)}kWh × ${ef_} × (1−${renewableShare}) = ${contrib.toFixed(6)}`);
+    } else {
+        for (const row of data.q10_electricity) {
+            const qty = num(row.quantity);
+            if (qty <= 0) continue;
+            const ef_ = await ef({
+                activityType: "energy",
+                material: row.electricity_type,
+                process: row.generator_type,
+                category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
+                country, region,
+                unit: row.unit, unitKind: "energy",
+                year,
+                sourceQuestion: "q10_electricity",
+                sourceRowId: row.id,
+                responseId,
+            });
+            const renewableShare = (num(row.renewable_pct) / 100) || 0;
+            const contrib = qty * ef_ * (1 - renewableShare);
+            fossil += contrib;
+            dbg(`   [Q10] ${row.electricity_type}: ${qty}${row.unit} × ${ef_} × (1−${renewableShare}) = ${contrib.toFixed(6)}`);
+        }
     }
 
     // --- Q11 fuels  (biogenic ones go into biogenicNonCO2 below)
@@ -347,6 +467,7 @@ async function computeProductionStage(
         const ef_ = await ef({
             activityType: "fuels",
             material: row.fuel_carrier,
+            category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
             country, region,
             unit: row.unit,
             year,
@@ -358,25 +479,18 @@ async function computeProductionStage(
         else fossil += qty * ef_;
     }
 
-    // --- Q12 process gases (split by fossil/biogenic origin)
+    // --- Q12 process gases — emission = quantity × GWP (AR6), NOT an EF lookup.
+    // CO2/fossil gases → fossil GHG; biogenic-origin CH4/N2O → biogenic non-CO2.
     for (const row of data.q12_process_gases) {
         const qty = num(row.quantity);
         if (qty <= 0) continue;
-        const ef_ = await ef({
-            activityType: "process_gas",
-            material: row.direct_process_gas,
-            country, region,
-            unit: row.unit,
-            year,
-            sourceQuestion: "q12_process_gases",
-            sourceRowId: row.id,
-            responseId,
-        });
-        if (`${row.fossil_or_biogenic ?? ""}`.toLowerCase().startsWith("bio")) {
-            biogenicNonCO2 += qty * ef_;
-        } else {
-            fossil += qty * ef_;
-        }
+        const gwp = gwpForGas(row.direct_process_gas);
+        const contrib = qty * gwp;
+        if (isBiogenicOrigin(row.fossil_or_biogenic)) biogenicNonCO2 += contrib;
+        else fossil += contrib;
+        dbg(`   [Q12] ${row.direct_process_gas}: ${qty} × GWP ${gwp} = ${contrib.toFixed(6)} ` +
+            `(${isBiogenicOrigin(row.fossil_or_biogenic) ? "biogenicNonCO2" : "fossil"})`);
+        if (gwp === 0) dbg(`        ⚠️ no GWP for gas "${row.direct_process_gas}" → contributes 0`);
     }
 
     // --- Q13 QC / IT energy (only rows NOT already counted in Q10)
@@ -387,6 +501,7 @@ async function computeProductionStage(
         const ef_ = await ef({
             activityType: "energy",
             material: row.item,
+            category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
             country, region,
             unit: row.unit, unitKind: "energy",
             year,
@@ -405,6 +520,7 @@ async function computeProductionStage(
             activityType: "waste",
             material: row.waste_type,
             process: row.treatment_type,
+            category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
             country, region,
             unit: row.unit, unitKind: "mass",
             year,
@@ -415,26 +531,12 @@ async function computeProductionStage(
         fossil += qty * ef_;
     }
 
-    // --- Q19 aircraft (only legs with mode = aircraft contribute to production-stage aviation upstream)
+    // --- Production-stage aircraft = INBOUND raw-material air freight only.
+    // The Q19 transport table holds OUTBOUND product legs, which are counted
+    // once in the distribution stage — looping them here too double-counted
+    // transport. Inbound air freight isn't captured as a separate input yet,
+    // so production aircraft = 0 until that field exists.
     let aircraft = 0;
-    for (const row of data.q19_transport_legs) {
-        if (!isAircraft(row.transport_mode)) continue;
-        const dist = num(row.distance_km);
-        const wt = num(row.weight);
-        if (dist <= 0 || wt <= 0) continue;
-        const ef_ = await ef({
-            activityType: "transport",
-            material: "Aircraft",
-            process: row.transport_mode,
-            country, region,
-            unit: "tkm", unitKind: "freight",
-            year,
-            sourceQuestion: "q19_transport_legs",
-            sourceRowId: row.id,
-            responseId,
-        });
-        aircraft += dist * wt * ef_;
-    }
 
     // --- Q20 land use change + land management (only if Q20 filled)
     let luc = 0;
@@ -483,6 +585,10 @@ async function computeProductionStage(
     const pcfExcl = fossil + biogenicNonCO2 + luc + aircraft + landMgmtEmissions + landMgmtRemovals;
     const pcfIncl = pcfExcl + biogenicCO2Uptake;
 
+    dbg(`   ── production totals: fossil=${round6(fossil)} biogenicNonCO2=${round6(biogenicNonCO2)} ` +
+        `aircraft=${round6(aircraft)} LUC=${round6(luc)} biogenicUptake=${round6(biogenicCO2Uptake)}`);
+    dbg(`   ── production PCF excl=${round6(pcfExcl)}  incl=${round6(pcfIncl)}  (allocation×${allocation})`);
+
     return {
         fossilGhgEmissions: round6(fossil),
         biogenicNonCO2Emissions: round6(biogenicNonCO2),
@@ -510,6 +616,7 @@ async function computePackagingStage(
     const country = primarySite?.country ?? null;
     const region = primarySite?.region ?? null;
 
+    dbg(`\n━━━ PACKAGING STAGE ━━━`);
     let fossil = 0;
     let biogenicNonCO2 = 0;
     let aircraft = 0;
@@ -523,6 +630,7 @@ async function computePackagingStage(
             activityType: "packaging",
             material: row.packaging_type,
             process: row.process_type,
+            category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
             country: row.country ?? country, region: row.region ?? region,
             unit: row.unit, unitKind: "mass",
             year,
@@ -544,6 +652,7 @@ async function computePackagingStage(
             activityType: "transport",
             material: row.transport_mode,
             process: row.transport_mode,
+            category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
             country, region,
             unit: "tkm", unitKind: "freight",
             year,
@@ -551,9 +660,11 @@ async function computePackagingStage(
             sourceRowId: row.id,
             responseId,
         });
-        const contribution = dist * wt * ef_;
+        const tonnes = weightToTonnes(wt, row.unit);
+        const contribution = dist * tonnes * ef_;
         if (isAircraft(row.transport_mode)) aircraft += contribution;
         else fossil += contribution;
+        dbg(`   [Q16a] ${row.transport_mode}: ${dist}km × ${tonnes}t × ${ef_} = ${contribution.toFixed(6)}`);
     }
 
     // --- Q17 packaging waste
@@ -564,6 +675,7 @@ async function computePackagingStage(
             activityType: "waste",
             material: row.packaging_waste_type,
             process: row.treatment_type,
+            category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
             country, region,
             unit: row.unit, unitKind: "mass",
             year,
@@ -606,6 +718,7 @@ async function computeDistributionStage(
 ): Promise<StageEmissions> {
     const year = parseInt(data.main.reference_period_start?.toString?.().slice(0, 4) ?? "2025", 10);
 
+    dbg(`\n━━━ DISTRIBUTION STAGE ━━━`);
     let fossil = 0;
     let aircraft = 0;
 
@@ -617,15 +730,18 @@ async function computeDistributionStage(
             activityType: "transport",
             material: row.transport_mode,
             process: row.transport_mode,
+            category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
             unit: "tkm", unitKind: "freight",
             year,
             sourceQuestion: "q19_transport_legs",
             sourceRowId: row.id,
             responseId,
         });
-        const contribution = dist * wt * ef_;
+        const tonnes = weightToTonnes(wt, row.unit);
+        const contribution = dist * tonnes * ef_;
         if (isAircraft(row.transport_mode)) aircraft += contribution;
         else fossil += contribution;
+        dbg(`   [Q19-dist] ${row.transport_mode}: ${dist}km × ${tonnes}t × ${ef_} = ${contribution.toFixed(6)}`);
     }
 
     const pcfExcl = fossil + aircraft;
@@ -667,9 +783,21 @@ function computeVerificationShares(data: SupplierData): ComputedFields["verifica
 
 async function ef(input: EfMatchInput): Promise<number> {
     const result: EfMatchResult = await findBestEf(input);
-    if (!result.winningRow) return 0;
-    const v = parseFloat(result.winningRow.kgco2e_per_unit ?? "0");
-    return Number.isFinite(v) ? v : 0;
+    const v = result.winningRow ? parseFloat(result.winningRow.kgco2e_per_unit ?? "0") : 0;
+    const val = Number.isFinite(v) ? v : 0;
+    if (DEBUG) {
+        const w = result.winningRow;
+        const name = w ? (w.product ?? w.dataset_name ?? w.specific_type ?? "?") : null;
+        dbg(
+            `   [EF] ${String(input.sourceQuestion).padEnd(20)} ` +
+            `"${input.material ?? ""}"${input.process ? ` / "${input.process}"` : ""} ` +
+            `(${input.unit ?? "-"}, ${input.country ?? "-"}) → ` +
+            (w
+                ? `${name} = ${val} kgCO2e/${input.unit ?? "unit"}  [${result.confidence} ${Math.round(result.score)}]`
+                : `❌ NO MATCH → 0`)
+        );
+    }
+    return val;
 }
 
 // ============================================================

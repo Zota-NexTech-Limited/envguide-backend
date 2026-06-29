@@ -31,6 +31,14 @@ Routes.get(
     Controller.getEmissionFactorStats
 );
 
+// Cascading EF taxonomy for the supplier-questionnaire dropdowns
+// (category → sub_category → group → specific_type). Unauthenticated, like the
+// other supplier-questionnaire endpoints (the supplier opens it via a link).
+Routes.get(
+    "/api/emission-factors/meta/taxonomy",
+    Controller.getEfTaxonomy
+);
+
 // Replace-all CSV import. Super admin only. Field name in form-data: "file".
 Routes.post(
     "/api/emission-factors/import-csv",
