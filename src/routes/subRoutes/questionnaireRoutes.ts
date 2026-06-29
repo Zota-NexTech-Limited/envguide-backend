@@ -7,6 +7,14 @@ const Routes = Router();
 // Save / upsert a questionnaire response (draft or submitted).
 Routes.post("/api/questionnaire/save", authService.authenticate, Controller.saveHandler);
 
+// The current supplier's own response (id + status + form snapshot) for a PCF
+// request — used to reload the form when the supplier reopens it.
+Routes.get(
+    "/api/questionnaire/mine/:bomPcfRequestId",
+    authService.authenticate,
+    Controller.getMineHandler
+);
+
 // Load one response.
 Routes.get("/api/questionnaire/:responseId", authService.authenticate, Controller.loadHandler);
 

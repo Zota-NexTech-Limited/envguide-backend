@@ -3869,6 +3869,15 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
         `CREATE INDEX IF NOT EXISTS idx_sqr_status
             ON supplier_questionnaire_response (status);`,
 
+        // Q10 electricity factory-allocation inputs (added later). Per-unit
+        // production electricity = (component_weight / factory_weight) ×
+        // factory_energy / num_products, then × electricity EF.
+        `ALTER TABLE supplier_questionnaire_response
+            ADD COLUMN IF NOT EXISTS factory_total_energy_kwh DOUBLE PRECISION,
+            ADD COLUMN IF NOT EXISTS factory_total_weight_kg DOUBLE PRECISION,
+            ADD COLUMN IF NOT EXISTS component_total_weight_kg DOUBLE PRECISION,
+            ADD COLUMN IF NOT EXISTS component_num_products DOUBLE PRECISION;`,
+
         // Q4: manufacturing sites
         `CREATE TABLE IF NOT EXISTS sq_q4_sites (
             id VARCHAR(255) PRIMARY KEY,
@@ -3902,6 +3911,57 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             row_order INTEGER DEFAULT 0,
             created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`,
+        // Q8 EF taxonomy (cascade). `material` already holds the Category value;
+        // add the deeper levels so the engine can match the exact EF row.
+        `ALTER TABLE sq_q8_bom
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        // EF taxonomy cascade for the other emission tables (waste / packaging /
+        // packaging-transport / packaging-waste / transport). category +
+        // sub_category + group_name + specific_type pin the exact EF.
+        `ALTER TABLE supplier_questionnaire_response
+            ADD COLUMN IF NOT EXISTS form_snapshot JSONB;`,
+        `ALTER TABLE sq_q10_electricity
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        `ALTER TABLE sq_q11_fuels
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        `ALTER TABLE sq_q13_qc_it_energy
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        `ALTER TABLE sq_q14_production_waste
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        `ALTER TABLE sq_q16_packaging_materials
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        `ALTER TABLE sq_q16a_packaging_transport
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        `ALTER TABLE sq_q17_packaging_waste
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        `ALTER TABLE sq_q19_transport_legs
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS sub_category TEXT,
+            ADD COLUMN IF NOT EXISTS group_name TEXT,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
         `CREATE INDEX IF NOT EXISTS idx_sq_q8_response_id ON sq_q8_bom (response_id);`,
 
         // Q9a: co-products

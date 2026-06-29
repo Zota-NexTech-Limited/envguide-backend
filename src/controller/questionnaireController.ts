@@ -4,6 +4,7 @@ import {
     saveQuestionnaire,
     loadQuestionnaire,
     listByPcf,
+    findMyResponse,
     markSubmitted,
     validateForSubmit,
     ValidationException,
@@ -115,6 +116,39 @@ export async function loadHandler(req: any, res: any) {
         return res.status(200).send(generateResponse(true, "ok", 200, data));
     } catch (error: any) {
         console.error("[questionnaire/load] error:", error);
+        return res.status(500).send(generateResponse(false, error?.message ?? "load failed", 500, null));
+    }
+}
+
+// ============================================================
+// GET /api/questionnaire/mine/:bomPcfRequestId
+// Return the current supplier's own saved response (id + status + raw form
+// snapshot) for this PCF request, so the form can reload what they last saved.
+// ============================================================
+
+export async function getMineHandler(req: any, res: any) {
+    try {
+        if (!req.user_id) {
+            return res.status(401).send(generateResponse(false, "not authenticated", 401, null));
+        }
+        const bomPcfRequestId = req.params.bomPcfRequestId;
+        if (!bomPcfRequestId) {
+            return res.status(400).send(generateResponse(false, "bomPcfRequestId is required", 400, null));
+        }
+        // The form passes the supplier id from the URL (same as save). A supplier
+        // may only load their own; super admin may load any. Falls back to the
+        // caller's own id when no supplierId is supplied.
+        const role = await getUserRole(req.user_id);
+        const supplierId = req.query.supplierId ? String(req.query.supplierId) : req.user_id;
+        if (!isSuperAdminRole(role) && supplierId !== req.user_id) {
+            return res.status(403).send(generateResponse(false, "you can only load your own questionnaire", 403, null));
+        }
+
+        const mine = await findMyResponse(bomPcfRequestId, supplierId);
+        // Not found is a normal "no draft yet" state, not an error.
+        return res.status(200).send(generateResponse(true, "ok", 200, mine));
+    } catch (error: any) {
+        console.error("[questionnaire/mine] error:", error);
         return res.status(500).send(generateResponse(false, error?.message ?? "load failed", 500, null));
     }
 }
