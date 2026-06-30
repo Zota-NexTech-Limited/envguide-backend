@@ -4203,6 +4203,43 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
         `CREATE INDEX IF NOT EXISTS idx_pcf_computed_field_path
             ON pcf_computed_field (field_path);`,
 
+        // DQR V3 rating — one row per rated emission line of the new 28-Q
+        // questionnaire. Replaces the 50 legacy per-question dqr_* tables, which
+        // the V3 questionnaire cannot populate. Keyed by (response_id, source_row_id)
+        // so each emission line (sq_q8_bom / sq_q10_electricity / sq_q12 / sq_q14 /
+        // sq_q16 / sq_q17 / sq_q19 row) maps to exactly one DQR data point. Holds
+        // the same five-dimension tag model (TeR/TiR/GR/C/PDS) the page already uses.
+        `CREATE TABLE IF NOT EXISTS dqr_v3_rating (
+            id VARCHAR(255) PRIMARY KEY,
+            response_id VARCHAR(255) NOT NULL,
+            source_question VARCHAR(32) NOT NULL,
+            source_row_id VARCHAR(255) NOT NULL,
+            sgiq_id VARCHAR(255),
+            data TEXT,
+            ter_tag_type VARCHAR(255),
+            ter_tag_value VARCHAR(255),
+            ter_data_point VARCHAR(255),
+            tir_tag_type VARCHAR(255),
+            tir_tag_value VARCHAR(255),
+            tir_data_point VARCHAR(255),
+            gr_tag_type VARCHAR(255),
+            gr_tag_value VARCHAR(255),
+            gr_data_point VARCHAR(255),
+            c_tag_type VARCHAR(255),
+            c_tag_value VARCHAR(255),
+            c_data_point VARCHAR(255),
+            pds_tag_type VARCHAR(255),
+            pds_tag_value VARCHAR(255),
+            pds_data_point VARCHAR(255),
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
+            created_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            update_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_dqr_v3_rating_line UNIQUE (response_id, source_row_id)
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_dqr_v3_rating_response
+            ON dqr_v3_rating (response_id);`,
+
         // ============================================================
         // Seed: GWP characterization factors (IPCC AR4 / AR5 / AR6, 100-year)
         // Sources: IPCC AR4 WG1 Ch.2 (2007), AR5 WG1 Ch.8 (2013), AR6 WG1 Ch.7 (2021).

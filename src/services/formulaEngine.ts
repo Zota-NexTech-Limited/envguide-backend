@@ -52,6 +52,18 @@ export interface ComputedFields {
         productVerificationShare2ndParty: number;
         productVerificationShare3rdParty: number;
     };
+    // Legacy 5-bucket split of the same total, for the PCF Results view
+    // (Materials / Production / Packaging / Waste / Logistics). Derived from the
+    // v9 stages: materials = Q8, production = production-stage minus materials &
+    // production-waste, packaging = packaging-stage minus packaging-waste,
+    // waste = Q14 + Q17, logistics = distribution stage. Sums to the grand total.
+    breakdown: {
+        materials: number;
+        production: number;
+        packaging: number;
+        waste: number;
+        logistics: number;
+    };
 }
 
 export interface StageEmissions {
@@ -64,6 +76,10 @@ export interface StageEmissions {
     aircraftGhgEmissions: number;
     pcfExcludingBiogenicUptake: number;
     pcfIncludingBiogenicUptake: number;
+    // Internal sub-totals used only to build the legacy 5-bucket breakdown.
+    // Stripped before persistence so they don't pollute the v9 field namespace.
+    materialsSubtotal?: number; // production stage: Q8 materials fossil
+    wasteSubtotal?: number;     // production stage: Q14 waste; packaging stage: Q17 waste
 }
 
 interface SupplierData {
@@ -191,12 +207,34 @@ export async function computePcfFields(responseId: string): Promise<ComputedFiel
     // Verification & certification shares from Q27.
     const verificationShares = computeVerificationShares(data);
 
+    // Legacy 5-bucket breakdown (Materials / Production / Packaging / Waste /
+    // Logistics) for the PCF Results view. Derived from the v9 stages so the five
+    // values sum exactly to the grand total: materials & production-waste are
+    // carved out of the production stage, packaging-waste out of the packaging
+    // stage, and grouped into a single waste bucket.
+    const matSub = productionStage.materialsSubtotal ?? 0;
+    const prodWasteSub = productionStage.wasteSubtotal ?? 0;
+    const pkgWasteSub = packagingStage.wasteSubtotal ?? 0;
+    const breakdown = {
+        materials: round6(matSub),
+        production: round6(productionStage.pcfIncludingBiogenicUptake - matSub - prodWasteSub),
+        packaging: round6(packagingStage.pcfIncludingBiogenicUptake - pkgWasteSub),
+        waste: round6(prodWasteSub + pkgWasteSub),
+        logistics: round6(distributionStage.pcfIncludingBiogenicUptake),
+    };
+
+    // Drop the internal sub-totals so they don't persist as bogus v9 fields.
+    delete productionStage.materialsSubtotal;
+    delete productionStage.wasteSubtotal;
+    delete packagingStage.wasteSubtotal;
+
     const computed: ComputedFields = {
         carbonContent,
         productionStage,
         packagingStage,
         distributionStage,
         verificationShares,
+        breakdown,
     };
 
     dbg(`\n══════════ FINAL PCF (declared unit) ══════════`);
@@ -373,6 +411,7 @@ async function computeProductionStage(
 
     // --- Q8 materials × EF (fossil)
     let fossil = 0;
+    let materialsFossil = 0; // Q8-only, for the 5-bucket breakdown
     for (const row of data.q8_bom) {
         const componentMass = productMass * (num(row.mass_pct) / 100);
         if (componentMass <= 0) continue;
@@ -397,6 +436,7 @@ async function computeProductionStage(
         );
         const contrib = componentMass * ef_;
         fossil += contrib;
+        materialsFossil += contrib;
         dbg(`   [Q8] ${row.material}: ${num(row.mass_pct)}% × ${productMass}kg = ${componentMass}kg × ${ef_} = ${contrib.toFixed(6)} kgCO2e (fossil=${fossil.toFixed(6)})`);
     }
 
@@ -513,6 +553,7 @@ async function computeProductionStage(
     }
 
     // --- Q14 production / QC waste
+    let wasteFossil = 0; // Q14-only, for the 5-bucket breakdown
     for (const row of data.q14_production_waste) {
         const qty = num(row.quantity);
         if (qty <= 0) continue;
@@ -528,7 +569,9 @@ async function computeProductionStage(
             sourceRowId: row.id,
             responseId,
         });
-        fossil += qty * ef_;
+        const contrib = qty * ef_;
+        fossil += contrib;
+        wasteFossil += contrib;
     }
 
     // --- Production-stage aircraft = INBOUND raw-material air freight only.
@@ -581,6 +624,8 @@ async function computeProductionStage(
     luc *= allocation;
     landMgmtEmissions *= allocation;
     landMgmtRemovals *= allocation;
+    materialsFossil *= allocation;
+    wasteFossil *= allocation;
 
     const pcfExcl = fossil + biogenicNonCO2 + luc + aircraft + landMgmtEmissions + landMgmtRemovals;
     const pcfIncl = pcfExcl + biogenicCO2Uptake;
@@ -599,6 +644,8 @@ async function computeProductionStage(
         aircraftGhgEmissions: round6(aircraft),
         pcfExcludingBiogenicUptake: round6(pcfExcl),
         pcfIncludingBiogenicUptake: round6(pcfIncl),
+        materialsSubtotal: round6(materialsFossil),
+        wasteSubtotal: round6(wasteFossil),
     };
 }
 
@@ -668,6 +715,7 @@ async function computePackagingStage(
     }
 
     // --- Q17 packaging waste
+    let packagingWasteFossil = 0; // Q17-only, for the 5-bucket breakdown
     for (const row of data.q17_packaging_waste) {
         const qty = num(row.quantity);
         if (qty <= 0) continue;
@@ -683,7 +731,9 @@ async function computePackagingStage(
             sourceRowId: row.id,
             responseId,
         });
-        fossil += qty * ef_;
+        const contrib = qty * ef_;
+        fossil += contrib;
+        packagingWasteFossil += contrib;
     }
 
     const biogenicCO2Uptake = -(packagingBiogenicCarbon * CO2_PER_C);
@@ -691,6 +741,7 @@ async function computePackagingStage(
     fossil *= allocation;
     biogenicNonCO2 *= allocation;
     aircraft *= allocation;
+    packagingWasteFossil *= allocation;
 
     const pcfExcl = fossil + biogenicNonCO2 + aircraft;
     const pcfIncl = pcfExcl + biogenicCO2Uptake;
@@ -705,6 +756,7 @@ async function computePackagingStage(
         aircraftGhgEmissions: round6(aircraft),
         pcfExcludingBiogenicUptake: round6(pcfExcl),
         pcfIncludingBiogenicUptake: round6(pcfIncl),
+        wasteSubtotal: round6(packagingWasteFossil),
     };
 }
 
