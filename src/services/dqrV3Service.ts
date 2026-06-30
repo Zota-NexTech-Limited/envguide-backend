@@ -157,6 +157,11 @@ export async function getV3DqrDataPoints(sgiq_id: string): Promise<Record<string
         for (const src of V3_SOURCES) {
             // Each emission line LEFT JOINs its saved rating (dqr_v3_rating) and
             // its EF-match audit row so the assessor sees which factor was picked.
+            // ef_match_audit can hold MORE THAN ONE row per emission line (the
+            // formula engine appends a fresh audit row every time it runs — e.g.
+            // at submit and again on "Run PCF Calculation"). A plain LEFT JOIN
+            // would then emit one DQR data point per audit row (duplicates). Use
+            // a LATERAL that keeps only the most recent audit row per line.
             const sql = `
                 SELECT e.*,
                        ${TAG_FIELDS.map((f) => `r.${f} AS rating_${f}`).join(",\n                       ")},
@@ -168,8 +173,13 @@ export async function getV3DqrDataPoints(sgiq_id: string): Promise<Record<string
                   FROM ${src.table} e
                   LEFT JOIN dqr_v3_rating r
                          ON r.response_id = e.response_id AND r.source_row_id = e.id
-                  LEFT JOIN ef_match_audit a
-                         ON a.response_id = e.response_id AND a.source_row_id = e.id
+                  LEFT JOIN LATERAL (
+                        SELECT winning_ef_id, confidence_band
+                          FROM ef_match_audit
+                         WHERE response_id = e.response_id AND source_row_id = e.id
+                         ORDER BY matched_at DESC
+                         LIMIT 1
+                  ) a ON TRUE
                   LEFT JOIN emission_factors ef
                          ON ef.ef_id = a.winning_ef_id
                  WHERE e.response_id = $1
