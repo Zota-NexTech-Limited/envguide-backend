@@ -5,6 +5,7 @@ import { bomService } from "../services/pcfBomService.js";
 import { getProductByCode } from './productController.js';
 import { convertToBaseUnit } from '../util/unitConversion.js';
 import { D, add, roundDp, truncDp } from '../util/decimalMath.js';
+import { runV3PcfCalculation } from "../services/pcfCalcV3Service.js";
 
 // Look up an emission factor by ef_code. Each EF table has the same shape
 // (ef_code, ef_value, unit, region, year, layer1..4). The questionnaire saves
@@ -2948,21 +2949,44 @@ export async function getPcfBomCommentsByBomId(req: any, res: any) {
 }
 
 
-// pcfCalculate — REMOVED 2026-06-12.
-// The legacy 5-formula calculation chain (materials / packaging / energy /
-// transport / waste) tied to the 70-question supplier questionnaire was
-// removed as part of the 28-question + EF-matching-engine rewrite.
-// The new calculation engine will be wired here once it lands.
-// All earlier git history is preserved on branch: backup/before-97-questions-2026-06-12
+// pcfCalculate — the legacy 5-formula chain (tied to the 70-Q questionnaire) was
+// removed 2026-06-12. For the V3 (28-Q) questionnaire the PCF is already computed
+// by the formula engine at submit (stored in pcf_computed_field); this endpoint
+// surfaces those numbers into the request-view result table and advances the
+// workflow to Result Validation. Legacy (non-V3) requests still get 503.
+// Earlier git history: branch backup/before-97-questions-2026-06-12.
 export async function pcfCalculate(req: any, res: any) {
-    return res.status(503).send(
-        generateResponse(
-            false,
-            "PCF calculation is being upgraded to the new emission-factor matching engine. This endpoint is temporarily unavailable.",
-            503,
-            null
-        )
-    );
+    try {
+        const bom_pcf_id = req.body?.bom_pcf_id;
+        if (!bom_pcf_id) {
+            return res
+                .status(400)
+                .send(generateResponse(false, "bom_pcf_id is required", 400, null));
+        }
+
+        const userId = req.user_id || "system";
+        const result = await runV3PcfCalculation(bom_pcf_id, userId);
+
+        if (!result.v3) {
+            return res.status(503).send(
+                generateResponse(
+                    false,
+                    "PCF calculation for this request is not available (no V3 questionnaire data found).",
+                    503,
+                    null
+                )
+            );
+        }
+
+        return res
+            .status(200)
+            .send(generateResponse(true, "PCF calculated successfully", 200, result));
+    } catch (error: any) {
+        console.error("❌ Error in pcfCalculate:", error?.message);
+        return res
+            .status(500)
+            .send(generateResponse(false, error?.message ?? "PCF calculation failed", 500, null));
+    }
 }
 
 
