@@ -246,7 +246,13 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
     // EF row. Match exactly and skip the fuzzy path entirely. Dash-normalized so
     // hyphen/em-dash differences don't matter.
     if (input.specificType && input.specificType.trim()) {
-        const conds: string[] = ["gwp_100 > 0"];
+        // Honor a 0 here: when the supplier picks the full 4-level cascade they
+        // identify ONE exact EF row, and some are legitimately 0 (e.g. waste-
+        // treatment "Aluminium Fraction — Mechanical Treatment …" where the
+        // burden is allocated elsewhere). Excluding 0 would drop the exact match
+        // and fall through to a wrong non-zero fuzzy hit. (The fuzzy path below
+        // still drops 0 rows so a random placeholder never wins a guess.)
+        const conds: string[] = ["gwp_100 IS NOT NULL"];
         const params: any[] = [];
         let p = 1;
         const nd = (col: string) => `translate(${col}, '—–', '--')`;
