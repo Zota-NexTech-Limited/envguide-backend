@@ -1607,7 +1607,6 @@ ${statsWhere};
 `;
 
 
-            console.log(statsWhere, "statsWherestatsWhere");
 
             const statsResult = await client.query(statsQuery, statsValues);
 
