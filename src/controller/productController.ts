@@ -997,7 +997,6 @@ export async function listProducts(req: any, res: any) {
                 LIMIT ${limit} OFFSET ${offset};
             `;
 
-            console.log(whereSQL, "whereSQLwhereSQLwhereSQL", whereClauses);
 
             const countQuery = `
                 SELECT COUNT(*) AS total

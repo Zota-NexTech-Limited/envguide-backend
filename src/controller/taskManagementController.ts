@@ -222,7 +222,6 @@ export async function createTask(req: any, res: any) {
                 supplierEmailMap.set(row.sup_id, row.supplier_email);
             });
 
-            console.log("📧 Assigned Supplier Emails:", supplierEmailMap);
 
             /* FETCH BOM DATA USING bom_pcf_id */
             const bomQuery = `
@@ -422,7 +421,6 @@ export async function getTaskList(req: any, res: any) {
                 filters.push(`c.name = $${idx++}`);
                 values.push(category);
             }
-            console.log(assignee, "ppppppp");
 
 
             if (assignee) {
