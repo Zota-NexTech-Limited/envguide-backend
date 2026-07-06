@@ -433,6 +433,12 @@ export async function listEmissionFactors(req: any, res: any) {
             const geography = String(req.query.country_code || "").trim();
             const domain = String(req.query.unit_kind || req.query.domain || "").trim();
             const sourceDb = String(req.query.source_db || "").trim();
+            // Cascading taxonomy filters (Category → Sub-category → Group →
+            // Specific Type). Each narrows the result to an exact-match value.
+            const category = String(req.query.category || "").trim();
+            const subCategory = String(req.query.sub_category || "").trim();
+            const group = String(req.query.group || req.query.group_name || "").trim();
+            const specificType = String(req.query.specific_type || "").trim();
 
             const conditions: string[] = [];
             const params: any[] = [];
@@ -460,6 +466,10 @@ export async function listEmissionFactors(req: any, res: any) {
             if (geography) { conditions.push(`geography = $${p++}`); params.push(geography); }
             if (domain)    { conditions.push(`domain = $${p++}`); params.push(domain); }
             if (sourceDb)  { conditions.push(`source_db = $${p++}`); params.push(sourceDb); }
+            if (category)     { conditions.push(`category = $${p++}`); params.push(category); }
+            if (subCategory)  { conditions.push(`sub_category = $${p++}`); params.push(subCategory); }
+            if (group)        { conditions.push(`group_name = $${p++}`); params.push(group); }
+            if (specificType) { conditions.push(`specific_type = $${p++}`); params.push(specificType); }
 
             const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -575,13 +585,13 @@ export async function getEfTaxonomy(req: any, res: any) {
                 const r = await client.query(
                     `SELECT specific_type, ef_id, gwp_100, unit, geography
                        FROM emission_factors ${where}
-                      ORDER BY specific_type LIMIT 50`,
+                      ORDER BY specific_type LIMIT 500`,
                     params
                 );
                 return res.status(200).send({ success: true, data: r.rows });
             }
             const r = await client.query(
-                `SELECT DISTINCT ${col} AS value FROM emission_factors ${where} ORDER BY ${col} LIMIT 50`,
+                `SELECT DISTINCT ${col} AS value FROM emission_factors ${where} ORDER BY ${col} LIMIT 1000`,
                 params
             );
             return res.status(200).send({ success: true, data: r.rows.map((x: any) => x.value) });

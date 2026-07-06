@@ -198,6 +198,10 @@ async function writeComponent(client: any, w: ComponentWork, bomPcfId: string) {
             [ulid(), bomId, bomPcfId, leg.transport_mode ?? null, weight, tonnes, dist, ef, legEmission]
         );
     }
+
+    // Mark the component as calculated. The reports (Analytics Center) all filter
+    // on `is_bom_calculated = TRUE`; without this the V3 results never surface.
+    await client.query(`UPDATE bom SET is_bom_calculated = TRUE WHERE id = $1`, [bomId]);
 }
 
 /**
