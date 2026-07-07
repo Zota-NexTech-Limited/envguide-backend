@@ -1,8 +1,10 @@
 import { withClient } from "../util/database.js";
 
-// The unified BAFU 2025 emission_factors table is loaded from a 9-column CSV:
-// the 8 source columns from "Main DB.csv" plus an explicit leading `Domain`
+// The unified BAFU 2025 emission_factors table is loaded from an 8-column CSV:
+// the 7 source columns from "Main DB.csv" plus an explicit leading `Domain`
 // column (the merged file has no domain, so the admin adds it before upload).
+// (The old "Dataset Name" column was removed — the source file no longer has
+// it; `specific_type` is now the sole EF name and dedup key.)
 // `ef_id` is BIGSERIAL (auto); `is_legacy`, `search_text`, `source_db` are
 // derived/defaulted server-side. Header matching is tolerant (see mapHeaders):
 // case/spacing/punctuation are normalized, so "Sub-category", "Sub Category",
@@ -15,7 +17,6 @@ const FIELDS = [
     "sub_category",
     "group_name",
     "specific_type",
-    "dataset_name",
     "geography",
     "unit",
     "gwp_100",
@@ -30,7 +31,6 @@ const DB_COLUMNS = [
     "sub_category",
     "group_name",
     "specific_type",
-    "dataset_name",
     "geography",
     "unit",
     "gwp_100",
@@ -83,7 +83,6 @@ const HEADER_TO_FIELD: Record<string, FieldKey> = {
     subcategory: "sub_category",
     group: "group_name",
     specifictype: "specific_type",
-    datasetname: "dataset_name",
     geography: "geography",
     unit: "unit",
 };
@@ -108,20 +107,21 @@ function mapHeaders(header: string[]): {
     return { map: missing.length ? null : map, missing, hasDomain: map["domain"] !== undefined };
 }
 
-// is_legacy is derived (matches the seed's rule): dataset_name starts with
-// xx/xxx, carries a [Legacy] tag, or the category mentions Legacy/Avoid.
-function deriveIsLegacy(datasetName: string | null, category: string | null): boolean {
-    const dn = (datasetName || "").trim().toLowerCase();
+// is_legacy is derived (matches the seed's rule): the EF name (specific_type)
+// starts with xx/xxx, carries a [Legacy] tag, or the category mentions
+// Legacy/Avoid. (Formerly keyed on dataset_name, which no longer exists.)
+function deriveIsLegacy(specificType: string | null, category: string | null): boolean {
+    const st = (specificType || "").trim().toLowerCase();
     const cat = (category || "").toLowerCase();
-    if (/^xx/.test(dn)) return true;
-    if (dn.includes("[legacy]") || dn.includes("legacy")) return true;
+    if (/^xx/.test(st)) return true;
+    if (st.includes("[legacy]") || st.includes("legacy")) return true;
     if (cat.includes("legacy") || cat.includes("avoid")) return true;
     return false;
 }
 
-// search_text mirrors the seed format: specific_type | dataset_name | category.
-function buildSearchText(specificType: string | null, datasetName: string | null, category: string | null): string {
-    return [specificType, datasetName, category].filter((s) => !!s && s.trim() !== "").join(" | ");
+// search_text mirrors the seed format: specific_type | category.
+function buildSearchText(specificType: string | null, category: string | null): string {
+    return [specificType, category].filter((s) => !!s && s.trim() !== "").join(" | ");
 }
 
 // Windows-1252 (CP1252) high-range bytes 0x80–0x9F that differ from Latin-1 —
@@ -249,9 +249,6 @@ function validateRow(
     const specificType = get("specific_type");
     if (!specificType) errors.push({ row: rowIndex, field: "Specific Type", message: "required" });
 
-    const datasetName = get("dataset_name");
-    if (!datasetName) errors.push({ row: rowIndex, field: "Dataset Name", message: "required" });
-
     const geography = get("geography");
     if (!geography) errors.push({ row: rowIndex, field: "Geography", message: "required" });
 
@@ -274,12 +271,11 @@ function validateRow(
             get("sub_category") || null,
             get("group_name") || null,
             specificType,
-            datasetName,
             geography,
             unit,
             gwp,
-            deriveIsLegacy(datasetName, category),
-            buildSearchText(specificType, datasetName, category),
+            deriveIsLegacy(specificType, category),
+            buildSearchText(specificType, category),
         ],
     };
 }
@@ -372,7 +368,7 @@ export async function importEmissionFactorsCsv(req: any, res: any) {
 
         // Atomic replace: wipe + bulk insert in one transaction. ON CONFLICT
         // DO NOTHING absorbs in-file duplicates that would collide on the
-        // (domain, dataset_name, geography, unit) dedup constraint.
+        // (domain, specific_type, geography, unit) dedup constraint.
         let insertedCount = 0;
         await withClient(async (client: any) => {
             await client.query("BEGIN");
@@ -393,7 +389,7 @@ export async function importEmissionFactorsCsv(req: any, res: any) {
                     const sql = `
                         INSERT INTO emission_factors (${DB_COLUMNS.join(",")})
                         VALUES ${placeholders.join(",")}
-                        ON CONFLICT (domain, dataset_name, geography, unit) DO NOTHING
+                        ON CONFLICT (domain, specific_type, geography, unit) DO NOTHING
                     `;
                     const r = await client.query(sql, params);
                     insertedCount += r.rowCount ?? 0;
@@ -454,7 +450,6 @@ export async function listEmissionFactors(req: any, res: any) {
                     sub_category  ILIKE $${p} OR
                     group_name    ILIKE $${p} OR
                     specific_type ILIKE $${p} OR
-                    dataset_name  ILIKE $${p} OR
                     geography     ILIKE $${p} OR
                     unit          ILIKE $${p} OR
                     source_db     ILIKE $${p} OR

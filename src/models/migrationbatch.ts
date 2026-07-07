@@ -3715,16 +3715,18 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
         // ONCE in pgAdmin:  DROP TABLE IF EXISTS emission_factors CASCADE;
         // then reboot - the CREATE below recreates it with the new columns.
 
-        // Columns map 1:1 to the 8 BAFU CSV columns, plus `domain` (stamped per
+        // Columns map 1:1 to the 7 BAFU CSV columns, plus `domain` (stamped per
         // source file), `is_legacy`, `search_text` and audit timestamps.
         //   CSV col 1 Category          -> category
         //   CSV col 2 Sub-category      -> sub_category
         //   CSV col 3 Group             -> group_name   (`group` is reserved)
-        //   CSV col 4 Specific Type     -> specific_type (human dropdown label)
-        //   CSV col 5 Dataset Name      -> dataset_name  (technical BAFU name)
-        //   CSV col 6 Geography         -> geography
-        //   CSV col 7 Unit              -> unit
-        //   CSV col 8 GWP 100 [kgCO2e]  -> gwp_100
+        //   CSV col 4 Specific Type     -> specific_type (the EF name/dropdown label)
+        //   CSV col 5 Geography         -> geography
+        //   CSV col 6 Unit              -> unit
+        //   CSV col 7 GWP 100 [kgCO2e]  -> gwp_100
+        // NOTE: the old "Dataset Name" column was dropped — the new source file
+        // has no such column; `specific_type` is now the sole EF name and the
+        // dedup key.
         `CREATE TABLE IF NOT EXISTS emission_factors (
             ef_id          BIGSERIAL PRIMARY KEY,
             domain         TEXT NOT NULL,
@@ -3732,7 +3734,6 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             sub_category   TEXT,
             group_name     TEXT,
             specific_type  TEXT NOT NULL,
-            dataset_name   TEXT NOT NULL,
             geography      TEXT NOT NULL,
             unit           TEXT NOT NULL,
             gwp_100        NUMERIC(20, 6) NOT NULL,
@@ -3742,7 +3743,7 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             created_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             updated_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT uq_emission_factors_dedup
-                UNIQUE (domain, dataset_name, geography, unit)
+                UNIQUE (domain, specific_type, geography, unit)
         );`,
 
         // --- Indexes ---
