@@ -839,7 +839,7 @@ async function ef(input: EfMatchInput): Promise<number> {
     const val = Number.isFinite(v) ? v : 0;
     if (DEBUG) {
         const w = result.winningRow;
-        const name = w ? (w.product ?? w.dataset_name ?? w.specific_type ?? "?") : null;
+        const name = w ? (w.product ?? w.specific_type ?? "?") : null;
         dbg(
             `   [EF] ${String(input.sourceQuestion).padEnd(20)} ` +
             `"${input.material ?? ""}"${input.process ? ` / "${input.process}"` : ""} ` +

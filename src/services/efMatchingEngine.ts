@@ -211,7 +211,7 @@ function domainForActivity(activityType: ActivityType): string | null {
 async function layer1Filter(client: any, input: EfMatchInput): Promise<CandidateRow[]> {
     // The unified BAFU 2025 `emission_factors` table has columns:
     //   domain, category, sub_category, group_name, specific_type,
-    //   dataset_name, geography, unit, gwp_100.
+    //   geography, unit, gwp_100.
     // It has NO material/process/region/unit_kind/year columns, so the
     // supplier's taxonomy is mapped onto the real columns. To keep the scoring
     // matchers (and formulaEngine) unchanged, the SELECT aliases the new
@@ -221,7 +221,7 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
     //   geography     -> country_code / country_name
     // Filtering uses the REAL column names:
     //   domain    -> hard gate by activity type (dropped if it starves the pool)
-    //   material  -> substring across specific_type/dataset_name/category/sub_category/group_name
+    //   material  -> substring across specific_type/category/sub_category/group_name
     //   unit      -> exact unit match (soft gate: dropped if it starves the pool)
     //   geography -> country, then region, then GLO/RoW, then none.
 
@@ -229,7 +229,6 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
         ef_id,
         domain,
         specific_type  AS product,
-        dataset_name,
         category,
         sub_category   AS sub_category_1,
         group_name     AS sub_category_2,
@@ -297,7 +296,7 @@ async function layer1Filter(client: any, input: EfMatchInput): Promise<Candidate
             const nd = (col: string) => `translate(${col}, '—–', '--')`;
             const np = `translate(${p}, '—–', '--')`;
             where.push(
-                `(${nd("specific_type")} ILIKE ${np} OR ${nd("dataset_name")} ILIKE ${np} ` +
+                `(${nd("specific_type")} ILIKE ${np} ` +
                 `OR ${nd("category")} ILIKE ${np} OR ${nd("sub_category")} ILIKE ${np} OR ${nd("group_name")} ILIKE ${np})`
             );
         }
