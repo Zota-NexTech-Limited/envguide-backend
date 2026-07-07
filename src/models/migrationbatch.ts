@@ -3741,10 +3741,10 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             search_text    TEXT,
             source_db      TEXT DEFAULT 'BAFU 2025',
             created_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            updated_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_emission_factors_dedup
-                UNIQUE (domain, specific_type, geography, unit)
+            updated_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`,
+        // NOTE: no UNIQUE/dedup constraint — every source row is imported
+        // verbatim so the row count always matches the file exactly (10,305).
 
         // --- Indexes ---
         // Unit hard-gate lookup (domain + unit) — the primary access path.
