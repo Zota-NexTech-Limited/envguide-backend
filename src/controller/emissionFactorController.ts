@@ -77,13 +77,20 @@ function normHeader(h: string): string {
 }
 
 // Map normalized header -> canonical field. gwp is matched by prefix below.
+// Both the human labels ("Group", "Sub-category") and the raw DB column names
+// ("group_name", "sub_category") are accepted — normHeader strips punctuation,
+// so "group_name" -> "groupname" and "sub_category" -> "subcategory".
 const HEADER_TO_FIELD: Record<string, FieldKey> = {
     domain: "domain",
     category: "category",
     subcategory: "sub_category",
+    subcategoryname: "sub_category",
     group: "group_name",
+    groupname: "group_name",
     specifictype: "specific_type",
+    specifictypename: "specific_type",
     geography: "geography",
+    country: "geography",
     unit: "unit",
 };
 
@@ -366,9 +373,9 @@ export async function importEmissionFactorsCsv(req: any, res: any) {
             return res.status(400).send({ success: false, message: "CSV contained no data rows" });
         }
 
-        // Atomic replace: wipe + bulk insert in one transaction. ON CONFLICT
-        // DO NOTHING absorbs in-file duplicates that would collide on the
-        // (domain, specific_type, geography, unit) dedup constraint.
+        // Atomic replace: wipe + bulk insert in one transaction. Every source
+        // row is inserted verbatim — NO dedup — so the row count always matches
+        // the file exactly (ef_id is auto-assigned, so identical rows are fine).
         let insertedCount = 0;
         await withClient(async (client: any) => {
             await client.query("BEGIN");
@@ -389,7 +396,6 @@ export async function importEmissionFactorsCsv(req: any, res: any) {
                     const sql = `
                         INSERT INTO emission_factors (${DB_COLUMNS.join(",")})
                         VALUES ${placeholders.join(",")}
-                        ON CONFLICT (domain, specific_type, geography, unit) DO NOTHING
                     `;
                     const r = await client.query(sql, params);
                     insertedCount += r.rowCount ?? 0;
