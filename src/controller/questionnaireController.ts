@@ -32,6 +32,17 @@ async function getUserRole(userId: string): Promise<string> {
     });
 }
 
+// Resolve the caller's role. A supplier authenticates via supplier_details
+// (authService sets req.is_supplier) and their user_id is a sup_id that isn't in
+// users_table — so getUserRole would return "" and wrongly reject them. Treat an
+// authenticated supplier as the "supplier" role. Per-handler ownership checks
+// still confine a supplier to their own response, and super-admin-only handlers
+// still reject them (isSuperAdminRole("supplier") === false).
+async function resolveRole(req: any): Promise<string> {
+    if (req.is_supplier) return "supplier";
+    return getUserRole(req.user_id);
+}
+
 function isSuperAdminRole(role: string): boolean {
     return role === "superadmin" || role === "super admin";
 }
@@ -52,7 +63,7 @@ export async function saveHandler(req: any, res: any) {
             return res.status(401).send(generateResponse(false, "not authenticated", 401, null));
         }
 
-        const role = await getUserRole(req.user_id);
+        const role = await resolveRole(req);
         const body = req.body as QuestionnaireInput;
 
         if (!body?.bomPcfRequestId || !body?.supplierId) {
@@ -106,7 +117,7 @@ export async function loadHandler(req: any, res: any) {
             return res.status(404).send(generateResponse(false, "response not found", 404, null));
         }
 
-        const role = await getUserRole(req.user_id);
+        const role = await resolveRole(req);
         if (!isSuperAdminRole(role) && data.supplierId !== req.user_id) {
             return res
                 .status(403)
@@ -138,7 +149,7 @@ export async function getMineHandler(req: any, res: any) {
         // The form passes the supplier id from the URL (same as save). A supplier
         // may only load their own; super admin may load any. Falls back to the
         // caller's own id when no supplierId is supplied.
-        const role = await getUserRole(req.user_id);
+        const role = await resolveRole(req);
         const supplierId = req.query.supplierId ? String(req.query.supplierId) : req.user_id;
         if (!isSuperAdminRole(role) && supplierId !== req.user_id) {
             return res.status(403).send(generateResponse(false, "you can only load your own questionnaire", 403, null));
@@ -163,7 +174,7 @@ export async function listByPcfHandler(req: any, res: any) {
         if (!req.user_id) {
             return res.status(401).send(generateResponse(false, "not authenticated", 401, null));
         }
-        const role = await getUserRole(req.user_id);
+        const role = await resolveRole(req);
         if (!isSuperAdminRole(role)) {
             return res
                 .status(403)
@@ -202,7 +213,7 @@ export async function submitHandler(req: any, res: any) {
             return res.status(404).send(generateResponse(false, "response not found", 404, null));
         }
 
-        const role = await getUserRole(req.user_id);
+        const role = await resolveRole(req);
         if (!isSuperAdminRole(role) && loaded.supplierId !== req.user_id) {
             return res
                 .status(403)
@@ -252,7 +263,7 @@ export async function publishHandler(req: any, res: any) {
         if (!req.user_id) {
             return res.status(401).send(generateResponse(false, "not authenticated", 401, null));
         }
-        const role = await getUserRole(req.user_id);
+        const role = await resolveRole(req);
         if (!isSuperAdminRole(role)) {
             return res
                 .status(403)
