@@ -20,6 +20,7 @@ import notification from './subRoutes/notification.routes.js';
 import aiChat from './subRoutes/aiChatRoutes.js';
 import quintari from './subRoutes/quintariRoutes.js';
 import questionnaire from './subRoutes/questionnaireRoutes.js';
+import pcfDataPoints from './subRoutes/pcfDataPointsRoutes.js';
 
 
 
@@ -46,6 +47,7 @@ export function routes(app: any) {
     app.use(aiChat);
     app.use(quintari);
     app.use(questionnaire);
+    app.use(pcfDataPoints);
     app.get('/health', (_req: any, res: any) => {
         res.send('ok');
     });
