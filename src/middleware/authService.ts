@@ -26,6 +26,19 @@ export async function authenticate(req: any, res: any, next: any) {
             const user: any = jwt.verify(token, TOKEN_SECRET);
             dbg(`verified payload=${JSON.stringify(user)}`);
 
+            // Supplier magic-link token: the questionnaire email signs an explicit
+            // sup_id + type:"supplier". Trust it directly so an account-less
+            // supplier authenticates as themselves — BEFORE the email lookup, so a
+            // collision with a platform account (same email registered as a
+            // client/manufacturer) can't shadow them and reject the save.
+            if (user.type === "supplier" && user.sup_id) {
+                req.user_id = user.sup_id;
+                req.sup_id = user.sup_id;
+                req.is_supplier = true;
+                dbg(`supplier-token sup_id=${user.sup_id}`);
+                return next();
+            }
+
             // Token payload key is inconsistent across the codebase: the
             // post-MFA login signs `{ email }` while reset/MFA flows sign
             // `{ user_email }`. Accept either so a valid token is never

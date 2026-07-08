@@ -15,7 +15,15 @@ export async function sendSupplierTaskEmail(payload: {
     // findSupplier(email) — no login needed. Valid for 60 days.
     const supplierEmail = Array.isArray(payload.email) ? (payload.email as any)[0] : payload.email;
     const TOKEN_SECRET = process.env.TOKEN_SECRET ?? "defaultSecret";
-    const token = jwt.sign({ email: supplierEmail }, TOKEN_SECRET, { expiresIn: "60d" });
+    // Bake the sup_id + an explicit `type: "supplier"` marker into the token so
+    // authenticate resolves the recipient AS this supplier directly — even if
+    // their email also exists as a platform account (client/manufacturer), which
+    // would otherwise be matched first and reject the questionnaire save.
+    const token = jwt.sign(
+        { email: supplierEmail, sup_id: payload.supplier_id, type: "supplier" },
+        TOKEN_SECRET,
+        { expiresIn: "60d" }
+    );
     const link =
         `https://enviguide.nextechltd.in/supplier-questionnaire` +
         `?bom_pcf_id=${payload.bom_pcf_id}` +
