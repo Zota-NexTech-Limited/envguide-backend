@@ -14,5 +14,15 @@ Routes.get(
     authService.authenticate,
     Controller.getQuintariPublicationStatus
 );
+Routes.get(
+    "/api/quintari/pcf-submodel/:bomPcfRequestId",
+    authService.authenticate,
+    Controller.getPcfSubmodelPreview
+);
+Routes.get(
+    "/api/quintari/pcf-submodels/:bomPcfRequestId",
+    authService.authenticate,
+    Controller.getPcfSubmodelsPreviewPerComponent
+);
 
 export default Routes;
