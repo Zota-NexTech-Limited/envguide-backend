@@ -543,6 +543,18 @@ async function computeProductionStage(
     // productMass (declared above) is the component's per-unit mass from Q3c.
     const useFactoryAllocation = factoryEnergy > 0 && factoryWeight > 0 && productMass > 0;
 
+    // The SAME factory→component mass allocation applies to every factory-level
+    // production input, not just electricity: fuel (Q11), process gas (Q12) and
+    // QC/IT energy (Q13) are all reported as whole-factory totals too. allocFactor
+    // is this component's share of the factory:
+    //   allocFactor = product_mass / factory_weight   (both kg)
+    // so a factory-total quantity × allocFactor = this component's per-unit share.
+    // (For electricity, quantity×allocFactor == productMass×factoryEnergy/factoryWeight,
+    //  which is why Q10 below writes the same math out longhand.)
+    // Falls back to 1 (use the raw entered quantity) when the factory totals are
+    // missing — same guard as electricity, so old data never breaks.
+    const allocFactor = useFactoryAllocation ? productMass / factoryWeight : 1;
+
     if (useFactoryAllocation && data.q10_electricity.length > 0) {
         const perUnitKwh = (productMass * factoryEnergy) / factoryWeight;
         const elecRow = data.q10_electricity[0]; // primary electricity source → EF
@@ -602,23 +614,24 @@ async function computeProductionStage(
             sourceRowId: row.id,
             responseId,
         });
-        const contrib = qty * ef_;
+        const contrib = qty * allocFactor * ef_;
         if (row.biogenic_y_n) biogenicNonCO2 += contrib;
         else fossil += contrib;
-        dbg(`   [Q11] ${row.fuel_carrier}: ${qty}${row.unit ?? ""} × ${ef_} = ${contrib.toFixed(6)} ` +
+        dbg(`   [Q11] ${row.fuel_carrier}: ${qty}${row.unit ?? ""} × ${allocFactor.toFixed(8)} (alloc) × ${ef_} = ${contrib.toFixed(6)} ` +
             `(${row.biogenic_y_n ? "biogenicNonCO2" : "fossil"})`);
     }
 
-    // --- Q12 process gases — emission = quantity × GWP (AR6), NOT an EF lookup.
+    // --- Q12 process gases — emission = quantity × allocFactor × GWP (AR6), NOT an EF lookup.
+    // Quantities are whole-factory totals, so they get the same mass allocation.
     // CO2/fossil gases → fossil GHG; biogenic-origin CH4/N2O → biogenic non-CO2.
     for (const row of data.q12_process_gases) {
         const qty = num(row.quantity);
         if (qty <= 0) continue;
         const gwp = gwpForGas(row.direct_process_gas, data.gwpFactors);
-        const contrib = qty * gwp;
+        const contrib = qty * allocFactor * gwp;
         if (isBiogenicOrigin(row.fossil_or_biogenic)) biogenicNonCO2 += contrib;
         else fossil += contrib;
-        dbg(`   [Q12] ${row.direct_process_gas}: ${qty} × GWP ${gwp} = ${contrib.toFixed(6)} ` +
+        dbg(`   [Q12] ${row.direct_process_gas}: ${qty} × ${allocFactor.toFixed(8)} (alloc) × GWP ${gwp} = ${contrib.toFixed(6)} ` +
             `(${isBiogenicOrigin(row.fossil_or_biogenic) ? "biogenicNonCO2" : "fossil"})`);
         if (gwp === 0) dbg(`        ⚠️ no GWP for gas "${row.direct_process_gas}" → contributes 0`);
     }
@@ -639,9 +652,9 @@ async function computeProductionStage(
             sourceRowId: row.id,
             responseId,
         });
-        const contrib = qty * ef_;
+        const contrib = qty * allocFactor * ef_;
         fossil += contrib;
-        dbg(`   [Q13] ${row.item}: ${qty}${row.unit ?? ""} × ${ef_} = ${contrib.toFixed(6)}`);
+        dbg(`   [Q13] ${row.item}: ${qty}${row.unit ?? ""} × ${allocFactor.toFixed(8)} (alloc) × ${ef_} = ${contrib.toFixed(6)}`);
     }
 
     // --- Q14 production / QC waste
