@@ -179,6 +179,47 @@ const ZERO_STAGE: StageEmissions = {
 };
 
 // ============================================================
+// Full input dump — every question, every field the supplier filled.
+// Gated behind PCF_DEBUG like all other logs. Prints the raw response row and
+// each child-table row as key=value, so nothing is hidden and no column is
+// missed (we iterate the actual row objects instead of hard-coding names).
+// ============================================================
+
+function dbgInputs(data: SupplierData): void {
+    if (!DEBUG) return;
+    const skip = new Set(["id", "response_id", "row_order", "created_at", "updated_at"]);
+    const fmtRow = (row: any): string =>
+        Object.entries(row ?? {})
+            .filter(([k, v]) => !skip.has(k) && v !== null && v !== undefined && v !== "")
+            .map(([k, v]) => `${k}=${v}`)
+            .join("  ");
+    const section = (title: string, rows: any[]) => {
+        const list = rows ?? [];
+        dbg(`\n   ▸ ${title}  (${list.length} row${list.length === 1 ? "" : "s"})`);
+        list.forEach((r, i) => dbg(`      [${i}] ${fmtRow(r)}`));
+    };
+
+    dbg(`\n╔════════════════════════════════════════════════════════════╗`);
+    dbg(`║  INPUTS FILLED — response ${data.main.id}`);
+    dbg(`╚════════════════════════════════════════════════════════════╝`);
+    dbg(`   ▸ Main response (Q1–Q7, Q9, Q15, Q18, Q21–Q28 flat fields)`);
+    dbg(`      ${fmtRow(data.main)}`);
+    section("Q4  sites", data.q4_sites);
+    section("Q8  bill of materials", data.q8_bom);
+    section("Q9a co-products", data.q9a_coproducts);
+    section("Q10 electricity", data.q10_electricity);
+    section("Q11 fuels", data.q11_fuels);
+    section("Q12 process gases", data.q12_process_gases);
+    section("Q13 QC/IT energy", data.q13_qc_it_energy);
+    section("Q14 production waste", data.q14_production_waste);
+    section("Q16 packaging materials", data.q16_packaging_materials);
+    section("Q16a packaging transport", data.q16a_packaging_transport);
+    section("Q17 packaging waste", data.q17_packaging_waste);
+    section("Q19 transport legs", data.q19_transport_legs);
+    section("Q20 biomass feedstock", data.q20_biomass_feedstock);
+}
+
+// ============================================================
 // Public entry point
 // ============================================================
 
@@ -188,9 +229,13 @@ export async function computePcfFields(responseId: string): Promise<ComputedFiel
         throw new Error(`Supplier questionnaire response not found: ${responseId}`);
     }
 
+    // Dump every filled field before any math runs (PCF_DEBUG only).
+    dbgInputs(data);
+
     // Co-product allocation factor — applies to all "shared" emissions
     // (production, packaging). Default 1 = no allocation (all stays with this product).
     const allocationFactor = computeAllocationFactor(data);
+    dbg(`\n   allocation factor = ${allocationFactor}  (co-products present=${!!data.main.co_products_present})`);
 
     // Carbon content from Q8.
     const carbonContent = computeCarbonContent(data);
@@ -439,7 +484,9 @@ async function computeProductionStage(
     allocation: number
 ): Promise<StageEmissions> {
     const productMass = num(data.main.product_mass_per_declared_unit);
-    const year = parseInt(data.main.reference_period_start?.toString?.().slice(0, 4) ?? "2025", 10);
+    // reference_period_start comes back from pg as a Date, whose .toString() is
+    // "Wed Jan 01 2025 …" — slicing that gave "Wed " → NaN. Parse it as a real date.
+    const year = new Date(data.main.reference_period_start ?? "").getFullYear() || 2025;
     const primarySite = data.q4_sites.find((s) => s.is_primary) ?? data.q4_sites[0] ?? null;
     const country = primarySite?.country ?? null;
     const region = primarySite?.region ?? null;
@@ -553,8 +600,11 @@ async function computeProductionStage(
             sourceRowId: row.id,
             responseId,
         });
-        if (row.biogenic_y_n) biogenicNonCO2 += qty * ef_;
-        else fossil += qty * ef_;
+        const contrib = qty * ef_;
+        if (row.biogenic_y_n) biogenicNonCO2 += contrib;
+        else fossil += contrib;
+        dbg(`   [Q11] ${row.fuel_carrier}: ${qty}${row.unit ?? ""} × ${ef_} = ${contrib.toFixed(6)} ` +
+            `(${row.biogenic_y_n ? "biogenicNonCO2" : "fossil"})`);
     }
 
     // --- Q12 process gases — emission = quantity × GWP (AR6), NOT an EF lookup.
@@ -587,7 +637,9 @@ async function computeProductionStage(
             sourceRowId: row.id,
             responseId,
         });
-        fossil += qty * ef_;
+        const contrib = qty * ef_;
+        fossil += contrib;
+        dbg(`   [Q13] ${row.item}: ${qty}${row.unit ?? ""} × ${ef_} = ${contrib.toFixed(6)}`);
     }
 
     // --- Q14 production / QC waste
@@ -610,6 +662,8 @@ async function computeProductionStage(
         const contrib = qty * ef_;
         fossil += contrib;
         wasteFossil += contrib;
+        dbg(`   [Q14] ${row.waste_type}${row.treatment_type ? ` / ${row.treatment_type}` : ""}: ` +
+            `${qty}${row.unit ?? ""} × ${ef_} = ${contrib.toFixed(6)}`);
     }
 
     // --- Production-stage aircraft = INBOUND raw-material air freight only.
@@ -669,6 +723,13 @@ async function computeProductionStage(
         // from the stage total below.
         const removalFactor = await ef({ ...efBase, activityType: "land_management_removal", sourceQuestion: "q20_land_management_removal" });
         landMgmtRemovals += qty * removalFactor;
+
+        dbg(`   [Q20] ${row.biomass_feedstock_type}: qty=${qty}${row.unit ?? "kg"}  ` +
+            `biogenicUptake=${qty}×${bioFrac}×${CO2_PER_C}=${(qty * bioFrac * CO2_PER_C).toFixed(6)}`);
+        dbg(`        LUC=${qty}×${lucEf}=${(qty * lucEf).toFixed(6)}  ` +
+            `landMgmtEmis=${qty}×${landMgmtEf}=${(qty * landMgmtEf).toFixed(6)}  ` +
+            `landMgmtRemoval=${qty}×${removalFactor}=${(qty * removalFactor).toFixed(6)}` +
+            (lucEf === 0 && landMgmtEf === 0 && removalFactor === 0 ? "   (land EFs not seeded yet → 0)" : ""));
     }
 
     // --- Biogenic CO2 uptake (carbon stored in product)
@@ -736,7 +797,9 @@ async function computePackagingStage(
     responseId: string,
     allocation: number
 ): Promise<StageEmissions> {
-    const year = parseInt(data.main.reference_period_start?.toString?.().slice(0, 4) ?? "2025", 10);
+    // reference_period_start comes back from pg as a Date, whose .toString() is
+    // "Wed Jan 01 2025 …" — slicing that gave "Wed " → NaN. Parse it as a real date.
+    const year = new Date(data.main.reference_period_start ?? "").getFullYear() || 2025;
     const primarySite = data.q4_sites.find((s) => s.is_primary) ?? data.q4_sites[0] ?? null;
     const country = primarySite?.country ?? null;
     const region = primarySite?.region ?? null;
@@ -803,6 +866,10 @@ async function computePackagingStage(
             responseId,
         });
         packagingLandMgmt += qty * packLandMgmtEf;
+
+        dbg(`   [Q16] ${row.packaging_type}: ${qty}${row.unit ?? "kg"} × ${ef_} = ${(qty * ef_).toFixed(6)}  ` +
+            `bioCarbon=${qty}×${bioFrac}=${(qty * bioFrac).toFixed(6)}  ` +
+            `LUC=${(qty * packLucEf).toFixed(6)}  landMgmt=${(qty * packLandMgmtEf).toFixed(6)}`);
     }
 
     // --- Q16a packaging transport
@@ -849,6 +916,8 @@ async function computePackagingStage(
         const contrib = qty * ef_;
         fossil += contrib;
         packagingWasteFossil += contrib;
+        dbg(`   [Q17] ${row.packaging_waste_type}${row.treatment_type ? ` / ${row.treatment_type}` : ""}: ` +
+            `${qty}${row.unit ?? ""} × ${ef_} = ${contrib.toFixed(6)}`);
     }
 
     // Positive magnitude (matches the production-stage convention we set 2026-07-10).
@@ -864,6 +933,10 @@ async function computePackagingStage(
     const pcfExcl = fossil + biogenicNonCO2 + aircraft + packagingLuc + packagingLandMgmt;
     // uptake is a POSITIVE magnitude (CO2 absorbed) → "including uptake" SUBTRACTS it.
     const pcfIncl = pcfExcl - biogenicCO2Uptake;
+
+    dbg(`   ── packaging totals: fossil=${round6(fossil)} aircraft=${round6(aircraft)} ` +
+        `LUC=${round6(packagingLuc)} landMgmt=${round6(packagingLandMgmt)} biogenicUptake=${round6(biogenicCO2Uptake)}`);
+    dbg(`   ── packaging PCF excl=${round6(pcfExcl)}  incl=${round6(pcfIncl)}  (allocation×${allocation})`);
 
     return {
         fossilGhgEmissions: round6(fossil),
@@ -887,7 +960,9 @@ async function computeDistributionStage(
     data: SupplierData,
     responseId: string
 ): Promise<StageEmissions> {
-    const year = parseInt(data.main.reference_period_start?.toString?.().slice(0, 4) ?? "2025", 10);
+    // reference_period_start comes back from pg as a Date, whose .toString() is
+    // "Wed Jan 01 2025 …" — slicing that gave "Wed " → NaN. Parse it as a real date.
+    const year = new Date(data.main.reference_period_start ?? "").getFullYear() || 2025;
 
     dbg(`\n━━━ DISTRIBUTION STAGE ━━━`);
     let fossil = 0;
@@ -916,6 +991,7 @@ async function computeDistributionStage(
     }
 
     const pcfExcl = fossil + aircraft;
+    dbg(`   ── distribution totals: fossil=${round6(fossil)} aircraft=${round6(aircraft)}  PCF=${round6(pcfExcl)}`);
     return {
         fossilGhgEmissions: round6(fossil),
         biogenicNonCO2Emissions: 0,
