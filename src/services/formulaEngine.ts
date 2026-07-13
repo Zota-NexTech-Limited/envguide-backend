@@ -110,9 +110,11 @@ interface SupplierData {
 // (kg C) into biogenic CO2 uptake (kg CO2e). Catena-X PCF Rulebook §5.2.6.
 const CO2_PER_C = 44 / 12;
 
-// Verbose calculation trace — set PCF_DEBUG=1 to print every EF match,
-// contribution and running total to the terminal (for local testing).
-const DEBUG = process.env.PCF_DEBUG === "1" || process.env.PCF_DEBUG === "true";
+// Verbose calculation trace — prints every input, EF match, contribution and
+// running total to the terminal (server pm2 logs) on EVERY "Run PCF Calculation".
+// ON BY DEFAULT so the calc is always traceable — nothing is ever blocked.
+// To silence it (rarely needed), set PCF_DEBUG=0 or PCF_DEBUG=false.
+const DEBUG = process.env.PCF_DEBUG !== "0" && process.env.PCF_DEBUG !== "false";
 function dbg(...args: any[]): void {
     if (DEBUG) console.log(...args);
 }
