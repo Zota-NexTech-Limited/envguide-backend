@@ -25,4 +25,16 @@ Routes.get(
     Controller.getPcfSubmodelsPreviewPerComponent
 );
 
+// Read-only submodel previews for the Catena-X PCF Data Model section.
+Routes.get(
+    "/api/quintari/pcf-submodel/:bomPcfRequestId",
+    authService.authenticate,
+    Controller.getQuintariPcfSubmodel
+);
+Routes.get(
+    "/api/quintari/pcf-submodels/:bomPcfRequestId",
+    authService.authenticate,
+    Controller.getQuintariPcfSubmodelsPerComponent
+);
+
 export default Routes;

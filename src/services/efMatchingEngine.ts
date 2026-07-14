@@ -24,7 +24,12 @@ export type ActivityType =
     | "waste"
     | "energy"
     | "fuels"
-    | "process_gas";
+    | "process_gas"
+    // Q20 land factors — EF rows + scoring config to be added to the DB later
+    // (Vishnu). Until then findBestEf returns "no match → 0", so land fields = 0.
+    | "land_use_change"
+    | "land_management"
+    | "land_management_removal";
 
 export type ConfidenceBand = "auto" | "suggest" | "manual";
 
@@ -204,6 +209,10 @@ function domainForActivity(activityType: ActivityType): string | null {
         case "fuels":
         case "process_gas":
             return "manufacturing";
+        // Q20 land factors — domains Vishnu will populate in emission_factors later.
+        case "land_use_change":         return "land_use_change";
+        case "land_management":         return "land_management";
+        case "land_management_removal": return "land_management_removal";
         default:           return null;
     }
 }
