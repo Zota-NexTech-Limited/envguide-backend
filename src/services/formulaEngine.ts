@@ -906,9 +906,9 @@ async function computePackagingStage(
         });
         const tonnes = weightToTonnes(wt, row.unit);
         const contribution = dist * tonnes * ef_;
-        if (isAircraft(row.transport_mode)) aircraft += contribution;
+        if (transportModeIsAircraft(row)) aircraft += contribution;
         else fossil += contribution;
-        dbg(`   [Q16a] ${row.transport_mode}: ${dist}km × ${tonnes}t × ${ef_} = ${contribution.toFixed(6)}`);
+        dbg(`   [Q16a] ${row.transport_mode ?? row.sub_category}: ${dist}km × ${tonnes}t × ${ef_} = ${contribution.toFixed(6)} (${transportModeIsAircraft(row) ? "aircraft" : "fossil"})`);
     }
 
     // --- Q17 packaging waste
@@ -1000,9 +1000,9 @@ async function computeDistributionStage(
         });
         const tonnes = weightToTonnes(wt, row.unit);
         const contribution = dist * tonnes * ef_;
-        if (isAircraft(row.transport_mode)) aircraft += contribution; // → distributionStageAircraftGhgEmissions
+        if (transportModeIsAircraft(row)) aircraft += contribution; // → distributionStageAircraftGhgEmissions
         else fossil += contribution;
-        dbg(`   [Q19-dist] ${row.transport_mode}: ${dist}km × ${tonnes}t × ${ef_} = ${contribution.toFixed(6)} (${isAircraft(row.transport_mode) ? "aircraft" : "fossil"})`);
+        dbg(`   [Q19-dist] ${row.transport_mode ?? row.sub_category}: ${dist}km × ${tonnes}t × ${ef_} = ${contribution.toFixed(6)} (${transportModeIsAircraft(row) ? "aircraft" : "fossil"})`);
     }
 
     const pcfExcl = fossil + aircraft;
@@ -1113,4 +1113,17 @@ function isAircraft(mode?: string | null): boolean {
     if (!mode) return false;
     const m = mode.toLowerCase();
     return m.includes("air") || m.includes("plane") || m.includes("aircraft") || m.includes("aviation");
+}
+
+// The supplier's transport mode lives in transport_mode on some rows but in
+// sub_category / specific_type on others (e.g. sub_category="Aircraft",
+// specific_type="Aircraft Freight [Legacy]" while transport_mode is empty).
+// Check them all so air freight is booked to aircraftGhgEmissions instead of
+// being silently misfiled as fossil.
+function transportModeIsAircraft(row: any): boolean {
+    return isAircraft(
+        [row?.transport_mode, row?.sub_category, row?.group_name, row?.specific_type]
+            .filter(Boolean)
+            .join(" ")
+    );
 }
