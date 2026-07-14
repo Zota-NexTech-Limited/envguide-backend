@@ -180,7 +180,25 @@ export interface SaveResult {
 // Save (UPSERT in one transaction)
 // ============================================================
 
+// Q5 — reference period end completes one financial year from the start:
+// end = start + 1 year − 1 day. The form derives this and sends it, but we
+// derive it defensively here too so an end is always present when a start is.
+// UTC arithmetic avoids DST/local-offset day shifts.
+function deriveReferencePeriodEnd(start?: string): string | undefined {
+    if (!start) return undefined;
+    const d = new Date(start);
+    if (isNaN(d.getTime())) return undefined;
+    const end = new Date(Date.UTC(d.getUTCFullYear() + 1, d.getUTCMonth(), d.getUTCDate()));
+    end.setUTCDate(end.getUTCDate() - 1);
+    return end.toISOString().slice(0, 10);
+}
+
 export async function saveQuestionnaire(input: QuestionnaireInput): Promise<SaveResult> {
+    // Backfill the auto-derived reference end if the client didn't send one.
+    if (!input.referencePeriodEnd && input.referencePeriodStart) {
+        input.referencePeriodEnd = deriveReferencePeriodEnd(input.referencePeriodStart);
+    }
+
     const errors = validateForSave(input);
     if (errors.length > 0) {
         throw new ValidationException(errors);
@@ -844,10 +862,12 @@ export function validateForSubmit(input: QuestionnaireInput): ValidationError[] 
         });
     }
 
-    // Q5 mandatory
+    // Q5 mandatory — only the reference period is supplier-provided. The
+    // reference end is auto-derived in the form (start + 1 year − 1 day).
+    // Validity is no longer collected from the supplier; it is set at PCF
+    // report generation (generation date → +1 year), so it is not required here.
     if (!input.referencePeriodStart) errors.push({ field: "referencePeriodStart", message: "Q5 — reference period start is required" });
     if (!input.referencePeriodEnd) errors.push({ field: "referencePeriodEnd", message: "Q5 — reference period end is required" });
-    if (!input.validityPeriodStart) errors.push({ field: "validityPeriodStart", message: "Q5 — validity period start is required" });
 
     // Q6 + Q7 mandatory
     if (!input.retroOrProspectivePcfType) errors.push({ field: "retroOrProspectivePcfType", message: "Q6 — PCF type is required" });
