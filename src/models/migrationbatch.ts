@@ -3963,6 +3963,32 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             ADD COLUMN IF NOT EXISTS sub_category TEXT,
             ADD COLUMN IF NOT EXISTS group_name TEXT,
             ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+        // --- Widen narrow questionnaire text columns to VARCHAR(100). ---------
+        // These were originally sized for ISO codes (country=8, subdivision=16)
+        // or short enums, but the form lets suppliers type full names (e.g. a
+        // state name > 16 chars) → "value too long for type character varying(16)"
+        // on submit. Runs after the CREATE TABLEs above, so it fixes both the
+        // existing live DB and fresh installs. Idempotent: re-widening to the
+        // same type is a no-op. Widen, never narrow (safe on existing data).
+        `ALTER TABLE sq_q4_sites
+            ALTER COLUMN country TYPE VARCHAR(100),
+            ALTER COLUMN country_subdivision TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q9a_coproducts
+            ALTER COLUMN price_currency TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q10_electricity ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q11_fuels ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q12_process_gases
+            ALTER COLUMN fossil_or_biogenic TYPE VARCHAR(100),
+            ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q13_qc_it_energy ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q14_production_waste ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q16_packaging_materials
+            ALTER COLUMN country TYPE VARCHAR(100),
+            ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q16a_packaging_transport ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q17_packaging_waste ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q19_transport_legs ALTER COLUMN unit TYPE VARCHAR(100);`,
+        `ALTER TABLE sq_q20_biomass_feedstock ALTER COLUMN unit TYPE VARCHAR(100);`,
         `CREATE INDEX IF NOT EXISTS idx_sq_q8_response_id ON sq_q8_bom (response_id);`,
 
         // Q9a: co-products
