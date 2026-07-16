@@ -74,6 +74,9 @@ async function collectComponent(
     const packaging_value = b?.packaging ?? computed.packagingStage.pcfIncludingBiogenicUptake;
     const waste_value = b?.waste ?? 0;
     const logistic_value = b?.logistics ?? computed.distributionStage.pcfIncludingBiogenicUptake;
+    // Q8b process consumables (auxiliaries) — a SEPARATE line added to the total,
+    // deliberately NOT folded into production_value.
+    const auxiliaries_value = b?.auxiliaries ?? 0;
 
     return withClient(async (client: any) => {
         const main = (
@@ -111,7 +114,7 @@ async function collectComponent(
         return {
             bomId: "", // filled by caller
             material_value, production_value, packaging_value, waste_value, logistic_value,
-            total_pcf_value: material_value + production_value + packaging_value + waste_value + logistic_value,
+            total_pcf_value: material_value + production_value + packaging_value + waste_value + logistic_value + auxiliaries_value,
             main, efByRow, q8, q10, q19,
         };
     });

@@ -136,7 +136,14 @@ export interface QuestionnaireInput {
     sites?: SiteRow[];
     bom?: BomRow[];
     coProducts?: CoProductRow[];
+    // Q8b — process consumable materials (auxiliaries) used in production, not in
+    // the BOM. Emission = mass-allocated per component × EF, added to the total.
+    processConsumables?: ProcessConsumableRow[];
     electricity?: ElectricityRow[];
+    // Q10a (per-product factory weight) + Q10b (per-product units). Summed Q10a
+    // = factory total weight (allocation denominator); Q10b = units per product.
+    factoryProductWeights?: FactoryProductWeightRow[];
+    factoryProductUnits?: FactoryProductUnitRow[];
     fuels?: FuelRow[];
     processGases?: ProcessGasRow[];
     qcItEnergy?: QcItRow[];
@@ -151,7 +158,10 @@ export interface QuestionnaireInput {
 export interface SiteRow { siteName?: string; siteAddress?: string; region?: string; country?: string; countrySubdivision?: string; isPrimary?: boolean; notes?: string; }
 export interface BomRow { productIdOrMpn?: string; componentName?: string; material?: string; subCategory?: string; materialGroup?: string; specificType?: string; process?: string; massPct?: number; carbonPct?: number; biogenicYN?: boolean; biogenicCarbonPct?: number; recycledYN?: boolean; recycledCarbonPct?: number; }
 export interface CoProductRow { mpn?: string; componentName?: string; coProductName?: string; coProductPrice?: number; priceCurrency?: string; isPrimaryProduct?: boolean; }
-export interface ElectricityRow { electricityType?: string; generatorType?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; quantity?: number; unit?: string; renewablePct?: number; renewableSourcing?: string; infrastructureEmissionsIncluded?: boolean; }
+export interface ElectricityRow { electricityType?: string; generatorType?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; geography?: string; quantity?: number; unit?: string; renewablePct?: number; renewableSourcing?: string; infrastructureEmissionsIncluded?: boolean; }
+export interface FactoryProductWeightRow { mpn?: string; totalWeightKg?: number; }
+export interface FactoryProductUnitRow { mpn?: string; unitsProduced?: number; }
+export interface ProcessConsumableRow { mpn?: string; consumableMaterial?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; totalQuantity?: number; unit?: string; }
 export interface FuelRow { fuelCarrier?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; quantity?: number; unit?: string; biogenicYN?: boolean; }
 export interface ProcessGasRow { directProcessGas?: string; quantity?: number; unit?: string; fossilOrBiogenic?: string; }
 export interface QcItRow { item?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; value?: number; unit?: string; alreadyInQ10?: boolean; }
@@ -412,13 +422,36 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
             await replaceChildTable(client, "sq_q10_electricity", responseId, input.electricity ?? [], (row, i) => [
                 row.electricityType ?? null, row.generatorType ?? null,
                 row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
+                row.geography ?? null,
                 row.quantity ?? null, row.unit ?? null,
                 row.renewablePct ?? null, row.renewableSourcing ?? null, row.infrastructureEmissionsIncluded ?? null, i,
             ], [
                 "electricity_type", "generator_type",
                 "category", "sub_category", "group_name", "specific_type",
+                "geography",
                 "quantity", "unit",
                 "renewable_pct", "renewable_sourcing", "infrastructure_emissions_included", "row_order",
+            ]);
+
+            // Q10a — per-product total weight produced at the factory (summed →
+            // allocation denominator). Q10b — units produced per product.
+            await replaceChildTable(client, "sq_q10a_factory_weights", responseId, input.factoryProductWeights ?? [], (row, i) => [
+                row.mpn ?? null, row.totalWeightKg ?? null, i,
+            ], ["mpn", "total_weight_kg", "row_order"]);
+
+            await replaceChildTable(client, "sq_q10b_factory_units", responseId, input.factoryProductUnits ?? [], (row, i) => [
+                row.mpn ?? null, row.unitsProduced ?? null, i,
+            ], ["mpn", "units_produced", "row_order"]);
+
+            // Q8b — process consumable materials (auxiliaries).
+            await replaceChildTable(client, "sq_q8b_process_consumables", responseId, input.processConsumables ?? [], (row, i) => [
+                row.mpn ?? null, row.consumableMaterial ?? null,
+                row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
+                row.totalQuantity ?? null, row.unit ?? null, i,
+            ], [
+                "mpn", "consumable_material",
+                "category", "sub_category", "group_name", "specific_type",
+                "total_quantity", "unit", "row_order",
             ]);
 
             await replaceChildTable(client, "sq_q11_fuels", responseId, input.fuels ?? [], (row, i) => [
@@ -650,9 +683,21 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
             electricity: (await loadChild("sq_q10_electricity")).map((r) => ({
                 electricityType: r.electricity_type, generatorType: r.generator_type,
                 category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
+                geography: r.geography,
                 quantity: numOrUndef(r.quantity), unit: r.unit,
                 renewablePct: numOrUndef(r.renewable_pct), renewableSourcing: r.renewable_sourcing,
                 infrastructureEmissionsIncluded: r.infrastructure_emissions_included,
+            })),
+            factoryProductWeights: (await loadChild("sq_q10a_factory_weights")).map((r) => ({
+                mpn: r.mpn, totalWeightKg: numOrUndef(r.total_weight_kg),
+            })),
+            factoryProductUnits: (await loadChild("sq_q10b_factory_units")).map((r) => ({
+                mpn: r.mpn, unitsProduced: numOrUndef(r.units_produced),
+            })),
+            processConsumables: (await loadChild("sq_q8b_process_consumables")).map((r) => ({
+                mpn: r.mpn, consumableMaterial: r.consumable_material,
+                category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
+                totalQuantity: numOrUndef(r.total_quantity), unit: r.unit,
             })),
             fuels: (await loadChild("sq_q11_fuels")).map((r) => ({
                 fuelCarrier: r.fuel_carrier,
