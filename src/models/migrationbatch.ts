@@ -3938,7 +3938,8 @@ ADD COLUMN IF NOT EXISTS ef_code VARCHAR(255);
             ADD COLUMN IF NOT EXISTS category TEXT,
             ADD COLUMN IF NOT EXISTS sub_category TEXT,
             ADD COLUMN IF NOT EXISTS group_name TEXT,
-            ADD COLUMN IF NOT EXISTS specific_type TEXT;`,
+            ADD COLUMN IF NOT EXISTS specific_type TEXT,
+            ADD COLUMN IF NOT EXISTS geography TEXT;`,
         `ALTER TABLE sq_q14_production_waste
             ADD COLUMN IF NOT EXISTS category TEXT,
             ADD COLUMN IF NOT EXISTS sub_category TEXT,

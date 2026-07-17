@@ -164,7 +164,7 @@ export interface FactoryProductUnitRow { mpn?: string; unitsProduced?: number; }
 export interface ProcessConsumableRow { mpn?: string; consumableMaterial?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; totalQuantity?: number; unit?: string; }
 export interface FuelRow { fuelCarrier?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; quantity?: number; unit?: string; biogenicYN?: boolean; }
 export interface ProcessGasRow { directProcessGas?: string; quantity?: number; unit?: string; fossilOrBiogenic?: string; }
-export interface QcItRow { item?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; value?: number; unit?: string; alreadyInQ10?: boolean; }
+export interface QcItRow { item?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; geography?: string; value?: number; unit?: string; alreadyInQ10?: boolean; }
 export interface WasteRow { productIdOrMpn?: string; componentName?: string; wasteType?: string; treatmentType?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; quantity?: number; unit?: string; energyRecovered?: boolean; polluterPaysApplied?: boolean; }
 export interface PackagingMaterialRow { productIdOrMpn?: string; componentName?: string; packagingType?: string; processType?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; packagingWeight?: number; unit?: string; region?: string; country?: string; recycledPct?: number; carbonBiogenicPct?: number; }
 export interface PackagingTransportRow { packagingProductIdOrMpn?: string; componentName?: string; transportMode?: string; category?: string; subCategory?: string; materialGroup?: string; specificType?: string; weight?: number; unit?: string; distanceKm?: number; }
@@ -467,8 +467,9 @@ export async function saveQuestionnaire(input: QuestionnaireInput): Promise<Save
             await replaceChildTable(client, "sq_q13_qc_it_energy", responseId, input.qcItEnergy ?? [], (row, i) => [
                 row.item ?? null,
                 row.category ?? null, row.subCategory ?? null, row.materialGroup ?? null, row.specificType ?? null,
+                row.geography ?? null,
                 row.value ?? null, row.unit ?? null, row.alreadyInQ10 ?? false, i,
-            ], ["item", "category", "sub_category", "group_name", "specific_type", "value", "unit", "already_in_q10", "row_order"]);
+            ], ["item", "category", "sub_category", "group_name", "specific_type", "geography", "value", "unit", "already_in_q10", "row_order"]);
 
             await replaceChildTable(client, "sq_q14_production_waste", responseId, input.productionWaste ?? [], (row, i) => [
                 row.productIdOrMpn ?? null, row.componentName ?? null, row.wasteType ?? null, row.treatmentType ?? null,
@@ -712,6 +713,7 @@ export async function loadQuestionnaire(responseId: string): Promise<Questionnai
             qcItEnergy: (await loadChild("sq_q13_qc_it_energy")).map((r) => ({
                 item: r.item,
                 category: r.category, subCategory: r.sub_category, materialGroup: r.group_name, specificType: r.specific_type,
+                geography: r.geography,
                 value: numOrUndef(r.value), unit: r.unit, alreadyInQ10: r.already_in_q10,
             })),
             productionWaste: (await loadChild("sq_q14_production_waste")).map((r) => ({
