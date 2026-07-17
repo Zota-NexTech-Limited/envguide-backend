@@ -59,13 +59,10 @@ export interface ComputedFields {
     // waste = Q14 + Q17, logistics = distribution stage. Sums to the grand total.
     breakdown: {
         materials: number;
-        production: number;
+        production: number; // includes Q8b process consumables (auxiliaries)
         packaging: number;
         waste: number;
         logistics: number;
-        // Q8b process consumables (auxiliaries) — a SEPARATE line added to the PCF
-        // total, deliberately NOT folded into the production bucket.
-        auxiliaries: number;
     };
 }
 
@@ -272,9 +269,14 @@ export async function computePcfFields(responseId: string): Promise<ComputedFiel
     // Verification & certification shares from Q27.
     const verificationShares = computeVerificationShares(data);
 
-    // Q8b process consumables (auxiliaries) — computed SEPARATELY (outside the
-    // production stage) and added to the grand total.
+    // Q8b process consumables (auxiliaries) — consumed during manufacturing, so
+    // they are folded INTO the production stage (per the team's confirmation).
+    // Added to the production stage's fossil + PCF totals so they flow through the
+    // production bucket and the grand total automatically.
     const auxiliariesEmission = await computeAuxiliariesEmission(data, responseId);
+    productionStage.fossilGhgEmissions = round6(productionStage.fossilGhgEmissions + auxiliariesEmission);
+    productionStage.pcfExcludingBiogenicUptake = round6(productionStage.pcfExcludingBiogenicUptake + auxiliariesEmission);
+    productionStage.pcfIncludingBiogenicUptake = round6(productionStage.pcfIncludingBiogenicUptake + auxiliariesEmission);
 
     // Legacy 5-bucket breakdown (Materials / Production / Packaging / Waste /
     // Logistics) for the PCF Results view. Derived from the v9 stages so the five
@@ -290,7 +292,6 @@ export async function computePcfFields(responseId: string): Promise<ComputedFiel
         packaging: round6(packagingStage.pcfIncludingBiogenicUptake - pkgWasteSub),
         waste: round6(prodWasteSub + pkgWasteSub),
         logistics: round6(distributionStage.pcfIncludingBiogenicUptake),
-        auxiliaries: round6(auxiliariesEmission),
     };
 
     // Drop the internal sub-totals so they don't persist as bogus v9 fields.
@@ -314,16 +315,14 @@ export async function computePcfFields(responseId: string): Promise<ComputedFiel
     const grandExcl = round6(
         productionStage.pcfExcludingBiogenicUptake +
         packagingStage.pcfExcludingBiogenicUptake +
-        distributionStage.pcfExcludingBiogenicUptake +
-        auxiliariesEmission
+        distributionStage.pcfExcludingBiogenicUptake
     );
     const grandIncl = round6(
         productionStage.pcfIncludingBiogenicUptake +
         packagingStage.pcfIncludingBiogenicUptake +
-        distributionStage.pcfIncludingBiogenicUptake +
-        auxiliariesEmission
+        distributionStage.pcfIncludingBiogenicUptake
     );
-    dbg(`  auxiliaries (Q8b, separate) = ${round6(auxiliariesEmission)}`);
+    dbg(`  auxiliaries (Q8b) = ${round6(auxiliariesEmission)}  (folded into production above)`);
     dbg(`  ─────────────────────────────────────────────`);
     dbg(`  TOTAL PCF  excl biogenic uptake = ${grandExcl} kgCO2e`);
     dbg(`  TOTAL PCF  incl biogenic uptake = ${grandIncl} kgCO2e`);
@@ -438,8 +437,8 @@ function computeAllocationFactor(data: SupplierData): number {
 //   ② per component          = ① ÷ units   ==  (component_weight × quantity) ÷ factory_weight
 //      (units cancel — same as electricity)
 //   emission = ② × EF   (EF from the row's 4-level cascade; NO geography)
-// Summed across every Q8b row → added to the PCF TOTAL as a SEPARATE line
-// (deliberately NOT inside the production stage, per the methodology).
+// Summed across every Q8b row → folded INTO the production stage (consumed during
+// manufacturing), so it flows through the production bucket and the grand total.
 // ============================================================
 async function computeAuxiliariesEmission(data: SupplierData, responseId: string): Promise<number> {
     const rows = data.q8b_process_consumables ?? [];
@@ -472,7 +471,7 @@ async function computeAuxiliariesEmission(data: SupplierData, responseId: string
         total += contrib;
         dbg(`   [Q8b] ${row.consumable_material || row.specific_type}: qty=${quantity}  perComp=(${productMass}×${quantity})/${factoryWeight}=${perComponent.toFixed(6)} × EF ${ef_} = ${contrib.toFixed(6)}`);
     }
-    dbg(`   [Q8b] auxiliaries TOTAL = ${round6(total)} kgCO2e (added SEPARATELY to the PCF total, not production)`);
+    dbg(`   [Q8b] auxiliaries TOTAL = ${round6(total)} kgCO2e (folded into the production stage)`);
     return round6(total);
 }
 
@@ -715,6 +714,7 @@ async function computeProductionStage(
             activityType: "energy",
             material: row.item,
             category: row.category, subCategory: row.sub_category, group: row.group_name, specificType: row.specific_type,
+            geography: row.geography, // 5th cascade pin (Q13) → exact country EF, same as Q10
             country, region,
             unit: row.unit, unitKind: "energy",
             year,
